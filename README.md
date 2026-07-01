@@ -1,7 +1,7 @@
 # MVLAD-AD: Efficient and Explainable End-to-End Autonomous Driving via Masked Vision-Language-Action Diffusion
 
 [![arXiv](https://img.shields.io/badge/arXiv-2602.20577-b31b1b.svg)](https://arxiv.org/abs/2602.20577)
-![IROS2026](https://img.shields.io/badge/IROS2026-f5c74e.svg)
+[![IROS2026](https://img.shields.io/badge/IROS2026-f5c74e.svg)](https://2026.ieee-iros.org)
 
 This repository provides the official implementation of **MVLAD-AD** (Masked Vision-Language-Action Diffusion for Autonomous Driving), proposed in our paper *Efficient and Explainable End-to-End Autonomous Driving via Masked Vision-Language-Action Diffusion*. MVLAD-AD is a unified, non-autoregressive framework that casts end-to-end driving as conditional masked generative modeling, jointly producing future trajectories and natural-language explanations within a single bidirectional diffusion process.
 
