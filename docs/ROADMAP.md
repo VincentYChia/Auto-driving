@@ -1,5 +1,7 @@
 # Research roadmap: extending MVLAD-AD
 
+> **Source of truth for what we claim and why:** `docs/RESEARCH_DIRECTION.md` covers the claims, the novelty check, the edge-compute budget and open decisions. This file is the work plan; where the two disagree, `RESEARCH_DIRECTION.md` wins.
+
 What stays the same throughout:
 - **Training data:** the nuScenes planning and Nu-X JSONs, kept as pre-training and auxiliary data.
 - **The motion head:** a masked-diffusion head with restricted outputs, so it can only produce valid path tokens.
@@ -28,7 +30,14 @@ Known problems to fix before starting:
 - **Hardcoded 10-token horizon:** `inference/run_inference.py:55,68,79`, `train/llava/model/language_model/modeling_llada.py:1446,1763,2016`, `train/llava/train/train.py:854`.
 - **Hardcoded LLaDA IDs:** mask ID `126336`; blocked special tokens `126080/126081/126346/126347`; the `<= 126080` assert in `tokenizer/find_unused_tokens.py`.
 - **Rank mismatch:** the shipped adapter config says LoRA rank 64 / alpha 16, but the scripts say rank 256.
-- **Dependencies:** `train/requirements.txt` pins `transformers==4.40.0.dev0`, which isn't installable from pip, and is missing `nuscenes-devkit`, `python-dotenv` and `pyquaternion`.
+- **Dependencies:** `train/requirements.txt` pins `transformers==4.40.0.dev0`, which isn't installable from pip, and is missing `nuscenes-devkit`, `python-dotenv` and `pyquaternion`. The weights' configs record `transformers` 4.39.3.
+- **Weights are not downloadable from this fork.**
+  - Git LFS returns 404 for the adapters and `tokenizer_model.pth`; the files in the repo are pointer stubs.
+  - The official repo `lan-qing/MVLAD-AD` (same commit) also uses LFS. Fetch from it on a local machine or ask the authors, or retrain the baseline.
+- **Train/inference prompt mismatch (planning task):**
+  - `train.py` rewrites the instruction to "...in the action token format:"; `run_inference.py` does not.
+  - Fix: apply the same replacement at inference.
+- **Image tokens:** the shipped config (`anyres_max_4`) gives roughly **3.6k image tokens** for a 1600×900 front frame (from reading `llava_arch.py` ~L456–490; not measured). This is not viable on edge hardware (see `RESEARCH_DIRECTION.md` §2.3).
 
 ---
 
@@ -65,6 +74,14 @@ Shortlist, from the earlier analysis:
 - **E. Whole-path vocabulary:** about 4k–8k candidate paths, built by K-means over whole trajectories (as in VADv2 / Hydra-MDP); one token = one path.
   - Fits NAVSIM's scoring well and is smooth by construction, but has no per-waypoint fill-in.
   - Variant worth testing: E for the coarse path, then D for per-waypoint corrections.
+  - **Update 2026-10-16: drop E as a standalone method.** One token per path turns masked diffusion into classification, which Hydra-MDP, GTRS and SparseDriveV2 already do at 8k–16k paths. Keep it only as a coarse anchor level.
+
+**Prior work already scaled vocabulary size:**
+- WAM-Diff: 20,001 numeric tokens.
+- DriveFine: 4,000 position bins + 1,800 heading bins.
+- WAM-Flow: 20,001 metric-aligned tokens.
+
+So this plan is now framed as **precision per token at a fixed token count** (B, and D inside the denoiser), plus a controlled scaling study. See claim C2 in `RESEARCH_DIRECTION.md` §2.2.
 
 What to compare: L2 at 1/2/3 s on nuScenes; PDMS / EPDMS on NAVSIM (see 3); codebook usage (dead tokens); decoding latency.
 
@@ -75,10 +92,11 @@ Also try per-timestep codebooks. `tokenizer/points_xy_{1,2,3}s.npy` already exis
 1. **Agent wrapper:** implement a NAVSIM agent that turns its inputs into a prompt (front camera, ego status, driving command) and outputs a `Trajectory` with 8 poses at 0.5 s (4 s).
    - Heading = direction between consecutive waypoints.
    - Run the model as a separate process or local server, because NAVSIM's environment and this repo's dependencies conflict.
-2. **Zero-shot baseline** with the shipped nuScenes weights. Expect a low score; this mainly validates the plumbing.
+2. **Zero-shot baseline** with the shipped nuScenes weights. Expect a low score; this mainly validates the plumbing. Blocked until the weights are obtained (see Known problems).
 3. **navtrain → JSON converter,** reusing the `gen_data_planning.py` format.
    - Add the driving command and velocity/acceleration to the prompt.
-   - Use NAVSIM's history: 4 frames / 2 s, not 10.
+   - Use NAVSIM's history: 4 frames at 2 Hz, not 10. NAVSIM calls this "2 s", but the frames span 1.5 s.
+   - Primary metric: **navhard two-stage EPDMS (v2)**. NAVSIM v1 is saturated (see `RESEARCH_DIRECTION.md` §2.6).
 4. **Rebuild the codebook(s)** from navtrain paths, for flat A/B, or E.
 5. **Training plan:** Stage 1 on nuScenes (optional), then Stage 1 on navtrain with A, then with B. Optionally add Nu-X as an auxiliary task.
 6. **Optional preference tuning:** sample K paths per scene, rank them with the PDM score, and train with DPO (`train/llava/train/train_dpo.py` exists).
@@ -87,9 +105,15 @@ Related work to compare against (reported numbers, not verified here):
 - **DriveFine:** a masked-diffusion VLA on NAVSIM; reportedly 90.7 PDMS, 91.8 after RL.
 - **ReCogDrive:** InternVL3-8B + diffusion planner; 89.6 PDMS.
 
-### 4. Cheaper motion context than multiple images (if context length becomes a problem)
+### 4. Object-motion context instead of multiple images (now core claim C1)
 
 **Idea:** keep a single high-resolution current frame, and summarise the past with a lightweight perception module that outputs compact tokens.
+
+**Update 2026-10-16:**
+- This is now the core claim C1, no longer a fallback. See `RESEARCH_DIRECTION.md` §2.2.
+- **Primary tracker:** LiDAR 3D (CenterPoint / PointPillars) + a greedy tracker at 2 Hz. YOLO 2D is a fallback only.
+- **Always produce two versions of the motion tokens:** from ground-truth tracks (upper bound / teacher) and from the deployable tracker (realistic).
+- **Report** NC/TTC sub-scores and a robustness curve against tracker quality.
 
 - **Detector + tracker:** YOLO (v8/11, n/s/m) + ByteTrack / BoT-SORT over the 4 past frames. Per object: class, box, image-space velocity → a few dozen tokens in total, as text or a learned embedding.
 - **Ego motion:** already provided by NAVSIM's ego status. It doesn't need vision.
@@ -100,14 +124,41 @@ Related work to compare against (reported numbers, not verified here):
 - **Fallback that still uses images:** multiple frames with spatial pooling (`mm_spatial_pool_stride`) or the Q-Former / perceiver resamplers in `train/llava/model/multimodal_resampler/`.
 - **Comparison:** 1 frame vs 1 frame + tracks vs 4 pooled frames, at matched token budget.
 
+### 5. Prompt engineering (supporting)
+- **Fix MVLAD-AD's prompts first:**
+  - The train/inference wording mismatch.
+  - It claims an image sequence and a rationale that aren't provided.
+  - It spends ~200 tokens on 2-decimal history coordinates.
+  - It omits velocity, acceleration and the driving command (WAM-Diff includes them).
+- **Ablations:**
+  - Coordinate format and precision.
+  - Structured fields vs prose.
+  - System prompt.
+  - Few-shot examples.
+  - Prompt length vs latency.
+- Run every ablation **with and without ego status** (the AD-MLP shortcut), on NAVSIM v2.
+- **No chain-of-thought in the fast pilot:** ~8 ms per reasoning token on Thor at 2B.
+
+### 6. Quantization (supporting, but required for the edge claim)
+- **Thor:** NVFP4 backbone, FP8 for sensitive layers. Keep the action-head attention ≥ FP8.
+- **Orin:** INT4-AWQ (W4A16) or INT8; Orin has no FP8/FP4.
+- **Diffusion-specific:** calibrate across denoising timesteps and mask ratios, because diffusion LMs accumulate quantization error across steps.
+- **Measure:** accuracy change (PDMS/EPDMS, L2) and on-device latency per component, on a physical Jetson.
+
 ---
 
 ## Compute breakdown, per component
 
+> This section covers **training and evaluation on GPUs** (Anvil).
+>
+> **On-vehicle (edge) budgets** are in `RESEARCH_DIRECTION.md` §2.3, using NVIDIA's measured Jetson Thor/Orin numbers.
+>
+> **Correction 2026-10-16:** the shipped config produces ~3.6k image tokens per frame, not ~1.1k total. LLM-side figures below that assumed ~1.1k-token sequences are about **3× too low** for the current config. Switching to a single 384×384 view (729 tokens) restores them.
+
 ### Reference numbers
 - **LLaDA-V language model:** ~8B parameters → **~16 GB** of weights in bf16.
-- **SigLIP2-so400m:** ~0.4B parameters → **~0.8 GB**. One 384-pixel image becomes **729 visual tokens**. With `anyres_max_4` tiling, a single image can become several times more.
-- **Typical prompt today:** ~729–3k image tokens + ~300 text tokens + 10 path tokens (+118 explanation tokens for Nu-X).
+- **SigLIP2-so400m:** ~0.4B parameters → **~0.8 GB**. One 384-pixel image becomes **729 visual tokens**. With `anyres_max_4` tiling, a 1600×900 front frame becomes **~3.6k** (729 overview + ≤~2.9k tiles + row-newline tokens; from code reading).
+- **Typical prompt today:** ~3.6k image tokens + ~300 text tokens + 10 path tokens (+118 explanation tokens for Nu-X).
 - **One forward pass costs** ≈ 2 × params × sequence length FLOPs. **Diffusion decoding repeats the full forward pass every step**, with no KV cache by default. dLLM-Cache reduces this.
 
 ### A. NAVSIM itself (data + scoring; no model)
