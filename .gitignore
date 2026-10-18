@@ -16,3 +16,10 @@ wandb/
 
 # Env
 .env
+
+# Local machine settings for the Anvil job scripts
+scripts/anvil/config.local.sh
+
+# Partial weight downloads, test caches
+*.download
+.pytest_cache/

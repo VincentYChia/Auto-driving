@@ -80,18 +80,11 @@ def generate_explanation(model, tokenizer, input_ids, image_tensor, image_size,
     return tokenizer.decode(explanation_ids, skip_special_tokens=True)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--task", required=True, choices=list(CONFIGS.keys()),
-                        help="planning | nux")
-    parser.add_argument("--max_samples", type=int, default=None,
-                        help="Optional cap on number of evaluated samples.")
-    args = parser.parse_args()
+def load_mvlad(config):
+    """Load the base model, merge the LoRA adapter and install the action-token embeddings.
 
-    config = CONFIGS[args.task]
-    two_stage = args.task == "nux"
-    warnings.filterwarnings("ignore")
-
+    Returns ``(tokenizer, model, image_processor, point_tokenizer, ids_tensor)``.
+    """
     # Load base model + merge LoRA adapter.
     tokenizer, model, image_processor, _ = load_pretrained_model(
         config.pretrained, None, config.model_name,
@@ -119,6 +112,47 @@ def main():
     point_tokenizer = load_point_tokenizer(weights_file)
     ids_tensor = torch.from_numpy(np.load(config.unused_token_ids_path)).to(config.device)
     model.eval()
+    return tokenizer, model, image_processor, point_tokenizer, ids_tensor
+
+
+def prepare_inputs(data_sample, tokenizer, image_processor, model, config):
+    """Build ``(input_ids, image_tensor, image_size)`` for one sample and reset the dLLM cache."""
+    image = Image.open(data_sample["image"])
+    image_tensor = process_images([image], image_processor, model.config)
+    image_tensor = [t.to(dtype=torch.float16, device=config.device) for t in image_tensor]
+
+    question = data_sample["conversations"][0]["value"]
+    conv = copy.deepcopy(conv_templates[config.conv_template])
+    conv.append_message(conv.roles[0], question)
+    conv.append_message(conv.roles[1], None)
+    prompt_question = conv.get_prompt()
+    input_ids = tokenizer_image_token(
+        prompt_question, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+    ).unsqueeze(0).to(config.device)
+
+    if config.use_cache:
+        dLLMCache.new_instance(**asdict(dLLMCacheConfig(
+            prompt_interval_steps=config.prompt_interval_steps,
+            gen_interval_steps=config.gen_interval_steps,
+            transfer_ratio=config.transfer_ratio,
+        )))
+        register_cache_LLaDA_V(model, "model.layers")
+    return input_ids, image_tensor, image.size
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task", required=True, choices=list(CONFIGS.keys()),
+                        help="planning | nux")
+    parser.add_argument("--max_samples", type=int, default=None,
+                        help="Optional cap on number of evaluated samples.")
+    args = parser.parse_args()
+
+    config = CONFIGS[args.task]
+    two_stage = args.task == "nux"
+    warnings.filterwarnings("ignore")
+
+    tokenizer, model, image_processor, point_tokenizer, ids_tensor = load_mvlad(config)
 
     with open(config.data_path, "r") as f:
         data_val = json.load(f)
@@ -130,38 +164,20 @@ def main():
 
     for sample_idx in range(num_samples):
         data_sample = data_val[sample_idx]
-        image = Image.open(data_sample["image"])
-        image_tensor = process_images([image], image_processor, model.config)
-        image_tensor = [t.to(dtype=torch.float16, device=config.device) for t in image_tensor]
-
-        question = data_sample["conversations"][0]["value"]
         gt_text = data_sample["conversations"][1]["value"]
-
-        conv = copy.deepcopy(conv_templates[config.conv_template])
-        conv.append_message(conv.roles[0], question)
-        conv.append_message(conv.roles[1], None)
-        prompt_question = conv.get_prompt()
-        input_ids = tokenizer_image_token(
-            prompt_question, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
-        ).unsqueeze(0).to(config.device)
-
-        if config.use_cache:
-            dLLMCache.new_instance(**asdict(dLLMCacheConfig(
-                prompt_interval_steps=config.prompt_interval_steps,
-                gen_interval_steps=config.gen_interval_steps,
-                transfer_ratio=config.transfer_ratio,
-            )))
-            register_cache_LLaDA_V(model, "model.layers")
+        input_ids, image_tensor, image_size = prepare_inputs(
+            data_sample, tokenizer, image_processor, model, config
+        )
 
         start_time = time.time()
         points_ids, recovered_points = generate_planning(
-            model, tokenizer, input_ids, image_tensor, image.size,
+            model, tokenizer, input_ids, image_tensor, image_size,
             point_tokenizer, ids_tensor, config,
         )
         explanation = ""
         if two_stage:
             explanation = generate_explanation(
-                model, tokenizer, input_ids, image_tensor, image.size,
+                model, tokenizer, input_ids, image_tensor, image_size,
                 points_ids, config,
             )
         total_time += time.time() - start_time
