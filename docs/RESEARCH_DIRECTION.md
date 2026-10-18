@@ -130,7 +130,7 @@ This ties to claim 3 because **latency scales with tokens × steps, not vocabula
 
 | Codebook | Mean error at 1 s | Notes |
 |---|---|---|
-| 256 centres | 0.08–0.81 m | Depends on the clustering weights; the repo's code uses the weighting that gives ~0.8 m. Exact figure unknown: the real codebook is in the missing Git LFS weights |
+| **256 centres (shipped, measured 2026-10-18, V)** | **0.54 m** (median 0.35, p95 1.39); 0.56 m at 2 s; 0.61 m at 3 s | The real `tokenizer_model.pth` from the official repo, checked against the shipped 1/2/3 s nuScenes waypoints. Centres span x −1.4…54.6 m and y −10.1…11.7 m, so farther waypoints are clipped. Only 52 of 256 centres lie within 10 m of the car |
 | 1,024 centres (shipped) | ≈0.05 m | |
 | 2,048 centres (shipped) | ≈0.04 m | |
 | Separate-axis designs | ≤0.005–0.025 m per coordinate | |
@@ -296,10 +296,7 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 - **Never train on navtest / navhard / warmup** (NAVSIM rule).
 
 ### 2.9 Risks and blockers
-- **MVLAD-AD weights are not downloadable from this fork.**
-  - Git LFS returns 404 for `VincentYChia/Auto-driving`.
-  - The official repo (`lan-qing/MVLAD-AD`) has the identical commit and also uses LFS, but this cloud session cannot fetch LFS anonymously.
-  - Fix: try `git lfs` against the official remote on a local machine, or ask the authors; otherwise retrain the baseline (≈9 h per stage on 4×H100, per the README).
+- **MVLAD-AD weights:** resolved 2026-10-18. The fork's Git LFS store returns 404, but the official repo's media URLs serve every object, with sizes and sha256 matching the pointers (V). `scripts/download_mvlad_weights.sh` fetches and verifies them.
 - **Claim 3 needs physical hardware:** a Jetson AGX Thor dev kit (DRIVE Thor proxy), ideally plus a Jetson AGX Orin.
 - **Data scale gap:** AUGUstus's 94.6 PDMS used 512 H800 GPUs, 318K h of video and 513B tokens (V). Our results must be framed as controlled comparisons, not leaderboard chasing.
 - Several NAVSIM and architecture numbers are self-reported (R), and the official leaderboards were unreachable from this environment.
@@ -334,3 +331,6 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 |---|---|---|
 | 2026-10-16 | Initial direction recorded (system, claims 1–3, supporting 4–6, next step = dataset + schema). Qwen3.5 = fast pilot, Gemma 4 = slow reasoner. Prompt engineering and quantization added as work packages. | agreed |
 | 2026-10-16 | Research assessment added (§2). Proposed: reframe claims as C1–C3 under the token-budget thesis; quantization mandatory; on-device size limits; drop whole-trajectory vocabularies as standalone; navhard EPDMS primary; separate light diffusion head; open decisions listed in §3. | proposed |
+| 2026-10-18 | Researcher chose the first work items: (1) a quick MVLAD-AD baseline on NAVSIM; (2) start the training data for the Qwen pilot and Gemma reasoner. The §3 decisions are still unanswered. | agreed |
+| 2026-10-18 | Built the NAVSIM bridge (`navsim_tools/`, `inference/predict_navsim.py`), the data pipeline (`data_pipeline/`, schema v0.1 in `docs/DATASET_SCHEMA.md`), Anvil job scripts (`scripts/anvil/`) and the runbook (`docs/RUNBOOK_NAVSIM.md`). The Python tests pass against the real NAVSIM v1.1 and v2 devkits on synthetic logs. GPU inference and the Slurm scripts are not yet run on Anvil. | done |
+| 2026-10-18 | Measured MVLAD-AD's shipped 256-token codebook: 0.54 m mean rounding error at 1 s; centres stop at 54.6 m ahead (§2.2). | done |

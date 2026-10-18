@@ -31,9 +31,7 @@ Known problems to fix before starting:
 - **Hardcoded LLaDA IDs:** mask ID `126336`; blocked special tokens `126080/126081/126346/126347`; the `<= 126080` assert in `tokenizer/find_unused_tokens.py`.
 - **Rank mismatch:** the shipped adapter config says LoRA rank 64 / alpha 16, but the scripts say rank 256.
 - **Dependencies:** `train/requirements.txt` pins `transformers==4.40.0.dev0`, which isn't installable from pip, and is missing `nuscenes-devkit`, `python-dotenv` and `pyquaternion`. The weights' configs record `transformers` 4.39.3.
-- **Weights are not downloadable from this fork.**
-  - Git LFS returns 404 for the adapters and `tokenizer_model.pth`; the files in the repo are pointer stubs.
-  - The official repo `lan-qing/MVLAD-AD` (same commit) also uses LFS. Fetch from it on a local machine or ask the authors, or retrain the baseline.
+- **Weights are not in this fork's LFS store** (404; the files are pointer stubs). Fixed by `scripts/download_mvlad_weights.sh`, which fetches them from the official repo `lan-qing/MVLAD-AD` and verifies each sha256 against its pointer.
 - **Train/inference prompt mismatch (planning task):**
   - `train.py` rewrites the instruction to "...in the action token format:"; `run_inference.py` does not.
   - Fix: apply the same replacement at inference.
@@ -42,6 +40,12 @@ Known problems to fix before starting:
 ---
 
 ## Plan
+
+**Status 2026-10-18:**
+- **NAVSIM bridge** for the MVLAD-AD baseline is built: export → inference → replay agent → PDM score. Code in `navsim_tools/` and `inference/predict_navsim.py`; steps in `docs/RUNBOOK_NAVSIM.md`.
+- **Training-data pipeline v0.1** is built: navtrain → canonical samples → pilot/reasoner views → teacher labels. Code in `data_pipeline/`; format in `docs/DATASET_SCHEMA.md`.
+- **Tests** (`tests/`) pass against the real NAVSIM v1.1 and v2 devkits on synthetic logs.
+- **Next:** run both tracks on Anvil.
 
 ### Step 0: Groundwork (do first; everything else depends on it)
 - Make the path length a config value (`num_action_tokens`) instead of hardcoding 10.
