@@ -1,4 +1,9 @@
-# Dataset schema v0.1 [proposed]
+# Prototype schema v0.1 (superseded once the v1 design is agreed)
+
+> **Status:** this was an exploratory prototype, not the training-data foundation. It has only been run on synthetic logs.
+> - Its known limitations are listed in `README.md` §3 (L1–L8).
+> - The decisions that will replace it are in `README.md` §5.
+> - Kept for reference: much of the geometry and the view ideas are expected to carry into v1.
 
 Training data for the fast pilot (Qwen3.5) and the slow reasoner (Gemma 4) is stored in one canonical format. Model inputs are derived from it.
 
@@ -114,10 +119,5 @@ Teacher replies are stored one per line:
 - **Hindsight labelling:** the teacher sees the recorded future so its reasoning explains what the driver actually did. It is told not to mention that future.
 - **Parse failures:** rows whose reply didn't parse keep `raw` and are skipped when views are built.
 
-## Open decisions [open]
-1. **Object filter:** keep objects within 100 m in the record; show the nearest 12 dynamic objects within 60 m in prompts?
-2. **Motion-text format:** precision, fields, ordering. This is part of the prompt-engineering work package.
-3. **Teacher model** for reasoning labels, and its licence for training use.
-4. **nuScenes + Nu-X:** add a nuScenes converter to this same schema, for MVLAD-AD comparability and human-written reasoning?
-5. **Tracker-derived tracks** for C1: detector + tracker choice, then the same `agents` block with a different `source`.
-6. **Synthetic NAVSIM scenes** (navhard-style second stage) as extra training data? Allowed only from training splits.
+## Open decisions
+Moved to `README.md` §5 (D1–D11).

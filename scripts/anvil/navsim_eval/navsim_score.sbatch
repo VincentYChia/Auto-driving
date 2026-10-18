@@ -1,9 +1,9 @@
 #!/bin/bash
 # NAVSIM metric caching and PDM scoring (CPU-bound; uses the cores of one GPU-node slot).
 #
-#   STEP=cache sbatch scripts/anvil/navsim_score.sbatch     # once per split (needs maps + logs)
-#   STEP=cv    sbatch scripts/anvil/navsim_score.sbatch     # sanity check: NAVSIM's constant-velocity agent
-#   STEP=mvlad sbatch scripts/anvil/navsim_score.sbatch     # score MVLAD-AD predictions
+#   STEP=cache sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # once per split (needs maps + logs)
+#   STEP=cv    sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # sanity check: NAVSIM's constant-velocity agent
+#   STEP=mvlad sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # score MVLAD-AD predictions
 #
 # NAVSIM_VERSION=v1 (default) gives PDMS with the v1.1 devkit; v2 gives EPDMS with the main branch.
 #SBATCH --job-name=navsim-score
@@ -36,7 +36,7 @@ cv)
 mvlad)
     python "$SCRIPTS/run_pdm_score.py" train_test_split="$SPLIT" metric_cache_path="$CACHE" "$THREADS" \
         experiment_name="mvlad_${SPLIT}_${NAVSIM_VERSION}" \
-        agent._target_=navsim_tools.precomputed_agent.PrecomputedTrajectoryAgent \
+        agent._target_=navsim_eval.precomputed_agent.PrecomputedTrajectoryAgent \
         +agent.predictions_path="$NAVSIM_EXP_ROOT/mvlad/${SPLIT}_predictions"
     ;;
 *)

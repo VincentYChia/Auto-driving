@@ -274,6 +274,8 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 8. Generate-and-score with sub-score heads plus test-time search (DrivoR / TOAD: +1.7 navhard EPDMS); synthetic data (SimScale: +5 to +8.6 navhard EPDMS) (R).
 
 ### 2.8 What the dataset and schema must support (next step)
+
+> **Update 2026-10-18:** training data is now its own deliberate workstream. `docs/training_data/README.md` is authoritative for its requirements, process and decisions; this section is the original input to it.
 **Source: NAVSIM navtrain** (OpenScene / nuPlan logs). Verified in `navsim/common/dataclasses.py` (V):
 
 | Field | Content |
@@ -334,3 +336,4 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 | 2026-10-18 | Researcher chose the first work items: (1) a quick MVLAD-AD baseline on NAVSIM; (2) start the training data for the Qwen pilot and Gemma reasoner. The §3 decisions are still unanswered. | agreed |
 | 2026-10-18 | Built the NAVSIM bridge (`navsim_tools/`, `inference/predict_navsim.py`), the data pipeline (`data_pipeline/`, schema v0.1 in `docs/DATASET_SCHEMA.md`), Anvil job scripts (`scripts/anvil/`) and the runbook (`docs/RUNBOOK_NAVSIM.md`). The Python tests pass against the real NAVSIM v1.1 and v2 devkits on synthetic logs. GPU inference and the Slurm scripts are not yet run on Anvil. | done |
 | 2026-10-18 | Measured MVLAD-AD's shipped 256-token codebook: 0.54 m mean rounding error at 1 s; centres stop at 54.6 m ahead (§2.2). | done |
+| 2026-10-18 | Researcher: separate the two workstreams. (A) NAVSIM evaluation: deterministic, lower priority. (B) Training data: the foundation for months of research, so do it deliberately. The data code is now **prototype v0.1** (not for experiments); the design process, prototype limitations and open decisions D1–D11 are in `docs/training_data/README.md`. Code, tests, jobs and docs split by workstream (`navsim_eval/`, `data_pipeline/`, shared `navsim_tools/`). | agreed |

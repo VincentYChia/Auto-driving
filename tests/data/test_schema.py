@@ -3,7 +3,7 @@ import json
 import pytest
 
 from data_pipeline import schema
-from tests import synthetic_navsim as syn
+from tests.shared import synthetic_navsim as syn
 
 
 def build(**kw):

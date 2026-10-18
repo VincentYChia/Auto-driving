@@ -1,6 +1,6 @@
 """Canonical sample record (schema v0.1). One JSON object per NAVSIM scene token.
 
-Design rules (see ``docs/DATASET_SCHEMA.md``):
+PROTOTYPE v0.1 (see ``docs/training_data/``). Design rules of the prototype:
 
 * store raw continuous values; tokenization and prompts are derived views;
 * everything is in the current ego frame (NAVSIM local: rear axle, x forward, y left, yaw rad);

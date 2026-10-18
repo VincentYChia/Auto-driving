@@ -41,11 +41,20 @@ Known problems to fix before starting:
 
 ## Plan
 
-**Status 2026-10-18:**
-- **NAVSIM bridge** for the MVLAD-AD baseline is built: export → inference → replay agent → PDM score. Code in `navsim_tools/` and `inference/predict_navsim.py`; steps in `docs/RUNBOOK_NAVSIM.md`.
-- **Training-data pipeline v0.1** is built: navtrain → canonical samples → pilot/reasoner views → teacher labels. Code in `data_pipeline/`; format in `docs/DATASET_SCHEMA.md`.
-- **Tests** (`tests/`) pass against the real NAVSIM v1.1 and v2 devkits on synthetic logs.
-- **Next:** run both tracks on Anvil.
+### Workstreams (separated 2026-10-18)
+
+| | A. NAVSIM evaluation | B. Training data |
+|---|---|---|
+| Purpose | Score models on NAVSIM; first, a quick MVLAD-AD baseline | The foundation for fine-tuning the pilot (Qwen) and the reasoner (Gemma) |
+| Pace | Deterministic; run when convenient | **Deliberate**: design and review before building |
+| Code | `navsim_eval/` | `data_pipeline/` (prototype v0.1 only) |
+| Jobs | `scripts/anvil/navsim_eval/` | `scripts/anvil/data_pipeline/` (guarded: smoke tests only) |
+| Docs | `docs/navsim_eval/RUNBOOK.md` | `docs/training_data/README.md` (process, decisions) |
+| Tests | `tests/eval/` | `tests/data/` |
+| Status | Built; tests pass against the NAVSIM v1.1 and v2 devkits; ready to run on Anvil | **Design phase**: next is P1 requirements, then P2 real-data audit |
+
+- **Shared by both:** read-only NAVSIM access (`navsim_tools/`, `tests/shared/`) and the Anvil config and downloads (`scripts/anvil/*.sh`).
+- **No cross-imports:** neither workstream imports the other.
 
 ### Step 0: Groundwork (do first; everything else depends on it)
 - Make the path length a config value (`num_action_tokens`) instead of hardcoding 10.

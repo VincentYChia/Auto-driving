@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from navsim_tools import raw_frames
-from tests import synthetic_navsim as syn
+from tests.shared import synthetic_navsim as syn
 
 CURRENT = 3  # NAVSIM: 4 history frames -> current index 3
 

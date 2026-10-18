@@ -1,11 +1,11 @@
 """Run the MVLAD-AD planning model on NAVSIM inputs (MVLAD env, one GPU per shard).
 
-Inputs come from ``navsim_tools.export_mvlad_inputs``. Each shard appends one JSON line per
+Inputs come from ``navsim_eval.export_mvlad_inputs``. Each shard appends one JSON line per
 scene to ``<output-dir>/shard_XXX_of_YYY.jsonl``; re-running skips scenes already done, so a
 job that hits the wall-clock limit can simply be resubmitted. Score the results with
-``navsim_tools.precomputed_agent`` in the NAVSIM env.
+``navsim_eval.precomputed_agent`` in the NAVSIM env.
 
-    python inference/predict_navsim.py --inputs navtest_inputs.json --output-dir predictions \
+    python navsim_eval/predict_mvlad.py --inputs navtest_inputs.json --output-dir predictions \
         --shard 0 --num-shards 8
 """
 
@@ -25,7 +25,7 @@ from train.config.nuscene_inference_vla import CONFIGS
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--inputs", required=True, help="JSON written by navsim_tools.export_mvlad_inputs")
+    parser.add_argument("--inputs", required=True, help="JSON written by navsim_eval.export_mvlad_inputs")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--shard", type=int, default=int(os.environ.get("SLURM_ARRAY_TASK_ID", 0)))
     parser.add_argument("--num-shards", type=int, default=1)

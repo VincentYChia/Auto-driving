@@ -4,7 +4,7 @@ Each output record holds the current front-camera image path (CAM_F0) and the pl
 built only from what a NAVSIM agent may see (AgentInput: 4 ego poses, velocity, acceleration,
 driving command). It does not read maps, annotations or future frames.
 
-    python -m navsim_tools.export_mvlad_inputs --split navtest --output $NAVSIM_EXP_ROOT/mvlad/navtest_inputs.json
+    python -m navsim_eval.export_mvlad_inputs --split navtest --output $NAVSIM_EXP_ROOT/mvlad/navtest_inputs.json
 """
 
 from __future__ import annotations
@@ -15,8 +15,9 @@ from pathlib import Path
 
 import numpy as np
 
+from navsim_eval import mvlad_prompt
 from navsim_tools import loader as nav_loader
-from navsim_tools import mvlad_prompt, raw_frames
+from navsim_tools import raw_frames
 
 FRONT_CAMERA = "CAM_F0"
 

@@ -1,7 +1,7 @@
 """NAVSIM agent that replays trajectories predicted offline (run in the NAVSIM env).
 
 MVLAD-AD and NAVSIM need incompatible Python environments, so the model runs separately
-(``inference/predict_navsim.py``) and this agent feeds its saved waypoints to the PDM scorer.
+(``navsim_eval/predict_mvlad.py``) and this agent feeds its saved waypoints to the PDM scorer.
 Predictions were made from AgentInput only; ``requires_scene`` is set solely to read the
 scene token that keys the prediction file.
 
@@ -9,7 +9,7 @@ Use it by overriding NAVSIM's default agent (works for v1.1 and v2):
 
     python $NAVSIM_DEVKIT_ROOT/navsim/planning/script/run_pdm_score.py train_test_split=navtest \
         experiment_name=mvlad_navtest \
-        agent._target_=navsim_tools.precomputed_agent.PrecomputedTrajectoryAgent \
+        agent._target_=navsim_eval.precomputed_agent.PrecomputedTrajectoryAgent \
         +agent.predictions_path=$NAVSIM_EXP_ROOT/mvlad/predictions
 """
 
@@ -24,7 +24,7 @@ from nuplan.planning.simulation.trajectory.trajectory_sampling import Trajectory
 from navsim.agents.abstract_agent import AbstractAgent
 from navsim.common.dataclasses import AgentInput, Scene, SensorConfig, Trajectory
 
-from navsim_tools.predictions import load_predictions, poses_from_waypoints
+from navsim_eval.predictions import load_predictions, poses_from_waypoints
 
 logger = logging.getLogger(__name__)
 

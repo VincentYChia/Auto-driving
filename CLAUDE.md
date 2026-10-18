@@ -4,20 +4,27 @@ This is a fork of MVLAD-AD (masked-diffusion driving VLA, LLaDA-V 8B). The resea
 
 ## Read first
 1. `docs/RESEARCH_DIRECTION.md`: the source of truth for claims, the novelty check, edge-compute limits, open decisions and the decision log.
-2. `docs/ROADMAP.md`: the work plan and GPU (training) compute.
-3. `docs/RUNBOOK_NAVSIM.md`: how to run the NAVSIM baseline and the data pipeline on Anvil.
-4. `docs/DATASET_SCHEMA.md`: the canonical training-sample format (v0.1) and its views.
+2. `docs/ROADMAP.md`: the work plan, the workstreams table and GPU (training) compute.
+3. Then the workstream you are working on:
+   - **A. NAVSIM evaluation:** `docs/navsim_eval/RUNBOOK.md`.
+   - **B. Training data:** `docs/training_data/README.md`. Its process, principles and open decisions D1–D11 govern all data work.
 
-## Code map
-- `navsim_tools/`: NAVSIM bridge.
-  - `geometry` and `raw_frames` are pure numpy.
-  - `loader`, `export_mvlad_inputs` and `precomputed_agent` need the NAVSIM devkit (Python 3.9 env).
-- `inference/predict_navsim.py`: MVLAD-AD on exported NAVSIM inputs (model env, GPU).
-- `data_pipeline/`: navtrain → canonical samples → views → teacher labels.
-- `scripts/anvil/`: Slurm jobs and downloads. `scripts/download_mvlad_weights.sh` fetches the weights.
-- `tests/`:
-  - `python -m pytest tests` runs the pure tests anywhere.
-  - `tests/test_navsim_integration.py` runs only where `navsim` and `nuplan` are importable (Python 3.9 with NAVSIM's pins, e.g. numpy 1.23.4). It is skipped otherwise.
+## Workstreams are separate
+| | A. NAVSIM evaluation | B. Training data |
+|---|---|---|
+| Code | `navsim_eval/` | `data_pipeline/` (prototype v0.1) |
+| Jobs | `scripts/anvil/navsim_eval/` | `scripts/anvil/data_pipeline/` |
+| Tests | `tests/eval/` | `tests/data/` |
+
+- **Shared:** `navsim_tools/` (read-only NAVSIM access: `geometry`, `raw_frames` are pure numpy; `loader` needs the devkit), `tests/shared/`, `scripts/anvil/*.sh`.
+- **No cross-imports:** neither workstream imports the other.
+- **Training data is deliberate.** Months of research depend on it. Don't add data features, change the schema, or run full extraction or teacher labelling unless the researcher has signed off the relevant phase in `docs/training_data/README.md`.
+  - The prototype jobs refuse full runs unless `ALLOW_FULL_RUN=1`.
+  - Propose; don't rush.
+
+## Tests
+- `python -m pytest tests` runs the pure tests anywhere.
+- `tests/*/test_*integration.py` run only where `navsim` and `nuplan` are importable (Python 3.9 with NAVSIM's pins, e.g. numpy 1.23.4). They are skipped otherwise.
 
 ## Keeping alignment
 - When the direction changes, edit `RESEARCH_DIRECTION.md` and add a dated row to its decision log.

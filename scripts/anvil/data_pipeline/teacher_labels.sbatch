@@ -1,8 +1,9 @@
 #!/bin/bash
+# PROTOTYPE (v0.1): smoke tests only until the training-data v1 design is agreed.
 # Generate reasoning labels with a large teacher VLM served by vLLM on one 4×A100 node.
 # TEMPLATE: check that your vLLM version supports the chosen model, and its licence terms.
 #
-#   TEACHER_MODEL=google/gemma-4-31b-it LIMIT=200 sbatch scripts/anvil/teacher_labels.sbatch   # pilot batch
+#   TEACHER_MODEL=google/gemma-4-31b-it LIMIT=200 sbatch scripts/anvil/data_pipeline/teacher_labels.sbatch   # pilot batch
 #SBATCH --job-name=teacher-labels
 #SBATCH --partition=gpu
 #SBATCH --gpus-per-node=4
@@ -11,6 +12,11 @@
 #SBATCH --output=%x-%j.out
 set -euo pipefail
 source "${SLURM_SUBMIT_DIR:-.}/scripts/anvil/common.sh"
+# PROTOTYPE guard: the training-data design is not agreed yet (docs/training_data/README.md).
+if [ -z "${LIMIT:-}" ] && [ "${ALLOW_FULL_RUN:-0}" != 1 ]; then
+    echo "Prototype pipeline: run a small pilot: LIMIT=200, or set ALLOW_FULL_RUN=1 once the v1 design is signed off." >&2
+    exit 1
+fi
 activate_env "${TEACHER_CONDA_ENV:-vllm}"
 MODEL="${TEACHER_MODEL:?set TEACHER_MODEL}"
 PORT="${PORT:-8000}"

@@ -5,10 +5,10 @@ from pathlib import Path
 
 import numpy as np
 
-from navsim_tools import mvlad_prompt
-from navsim_tools.predictions import load_predictions, poses_from_waypoints
+from navsim_eval import mvlad_prompt
+from navsim_eval.predictions import load_predictions, poses_from_waypoints
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 
 
 def _training_replacement():

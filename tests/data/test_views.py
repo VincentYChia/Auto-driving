@@ -4,7 +4,7 @@ import pytest
 
 from data_pipeline import motion_text, schema, views
 from data_pipeline.label_client import parse_label
-from tests import synthetic_navsim as syn
+from tests.shared import synthetic_navsim as syn
 
 ROOT = "/data/sensor_blobs/trainval"
 
