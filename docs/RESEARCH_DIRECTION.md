@@ -36,6 +36,8 @@ front image + ego status + driving command ────────────�
 
 Constraint: **the whole stack runs on an in-vehicle edge computer.** It is meant as an edge piloting system, not a cheap server-based alternative.
 
+> **Update 2026-10-20 [open]:** the researcher is leaning towards a single-frame pilot without previous motion context, if feasible. That would remove the perception + tracker → motion-token branch. See §2.2 (Claim 1) and `docs/OBJECT_MOTION.md`.
+
 ### Claimed contributions, as originally stated
 
 Novel:
@@ -88,7 +90,7 @@ Supporting, not novel:
 - **DriveVLM-Dual** (Feb 2024). Feeds tracked objects' past trajectories to a VLM as text, alongside images. 410 ms on Orin-X. (R)
 - **ORION** (Mar 2025) and **MindVLA-U1** (May 2026). Replace stacked frames with memory tokens. (R)
 - **GPT-Driver / Agent-Driver** (2023). Text object states plus predicted futures. (V, code)
-- **Driving on Memory** (Aug 2026): 91.1 PDMS with no cameras. **DriveZero** (Sep 2026): a teacher on ground-truth symbolic inputs scores 95.8, distilled into a 94.8 camera student. (R)
+- **Driving on Memory** (Aug 2026): 91.1 PDMS with no cameras. **DriveZero** (Sep 2026): a teacher on ground-truth symbolic inputs scores 95.8, distilled into a 94.8 camera student. Another source gives the student 95.3 PDMS and 57.1 navhard EPDMS. (R)
 
 **Counter-evidence to address:**
 - Explicit tracking and motion modules (UniAD 83.4, PARA-Drive 84.0) did not beat single-frame TransFuser (84.0) on NAVSIM v1 (R).
@@ -103,6 +105,13 @@ Supporting, not novel:
 
 **Defensible version (C1):**
 > Tracker-derived, ego-motion-compensated motion tokens with geometry-aware embeddings match or beat multi-frame visual history at a fraction of the tokens and latency. The gain is measured on navhard EPDMS and NC/TTC, with ground-truth vs. predicted tracks, plus a robustness curve against tracker quality.
+
+**Update 2026-10-20** (details in `docs/OBJECT_MOTION.md`):
+- **Motion can be obtained on NAVSIM itself.** navtrain labels every frame, history included, with boxes, velocity and track IDs at 2 Hz (V). 2 Hz camera trackers are standard on nuScenes (R).
+- **Anything scored on navhard must be camera-only.** The 2025 challenge's test frames came without LiDAR (V, maintainers).
+- **No leading NAVSIM method feeds in other agents' motion.** History adds +0.1 to +2.7 PDMS on v1 (R). There is no navhard evidence either way.
+- **Motion tokens are cheap:** about 0.4–4 ms on Thor, vs about 17–27 ms per extra image frame (D).
+- **Proposed gate [proposed]:** an oracle-motion experiment, about 1 week to build, decides whether C1 is worth a tracker.
 
 #### Claim 2: more discrete action tokens
 **Closest prior work** (all masked/discrete diffusion, all on NAVSIM; V via code or paper text unless noted):
@@ -302,6 +311,7 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 - **Claim 3 needs physical hardware:** a Jetson AGX Thor dev kit (DRIVE Thor proxy), ideally plus a Jetson AGX Orin.
 - **Data scale gap:** AUGUstus's 94.6 PDMS used 512 H800 GPUs, 318K h of video and 513B tokens (V). Our results must be framed as controlled comparisons, not leaderboard chasing.
 - Several NAVSIM and architecture numbers are self-reported (R), and the official leaderboards were unreachable from this environment.
+- **No LiDAR on navhard / v2 test frames:** for the 2025 challenge, none was given for "any test frames (real or synthetic)" (V, NAVSIM issue #63). Any perception scored on navhard must be camera-only.
 
 ---
 
@@ -312,6 +322,7 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 4. Action head = **separate light masked-diffusion head** on cached VLM states, instead of MVLAD-style diffusion inside the LLM?
 5. Primary metric = **navhard EPDMS**?
 6. Hardware access: can we get a Jetson AGX Thor?
+7. **Single-frame pilot without motion context:** is this final? If yes, is C1 dropped, or kept as an add-on decided by the oracle gate (`docs/OBJECT_MOTION.md` §5)?
 
 ## Key sources (accessed 2026-10-16)
 - NVIDIA TensorRT Edge-LLM benchmarks (v0.10.0) and support matrix: https://github.com/NVIDIA/TensorRT-Edge-LLM (`docs/source/user_guide/performance/performance-benchmarks.md`, `.../getting_started/support-matrix.md`)
@@ -338,3 +349,4 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 | 2026-10-18 | Measured MVLAD-AD's shipped 256-token codebook: 0.54 m mean rounding error at 1 s; centres stop at 54.6 m ahead (§2.2). | done |
 | 2026-10-18 | Researcher: separate the two workstreams. (A) NAVSIM evaluation: deterministic, lower priority. (B) Training data: the foundation for months of research, so do it deliberately. The data code is now **prototype v0.1** (not for experiments); the design process, prototype limitations and open decisions D1–D11 are in `docs/training_data/README.md`. Code, tests, jobs and docs split by workstream (`navsim_eval/`, `data_pipeline/`, shared `navsim_tools/`). | agreed |
 | 2026-10-20 | Surveyed other open datasets (now `docs/training_data/DATASETS.md`). Found: NAVSIM's object boxes are nuPlan offline-perception auto-labels (V); released navtrain reasoning text exists (ReCogDrive, model-written; V). Proposed: the raw nuPlan DBs for the same logs as the next source (D6); ReCogDrive as a comparison arm in the P5 pilot (D9). | proposed |
+| 2026-10-20 | Researcher is leaning (not final) towards a single-frame pilot without previous motion context, if feasible, and accepts that this weakens the claims. Researched ways to obtain object motion (`docs/OBJECT_MOTION.md`) and tabulated every surveyed dataset (`docs/training_data/DATASETS.md`). Proposed: keep C1 open behind an oracle-motion gate; any tracker scored on navhard must be camera-only. | open |

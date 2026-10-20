@@ -2,7 +2,7 @@
 
 **Status: research input [proposed].** Nothing here is adopted. Adding any source needs the researcher's sign-off under `README.md` §4–5.
 
-Ways to obtain object motion: `docs/OBJECT_MOTION.md` (being written).
+Ways to obtain object motion: `docs/OBJECT_MOTION.md`.
 
 **Evidence:** V / R / D as in `docs/RESEARCH_DIRECTION.md`.
 - Each cell's mark is its **weakest** evidence.
@@ -17,6 +17,7 @@ Ways to obtain object motion: `docs/OBJECT_MOTION.md` (being written).
   - Traffic-light status is estimated "from the observed motion of agents" (V).
   - So "ground-truth" motion in the C1 ablations means offline-perception motion (D).
 - **No radar:** OpenScene lists 8 cameras and 5 LiDARs (V).
+- **No LiDAR on navhard / v2 challenge test frames:** the maintainers said none would be provided for "any test frames (real or synthetic)" (V, NAVSIM issue #63, 2025).
 - **Occupancy labels exist for trainval,** the source of navtrain (V, OpenScene v1.0). Flow labels are claimed but not verified (§1e).
 - **No language labels** of any kind (V).
 - **No high-rate closed loop.** v2 pseudo-simulation runs at 2 Hz, with one 4 s plan per stage (V).
@@ -28,8 +29,8 @@ Columns: **Dataset** · **Data type** · **Scale · rate** · **Labels: motion �
 | Dataset | Data type | Scale · rate | Labels: motion · text | Strengths | Weaknesses | Licence · leakage |
 |---|---|---|---|---|---|---|
 | **NAVSIM navtrain** (OpenScene) | Sensor logs: 8 cameras, merged LiDAR, ego status, map | ~103k samples; 2 Hz; sensors 445 GB · V | Boxes + velocity + track IDs at 2 Hz, auto-labelled; no text · V | The evaluation domain; PDM scoring; ego status + route command | 2 Hz; 1.5 s of history at test time; network-estimated velocities; no text | CC BY-NC-SA 4.0 + nuPlan terms · V. Train on navtrain only |
-| **Raw nuPlan DBs** | Object-level logs: ego, tracked boxes, traffic lights, route; no images | 15,000+ logs, ~1,300 h (V); 20 Hz (V) | 20 Hz tracks + velocities, auto-labelled · V | The same logs as NAVSIM at 10× the rate, with whole-log history; needed for the nuPlan closed loop | No sensors; auto-labels; size not checked; devkit last released 2023 | nuPlan terms, non-commercial · V. Exclude OpenScene `test` logs |
-| **nuPlan sensor blobs** | 8 cameras + 5 LiDARs (merged) | ~120–128 h (R); cameras 10 Hz, LiDAR 20 Hz, >20 TB (V) | Via the DB tracks · V | Full-rate vision on NAVSIM's own rig: the data for training a 10 Hz tracker | Very large; covers only ~10% of nuPlan's hours (D) | As above |
+| **Raw nuPlan DBs** | Object-level logs: ego, tracked boxes, traffic lights, route; no images | 15,000+ logs, ~1,300 h; 20 Hz; 1.22 TB for all splits · V | 20 Hz tracks + velocities, auto-labelled · V | The same logs as NAVSIM at 10× the rate, with whole-log history; needed for the nuPlan closed loop | No sensors; auto-labels; devkit last released 2023 | nuPlan terms, non-commercial · V. Exclude OpenScene `test` logs |
+| **nuPlan sensor blobs** | 8 cameras + 5 LiDARs (merged) | ~120–128 h (R); cameras 10 Hz, LiDAR 20 Hz; 19.06 TB, readable per file (V) | Via the DB tracks · V | Full-rate vision on NAVSIM's own rig, for all 1,192 navtrain logs (V): the data for training a 10 Hz tracker | Very large; nuPlan account and terms required | As above. The test blobs hold every navtest / navhard log (V): never train on them |
 
 ### 1b. Sensor logs with 3D tracks (other rigs)
 | Dataset | Data type | Scale · rate | Labels: motion · text | Strengths | Weaknesses | Licence · leakage |
@@ -163,7 +164,7 @@ ApolloScape and V2X-Seq trajectories are listed in §1b.
 2. **D6, next source: the raw nuPlan DBs for the same logs.**
    - Same scenes, but at 20 Hz, with whole-log history, route and traffic lights. Same licence; no domain shift (D).
    - Serves C1 history length/rate studies, the motion encoder (e), the refresh loop and, later, the nuPlan closed loop.
-   - Joining on log name + timestamp is to be verified in P2. DB size not yet checked.
+   - Joining on log name + timestamp is to be verified in P2. The DBs are 1.22 TB for all splits (V).
 3. **D9:** add ReCogDrive's navtrain QA as a comparison arm in the P5 teacher pilot. It is free, but model-written and hindsight. Borrow structure from the chain-of-causation and AutoVLA prompts.
 4. **nuReasoning** is the most relevant new set (10 Hz, 8 cameras, decision and counterfactual reasoning). Before deciding, inspect:
    - its rig and cities;
@@ -176,7 +177,6 @@ ApolloScape and V2X-Seq trajectories are listed in §1b.
 7. **Later, for pilot pretraining or external evaluation:** PhysicalAI-AV, WOD-E2E, L2D.
 
 **Unverified:**
-- size of the nuPlan DBs;
 - source logs of nuReasoning, NuPlanQA and SimScale;
 - nuReasoning's object-label method;
 - how Argoverse 2 labels were made;
