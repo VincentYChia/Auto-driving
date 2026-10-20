@@ -128,6 +128,11 @@ Related work to compare against (reported numbers, not verified here):
 - **Always produce two versions of the motion tokens:** from ground-truth tracks (upper bound / teacher) and from the deployable tracker (realistic).
 - **Report** NC/TTC sub-scores and a robustness curve against tracker quality.
 
+**Update 2026-10-20:**
+- navhard / v2 challenge test frames come **without LiDAR** (V, NAVSIM maintainers). A tracker scored on navhard must therefore be camera-only; LiDAR remains an option for v1 navtest only.
+- The options, the evidence and a proposed oracle-motion gate are in `docs/OBJECT_MOTION.md`.
+- The researcher is leaning towards a single-frame pilot without motion context [open].
+
 - **Detector + tracker:** YOLO (v8/11, n/s/m) + ByteTrack / BoT-SORT over the 4 past frames. Per object: class, box, image-space velocity → a few dozen tokens in total, as text or a learned embedding.
 - **Ego motion:** already provided by NAVSIM's ego status. It doesn't need vision.
 - **YOLO's limitation:** it gives 2D boxes with no depth, so it can't tell an approaching object from a growing one.

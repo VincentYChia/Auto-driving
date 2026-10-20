@@ -199,7 +199,7 @@ Other automotive chips (Horizon J6P, Qualcomm Ride Elite, XPeng Turing, NIO NX90
 | Fast pilot VLM | **Qwen3.5-2B NVFP4** with ≤ ~500 input tokens: ~30–45 ms. 4B: ~45–65 ms. 9B only with a separate head and few tokens, and it takes over the GPU | ≤2B INT4 with ≤ ~256 visual tokens: ~80–140 ms. The VLM cannot run every 100 ms cycle |
 | Action head | Separate light masked-diffusion head reading cached VLM states, ~5–20 ms (GR00T's 4-step head: 17 ms). Running diffusion inside the LLM costs ~8 ms **per step** at 2B | ~12 ms per step for diffusion inside the LLM, so a separate head is mandatory |
 | Reasoner | **Gemma-4-E2B/E4B NVFP4**: about 40–60 output tokens per 1 s cycle, *if it had the GPU to itself*. Sharing with the pilot cuts this further | Needs a second chip (DriveVLM-Dual used 2× Orin-X) |
-| Perception + tracker | LiDAR CenterPoint/PointPillars + greedy tracker. On Orin: CenterPoint 35.7–40 ms (V); PointPillars 6.8 ms (KITTI) (V). Thor not measured | Same, slower |
+| Perception + tracker | Camera-only for navhard, which has no LiDAR on its test frames (V). Camera 3D trackers on Orin: PETRv2 55.8 ms, UniAD-tiny 39 ms (V). With LiDAR (v1 or deployment): CenterPoint 35.7–40 ms, PointPillars 6.8 ms on Orin (V). Thor not measured | Same, slower |
 | Memory | Not the constraint. Weights at 4-bit: 2B ≈ 1.1 GB, 4B ≈ 2.2 GB, 9B ≈ 5 GB (D) | Same |
 
 - **Size limit on one Thor-class SoC:** pilot ~2B (4B at most) + reasoner ~2–4B + head + perception, roughly 6–7B parameters in 4-bit in total.
