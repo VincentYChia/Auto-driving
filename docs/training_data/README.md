@@ -1,6 +1,6 @@
 # Workstream B: training data. Design before build
 
-**Status (2026-10-18): design phase.**
+**Status (2026-10-20): Phase 1 (requirements) for the two small models.** Draft: `P1_REQUIREMENTS.md`. Multi-frame and motion data are deferred [agreed].
 - `data_pipeline/` is a **prototype (v0.1)**. It was built to explore a format, has only been run on synthetic logs, and must **not** be used to produce data for experiments.
 - Prototype format: `PROTOTYPE_v0.1_SCHEMA.md`.
 - This workstream is independent of NAVSIM scoring (`docs/navsim_eval/`). Both share only the read-only NAVSIM access layer, `navsim_tools/`.
@@ -19,14 +19,14 @@ Status markers follow `docs/RESEARCH_DIRECTION.md`: [agreed] / [proposed] / [ope
 
 | # | Consumer | Needs |
 |---|---|---|
-| a | **Pilot SFT** (Qwen3.5, ~2B) | Current front image (± other cameras); ego state, history and route command; object-motion context; optional decision token. Target: 8 future poses at 0.5 s |
-| b | **Reasoner SFT** (Gemma 4 E2B/E4B) | Image(s), ego state, object motion. Target: narration, reasoning, decision |
-| c | **C1 ablations** | The *same* samples rendered with different temporal context: image only; ground-truth motion; tracker motion; multi-frame images. Matched token budgets |
+| a | **Pilot SFT** (Qwen3.5, ~2B). **Priority now [agreed]** | Current front image (± other cameras); ego state, history and route command; optional decision token. Target: 8 future poses at 0.5 s. Object-motion context deferred |
+| b | **Reasoner SFT** (Gemma 4 E2B/E4B). **Priority now [agreed]** | Image, ego state and command. Target: narration, reasoning, decision. Object motion deferred |
+| c | **C1 ablations**. **Deferred [agreed]** | The *same* samples rendered with different temporal context: image only; ground-truth motion; tracker motion; multi-frame images. Matched token budgets |
 | d | **C2 tokenizer study** | All training trajectories (continuous) for fitting codebooks and measuring rounding error vs score |
-| e | **Motion encoder / tracker work** | Ground-truth tracks over history; paths to past sensor frames |
+| e | **Motion encoder / tracker work**. **Deferred [agreed]** | Ground-truth tracks over history; paths to past sensor frames |
 | f | **Model selection without navtest** | A frozen dev split from navtrain, scorable with NAVSIM's PDM score |
 | g | **MVLAD-AD comparability** (optional) | nuScenes (+ Nu-X reasoning text) in the same format |
-| h | **Edge budget** | Token count of every input view |
+| h | **Compute accounting** (C3: lower compute in general) | Token count of every input view |
 
 ## 2. Principles [proposed]
 1. **Layers:**
@@ -62,7 +62,7 @@ Worth keeping from the prototype (tested, and likely to carry into v1):
 
 | Phase | Output | Exit criterion (your review) |
 |---|---|---|
-| **P1 Requirements** | Table of consumers (a–h + yours): inputs, targets, horizons, sensors, scale, priority for the next 3 months | You agree the table |
+| **P1 Requirements** | Table of consumers (a–h + yours): inputs, targets, horizons, sensors, scale, priority for the next 3 months. Draft for a and b: `P1_REQUIREMENTS.md` | You agree the table |
 | **P2 Real-data audit** | Script + report on a small real subset (see below) | You've seen the plots and agree on conventions; issue list written |
 | **P3 Design v1** | Design doc: decisions D1–D11 below, storage layout, validation checks, versioning | Signed off |
 | **P4 Build + validate v1** | Extraction + validators. Run on a dev subset, then a visual spot-check of ~50 random samples, then the full run | Release v1.0 frozen: manifest, checksums, data card |
@@ -96,10 +96,11 @@ Worth keeping from the prototype (tested, and likely to carry into v1):
 | D10 | Licences / terms | OpenScene / nuPlan dataset terms; teacher model output terms | **Verify before generating or sharing derived data.** First pass in `DATASETS.md` §3; the full licence texts are not yet read |
 | D11 | Versioning | Release policy | Semantic versions, immutable releases; experiments log the dataset version |
 
-## 6. What I need from you to start P1
+## 6. What I need from you
 1. **Process:** agree or change the principles (§2) and the phases (§4).
-2. **Priorities:** rank consumers a–h for the next 1–3 months and add any missing.
+2. ~~**Priorities**~~ **Answered 2026-10-20:** a and b first; c and e deferred.
 3. **P2 data:** OK to download the navtrain logs on Anvil (`trainval-logs`, ~14 GB, one archive) plus one of the 32 `navtrain-current` camera chunks for the visual checks? I'll write the audit script only after P1 is agreed.
+4. **P1 sign-off:** agree or change `P1_REQUIREMENTS.md`.
 
 ## Using the prototype meanwhile
 Only for environment smoke tests on a few logs:
