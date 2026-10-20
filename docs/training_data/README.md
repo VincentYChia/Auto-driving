@@ -73,7 +73,7 @@ Worth keeping from the prototype (tested, and likely to carry into v1):
 - **Conventions:**
   - project ground-truth boxes into CAM_F0 with the stored calibration;
   - bird's-eye-view plots of tracks over the history after ego-motion compensation (static objects must stay put);
-  - provided velocity vs finite differences of positions;
+  - provided velocity vs finite differences of positions (nuPlan's velocities are network estimates that "may be inconsistent with future positions", V);
   - whether track IDs persist across frames.
 - **Distributions:**
   - speed, route command and curvature;
@@ -89,11 +89,11 @@ Worth keeping from the prototype (tested, and likely to carry into v1):
 | D3 | What the canonical layer keeps | All objects, full precision, whole logs vs filtered | **Keep everything**; filter in views |
 | D4 | Privileged separation | Key inside the record vs separate stores | **Separate stores**: observations / targets / privileged |
 | D5 | Format | Parquet (columnar, partial reads) vs gzipped JSONL | **Parquet** for canonical, **JSONL** for training views. `pyarrow` is already in NAVSIM's requirements (V) |
-| D6 | Sources in v1 | navtrain only; + nuScenes / Nu-X; + synthetic training scenes | **navtrain first**; nuScenes as a second source with the same layout in v1.1 |
+| D6 | Sources in v1 | navtrain only; + raw nuPlan DBs for the same logs (20 Hz); + nuScenes / Nu-X; + reasoning or synthetic sets. Survey: `SOURCES_SURVEY.md` | **navtrain first.** Next candidate: the raw nuPlan DBs for the navtrain logs (same scenes at 20 Hz, longer history, same licence). nuScenes / Nu-X only if consumer g ranks high |
 | D7 | Sensors referenced | Front camera only vs all 8 cameras + LiDAR + calibration | **All** (paths are cheap); image choice is a view concern |
 | D8 | Decision vocabulary | Rule-based meta-actions vs teacher-defined | **Rule-based**: deterministic and checkable; calibrate in P2 |
-| D9 | Reasoning labels | Teacher model; hindsight (sees the future) vs causal prompting; review protocol; budget | **Decide from the P5 pilot**, not upfront |
-| D10 | Licences / terms | OpenScene / nuPlan dataset terms; teacher model output terms | **Verify before generating or sharing derived data** (not yet checked) |
+| D9 | Reasoning labels | Teacher model; hindsight (sees the future) vs causal prompting; review protocol; budget | **Decide from the P5 pilot**, not upfront. Include ReCogDrive's released navtrain QA as a comparison arm (`SOURCES_SURVEY.md` §1) |
+| D10 | Licences / terms | OpenScene / nuPlan dataset terms; teacher model output terms | **Verify before generating or sharing derived data.** First pass in `SOURCES_SURVEY.md` §5; the full licence texts are not yet read |
 | D11 | Versioning | Release policy | Semantic versions, immutable releases; experiments log the dataset version |
 
 ## 6. What I need from you to start P1

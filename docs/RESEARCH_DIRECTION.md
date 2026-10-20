@@ -280,21 +280,21 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 
 | Field | Content |
 |---|---|
-| Object boxes | x, y, z, length, width, height, heading |
-| Object metadata | class names, 3D velocity, instance and track tokens (consistent across frames) |
+| Object boxes | x, y, z, length, width, height, heading. Auto-labels from nuPlan's offline perception, not human annotation (V, `nuplan_schema.md`) |
+| Object metadata | class names, 3D velocity (a network estimate), instance and track tokens (consistent across frames) |
 | Ego | pose, velocity, acceleration, driving command |
 | Timing | 2 Hz; default scenes are 4 history + 10 future frames |
 | Planning target | 8 poses over 4 s |
 | Test-time history | 1.5 s span |
 
-**Secondary source:** nuScenes plus Nu-X, for MVLAD-AD comparability and reasoning text.
+**Other sources:** surveyed in `docs/training_data/SOURCES_SURVEY.md` (2026-10-20). Proposed next source: the raw nuPlan DBs for the same logs (20 Hz). nuScenes plus Nu-X remain an option for MVLAD-AD comparability.
 
 **Requirements:**
 - Store **raw continuous** ego and object states. Keep tokenized views as versioned derivatives, so the C2 variants can be generated from the same data.
 - Store motion inputs from **both** ground-truth tracks and the **deployable tracker** run on the same sensors. Record provenance and tracker-quality metrics, for C1 and its robustness curve.
 - Keep explicit frame and coordinate conventions, ego-motion compensation and timestamps.
 - Store references for the multi-frame image baseline at matched token budgets, plus token-count accounting.
-- Reasoning labels for navtrain do not exist. Generate them offline with a large model (e.g. Gemma-4-31B) and version the model and prompt.
+- Released reasoning text for navtrain exists only as model-written, hindsight QA (ReCogDrive, 752k QA; V). Generate our own labels offline with a large model (e.g. Gemma-4-31B), version the model and prompt, and compare against ReCogDrive in the P5 pilot.
 - **Never train on navtest / navhard / warmup** (NAVSIM rule).
 
 ### 2.9 Risks and blockers
@@ -337,3 +337,4 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 | 2026-10-18 | Built the NAVSIM bridge (`navsim_tools/`, `inference/predict_navsim.py`), the data pipeline (`data_pipeline/`, schema v0.1 in `docs/DATASET_SCHEMA.md`), Anvil job scripts (`scripts/anvil/`) and the runbook (`docs/RUNBOOK_NAVSIM.md`). The Python tests pass against the real NAVSIM v1.1 and v2 devkits on synthetic logs. GPU inference and the Slurm scripts are not yet run on Anvil. | done |
 | 2026-10-18 | Measured MVLAD-AD's shipped 256-token codebook: 0.54 m mean rounding error at 1 s; centres stop at 54.6 m ahead (§2.2). | done |
 | 2026-10-18 | Researcher: separate the two workstreams. (A) NAVSIM evaluation: deterministic, lower priority. (B) Training data: the foundation for months of research, so do it deliberately. The data code is now **prototype v0.1** (not for experiments); the design process, prototype limitations and open decisions D1–D11 are in `docs/training_data/README.md`. Code, tests, jobs and docs split by workstream (`navsim_eval/`, `data_pipeline/`, shared `navsim_tools/`). | agreed |
+| 2026-10-20 | Surveyed other open datasets (`docs/training_data/SOURCES_SURVEY.md`). Found: NAVSIM's object boxes are nuPlan offline-perception auto-labels (V); released navtrain reasoning text exists (ReCogDrive, model-written; V). Proposed: the raw nuPlan DBs for the same logs as the next source (D6); ReCogDrive as a comparison arm in the P5 pilot (D9). | proposed |
