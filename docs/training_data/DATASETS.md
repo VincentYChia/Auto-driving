@@ -2,7 +2,7 @@
 
 **Status: research input [proposed].** Nothing here is adopted. Adding any source needs the researcher's sign-off under `README.md` §4–5.
 
-**In progress:** rows for radar, occupancy/flow, classic tracking and accident-video datasets.
+Ways to obtain object motion: `docs/OBJECT_MOTION.md` (being written).
 
 **Evidence:** V / R / D as in `docs/RESEARCH_DIRECTION.md`.
 - Each cell's mark is its **weakest** evidence.
@@ -16,6 +16,8 @@
   - Velocities are "estimated by a Neural Network and may be inconsistent with future positions" (V).
   - Traffic-light status is estimated "from the observed motion of agents" (V).
   - So "ground-truth" motion in the C1 ablations means offline-perception motion (D).
+- **No radar:** OpenScene lists 8 cameras and 5 LiDARs (V).
+- **Occupancy labels exist for trainval,** the source of navtrain (V, OpenScene v1.0). Flow labels are claimed but not verified (§1e).
 - **No language labels** of any kind (V).
 - **No high-rate closed loop.** v2 pseudo-simulation runs at 2 Hz, with one 4 s plan per stage (V).
 
@@ -41,9 +43,30 @@ Columns: **Dataset** · **Data type** · **Scale · rate** · **Labels: motion �
 | **PandaSet** | 6 cameras, 2 LiDARs | 100+ × 8 s, 10 Hz (D) · R | Per-frame cuboids, 28 classes · V | Possibly commercial-friendly | Tiny; licence and download status unverified | "No-cost commercial" · R |
 | **ONCE** | 7 cameras, 1 LiDAR | 144 h, 1M LiDAR frames; released at 2 Hz · V | 15–16k annotated scenes, 5 classes · V | Large unlabelled pretraining set | 2 Hz release; few labels | CC BY-NC-SA 4.0 + extra terms · V |
 | **ZOD** | Front camera 8 MP (V); LiDARs 10 Hz, GNSS/IMU 100 Hz (R) | 100k frames, 1,473 × 20 s sequences, 14 countries · R | Keyframe 2D/3D boxes to 245 m (R); sequence tracks not found | Permissive; diverse Europe; long range | One camera | CC BY-SA 4.0 · V |
-<!-- R3_SENSOR_ROWS -->
+| **KITTI** (raw + tracking) | HDL-64 LiDAR, stereo grey + colour cameras, RTK GPS/IMU · V | Raw ≈ ¼ of 6 h recorded; tracking 21 train / 29 test sequences · R | Raw: 3D tracklets; tracking: per-frame boxes + track IDs, 8 classes, 10 Hz · R | Many baselines; tracks + GPS/IMU | Small; old sensors; front-camera labels only | CC BY-NC-SA 3.0 · V |
+| **KITTI-360** | 2 perspective + 2 fisheye cameras (V); Velodyne, SICK, OXTS (R) | 320k images, 100k scans, 73.7 km · V | Dynamic boxes per timestamp with global IDs; dense semantic + instance labels · V | Long posed drives with per-frame dynamic boxes | Suburban; few dynamic agents | CC BY-NC-SA 3.0 · V |
+| **Argoverse 1** | Ring cameras 30 Hz, stereo 5 Hz, LiDAR 10 Hz · V | Tracking 113 logs; forecasting ~325k × 5 s · R | Cuboid tracks per sweep (V); forecasting centroids at 10 Hz (R) | HD maps + 10 Hz tracks | Superseded by Argoverse 2 | CC BY-NC-SA 4.0 · V |
+| **A2D2** (Audi) | 6 cameras, 5 LiDARs (R); CAN bus: speed, accelerations, yaw rate, steering, GPS (V) | 12,497 frames with 3D boxes; 392,556 unlabelled frames · V | 3D boxes, 14 classes, front-camera view only (R); no track IDs or velocity found | Commercial use allowed; rich ego dynamics | No tracks; "no derivatives" forbids publishing modified data | CC BY-ND 4.0 · V |
+| **ApolloScape** (tracking + trajectory) | LiDAR + cameras at 10 fps · V | 53 + 50 min; 80k scans; 1,000 km of trajectories · V | Boxes + IDs and manual trajectories at 2 fps; many pedestrians · V | Dense mixed traffic | 2 Hz labels; short | Academic use only · R |
+| **IDD-3D** (India) | Multi-camera + LiDAR · R | 12k annotated LiDAR frames, ~5 h · R | 3D boxes + instance IDs for tracking, 17 classes · R | Unstructured Indian traffic | Toolkit "coming soon" (V); access unclear | Not found |
+| **DAIR-V2X / V2X-Seq** | Vehicle + roadside cameras and LiDARs (V); 10 Hz (R) | Perception: >15k frames / 95 scenes; forecasting: 672 h at 28 intersections · V | 3D boxes + persistent track IDs; trajectories + traffic lights at 10 Hz · R | Roadside view reveals occluded agents | China only | Licence not found |
 
-<!-- R3_RADAR_SECTION -->
+Cityscapes is not a motion dataset: semantics on one frame per snippet, no tracks (V).
+
+### 1c. Velocity sensing: radar and FMCW LiDAR
+These measure velocity directly in one frame. **None is a NAVSIM input:** OpenScene lists 8 cameras and 5 LiDARs, no radar (V). Use them for pretraining, supervision or deployment studies.
+
+| Dataset | Data type | Scale · rate | Labels: motion · text | Strengths | Weaknesses | Licence · leakage |
+|---|---|---|---|---|---|---|
+| **nuScenes radar** | 5 radars (V), ~13 Hz (R) | ≤125 returns per sweep · R | Per-return vx, vy and ego-compensated vx_comp, vy_comp; dynamic state (moving, oncoming, crossing, stopped…) · V | Direct 2D velocity per return, in the most-used dataset | Sparse returns | nuScenes terms (§1b) |
+| **View-of-Delft (VoD)** | 3+1D radar ~13 Hz with radial velocity (raw + ego-compensated), HDL-64 ~10 Hz, stereo camera ~30 Hz · V | 8,600 frames, 123k+ boxes · V | 3D boxes, 13 classes, moving / stopped / parked; track IDs as a separate download · V | Radar velocity + tracks; urban, many cyclists | Small; front view ±32°, labels ≤ 50 m | Non-commercial; academic staff and students only · V |
+| **MAN TruckScenes** | 4 cameras, 6 LiDARs, 6 4D radars (per-point vrel x/y/z), IMUs, GNSS · V | >740 scenes × 20 s · V | 3D boxes, 27 classes, tracked within scenes, 2 Hz keyframes; velocity by finite difference · V | 360° radar velocity; labels beyond 230 m | Truck-mounted; terminal scenes; 2 Hz labels | CC BY-NC-SA 4.0 · V |
+| **aiMotive Multimodal** | LiDAR, 4 cameras (2 fisheye), front + back radar with per-point speed · V | 176 scenes, ~85 GB · V | 3D boxes with persistent IDs and per-object relative velocity XYZ · V | Direct relative-velocity labels; highway, night, rain | Small; ego motion not documented | Non-commercial research · V |
+| **K-Radar** | 4D radar tensor with a Doppler axis, 2 LiDARs, 4 stereo cameras, RTK-GPS/IMU (V); ~10 Hz (D) | 58 sequences, 35k frames, ~15 TB · V | Hand-made 3D boxes; track IDs in the v2.0 labels · V | Full Doppler; fog, rain, snow | Huge raw data | CC BY-NC-ND · V: no derivatives |
+| **RadarScenes** | 4 × 77 GHz 2D radars: range, azimuth, RCS, radial velocity (raw + compensated); odometry · V | 158 sequences, >4 h, ~119M detections · R | Class + track ID per detection, manual (R); no boxes · V | Doppler + instance tracks of moving road users | Radar only; no boxes, no elevation | Non-commercial · R |
+| **Dual-Radar** | Two 4D radars at 20 Hz, 80-line LiDAR 10 Hz, camera 10 Hz · V | 151 sequences, 10,007 frames · V | 3D boxes + track IDs · V | Two radar types on the same scenes | Front only; small; no poses | Signed agreement · V |
+| **AevaScenes** (FMCW LiDAR) | 6 FMCW LiDARs with per-point radial velocity, 6 × 4K cameras, all 10 Hz · V | 100 × 10 s = 10k frames · V | 3D boxes (25 classes), track IDs, per-object velocity vectors, per-point semantics · V | Measured velocity per point and per object, out to ~400 m | Tiny; one area, one vendor | Non-commercial licence · V |
+| **HeLiPR / HeLiMOS** (FMCW) | FMCW + 3 other LiDARs · R | ~1 month of drives · R | HeLiMOS: auto-labelled moving / static per point · R | Real FMCW Doppler for motion segmentation | No boxes or tracks | Not found |
 
 ### 1d. Object-level motion (no raw sensors)
 | Dataset | Data type | Scale · rate | Labels: motion · text | Strengths | Weaknesses | Licence · leakage |
@@ -51,9 +74,16 @@ Columns: **Dataset** · **Data type** · **Scale · rate** · **Labels: motion �
 | **Waymo Open Motion (WOMD)** | Object tracks, roadgraph, signal states; LiDAR + camera embeddings for the first 1 s, no raw images (V) | 103,354 scenes (V); 10 Hz; windows of 1.1 s history + 8 s future (R) | Auto-labelled tracks (R); text via WOMD-Reasoning (§1g) | Largest diverse motion corpus; Waymax closed loop | Short history; no raw images | Waymo non-commercial · V |
 | **Argoverse 2 Motion Forecasting** | Object tracks + HD map | 250k × 11 s, 6 cities (V); 10 Hz, 5 s history + 6 s future (R) | Tracks with inferred types; method not found · V | Longest standard history | No sensors | CC BY-NC-SA 4.0 · V |
 | **Lyft / Woven L5 Prediction** | Agent tracks, traffic lights, semantic + aerial maps | 1,000 h (V); 170k × 25 s, 10 Hz (R) | Onboard-perception tracks · V | Volume | One fixed route (R); online labels; devkit archived Oct 2025 (V) | CC BY-NC-SA 4.0 · R |
-<!-- R3_MOTION_ROWS -->
+ApolloScape and V2X-Seq trajectories are listed in §1b.
 
-<!-- R3_OCC_SECTION -->
+### 1e. Occupancy and flow labels
+| Dataset | Data type | Scale · rate | Labels: motion · text | Strengths | Weaknesses | Licence · leakage |
+|---|---|---|---|---|---|---|
+| **OpenScene occupancy (+ flow)** | Occupancy on nuPlan frames, 2 Hz · V | v1.0 labels: mini 6.7 GB, trainval 95.4 GB; none for test · V | 0.5 m voxels within ±50 m, built from 20 s of accumulated LiDAR (V). Per-voxel flow is claimed and a flow path is in the metadata (V), but the flow files are not verified (D) | On NAVSIM's own logs. Trainval covers navtrain, so no navtest is needed (V) | v1.0 only; some v1.1 frames unlabelled; class list marked "TODO" · V | CC BY-NC-SA 4.0 + nuPlan terms · V |
+| **Occ3D** (nuScenes, Waymo) | Voxel labels from accumulated LiDAR + human labels · V | nuScenes 1,000 scenes; Waymo 1,150 · V | Semantics + visibility masks; no flow · V | Standard occupancy benchmark | No motion; nuScenes at 2 Hz | Source terms; generated data MIT or Apache (the README conflicts) · V |
+| **OpenOccupancy** | Dense nuScenes occupancy · V | 28,130 + 6,019 frames · V | 0.2 m semantic voxels; no flow · V | Densest nuScenes occupancy | No motion | Code Apache-2.0 (V); label licence not found |
+| **Waymo Occupancy Flow** | BEV grids rendered from WOMD tracks · V | All WOMD v1.1 scenarios · D | Future occupancy of observed and occluded vehicles + flow (dx, dy), 8 waypoints · V | Dense future-motion targets, including occluded agents | Vehicles only in the metric; not the nuPlan domain | Waymo non-commercial · V |
+| **Argoverse 2 scene flow** | LiDAR sweep pairs 0.1 s apart · V | Argoverse 2 Sensor train/val · V | Per-point flow + dynamic flag; pseudo-labels from tracked cuboids · V | 10 Hz per-point motion; public challenges (R) | Rigid-box assumption; LiDAR only | CC BY-NC-SA 4.0 · V |
 
 ### 1f. Large camera + ego-trajectory sets (few or no object labels)
 | Dataset | Data type | Scale · rate | Labels: motion · text | Strengths | Weaknesses | Licence · leakage |
@@ -63,7 +93,7 @@ Columns: **Dataset** · **Data type** · **Scale · rate** · **Labels: motion �
 | **L2D** (Yaak × Hugging Face) | 6 cameras, GPS, IMU, CAN at 10 Hz; OSM route waypoints · V | 100k episodes, 500+ h (release R3) · V | No 3D objects (D); natural-language instructions; expert vs learner tags · V | Permissive; route-conditioned; CAN signals | No object labels; includes learner drivers | Apache-2.0 · R |
 | **CoVLA** | Front camera, CAN, GNSS, IMU · R | 10k clips, 80+ h, Tokyo · R | Automatic captions + trajectories · R | Same input shape as our pilot | Left-hand traffic; derivatives restricted | Custom non-commercial · R |
 | **OpenDV-YouTube** | Video only | 1,700+ h · V | None | Video pretraining at scale | No ego state, no labels | Self-download from YouTube · V |
-<!-- R3_VIDEO_ROWS -->
+| **BDD100K** (video, 2D tracking) | 100k dashcam videos, 40 s at 30 Hz; GPS/IMU · V | >1,000 h, 1.8 TB (V); tracking subset 2,000 videos (R) | 2D boxes + IDs at 5 Hz in the tracking subset · V | Scale and diversity; 2D tracks | 2D only; monocular; no metric velocity | Research and non-profit use; commercial for members · V |
 
 ### 1g. Reasoning and language
 | Dataset | Data type | Scale · rate | Labels: motion · text | Strengths | Weaknesses | Licence · leakage |
@@ -93,7 +123,14 @@ Columns: **Dataset** · **Data type** · **Scale · rate** · **Labels: motion �
 | **SimLingo / LMDrive / DriveCoT** | CARLA + language | LMDrive ~64k clips (V); DriveCoT 36k samples (R) | Commentary, instructions, chain of thought · R | Language in the closed loop | CARLA | LMDrive CC BY-NC 4.0 (V); others not found |
 | **SimScale** | Synthetic NAVSIM-style scenes, pseudo-expert labels | 384K samples, 2 Hz, 6 s clips (V); ~3.3 TB (D) | Pseudo-expert trajectories · V | Authors report +5.1 to +8.6 navhard EPDMS · R | Source split not stated | CC BY-NC-SA 4.0 · V. Check source logs |
 | **Cosmos-Drive-Dreams** | Synthetic video | 81,802 videos from 5,843 labelled clips · V | Not checked | Visual augmentation; permissive | Open loop only | CC BY 4.0 · V |
-<!-- R3_ACCIDENT_SECTION -->
+
+### 1i. Long-tail and accident video
+| Dataset | Data type | Scale · rate | Labels: motion · text | Strengths | Weaknesses | Licence · leakage |
+|---|---|---|---|---|---|---|
+| **DoTA** | YouTube dashcam video, 10 fps · V | 4,677 videos (R), 55 GB (V) | Anomaly start / end + class (V); tracklets of anomalous objects (R) | Long-tail "when / where / what" | Monocular web video; no metric motion | Not found |
+| **DADA-2000** | Dashcam accident clips · R | 2,000 clips, 54 accident types · R | Driver eye fixations, accident window, crash-object location · R | Attention + accident timing | No 3D, no velocity | Not found |
+| **CCD** (Car Crash Dataset) | YouTube crash + BDD100K normal clips, 10 fps · V | 1,500 crash + 3,000 normal clips · V | Per-frame accident flag, ego involvement, weather; detector boxes without IDs · V | Ego-involvement and onset labels | 5 s clips; 2D automatic boxes | Not found |
+| **Nexar Collision Prediction** | Dashcam video, ~40 s clips · R | 1,500+ clips · V | Collision / near-collision / normal, with event and alert times · R | Real ego near-misses with alert timing | Video-level labels only | Open, with ethical-use limits · R |
 
 ## 2. Closed-loop simulators (evaluation tools, not datasets)
 | Simulator | Agent sees | Rate | Strengths | Weaknesses | Terms |
@@ -110,9 +147,9 @@ Columns: **Dataset** · **Data type** · **Scale · rate** · **Labels: motion �
 ## 3. Licences and NAVSIM leakage
 - **Non-commercial is the norm** (D: fine for papers; a product would need separate licences):
   - CC BY-NC-SA 4.0: nuPlan / OpenScene (V), Argoverse 2 (V), ONCE (V), nuScenes (R).
-  - Waymo (V), nuReasoning's free tier (V), Bench2Drive (NC-ND, V).
+  - Waymo (V), nuReasoning's free tier (V), Bench2Drive (NC-ND, V), K-Radar (NC-ND, V), View-of-Delft (academic staff and students only, V).
 - **ShareAlike** probably extends to derived data we publish, such as token sets and labels (D).
-- **Permissive:** ZOD (CC BY-SA 4.0, V), PDM-Lite (CC BY 4.0, V), L2D (Apache-2.0, R), Cosmos-Drive-Dreams (V).
+- **Permissive:** ZOD (CC BY-SA 4.0, V), PDM-Lite (CC BY 4.0, V), L2D (Apache-2.0, R), Cosmos-Drive-Dreams (V), A2D2 (CC BY-ND 4.0, V; no modified releases).
 - **Restrictive:** PhysicalAI-AV (R). Read the full licence before relying on it.
 - **Teacher outputs carry their own terms.** Qwen's licence asks for "Built with Qwen" on distributed models trained on its outputs (R). Gemini and GPT terms not checked.
 - **NAVSIM rule:** never train on navtest / navhard / warmup / private splits (V). Concretely:
@@ -184,4 +221,33 @@ Columns: **Dataset** · **Data type** · **Scale · rate** · **Labels: motion �
   - `github.com/waymo-research/waymax`, `github.com/Emerge-Lab/gpudrive`.
   - `github.com/OpenDriveLab/SimScale`.
   - `github.com/nv-tlabs/Cosmos-Drive-Dreams`.
-<!-- R3_SOURCES -->
+- **Radar and FMCW:**
+  - `github.com/tudelft-iv/view-of-delft-dataset` (docs).
+  - `github.com/TUMFTM/truckscenes-devkit` (schema, data classes).
+  - `github.com/aimotive/aimotive_dataset` and `aimotive-dataset-loader`.
+  - `github.com/kaist-avelab/K-Radar`.
+  - `github.com/oleschum/radar_scenes`.
+  - `github.com/adept-thu/Dual-Radar`.
+  - `github.com/aevainc/aevascenes`.
+  - nuScenes radar fields: `nuscenes-devkit/python-sdk/nuscenes/utils/data_classes.py`.
+- **Occupancy and flow:**
+  - `github.com/Tsinghua-MARS-Lab/Occ3D`.
+  - `github.com/JeffWang987/OpenOccupancy`.
+  - OpenScene `docs/getting_started.md` and `docs/dataset_stats.md`.
+  - Waymo `occupancy_flow_metrics.proto` and the occupancy-flow tutorial.
+  - `github.com/argoverse/av2-api` (`evaluation/scene_flow`).
+- **Classic driving:**
+  - `github.com/autonomousvision/kitti360Scripts`.
+  - `github.com/bdd100k/bdd100k` (docs).
+  - `github.com/argoverse/argoverse-api`.
+  - A2D2 bucket README and LICENSE (`aev-autonomous-driving-dataset.s3.eu-central-1.amazonaws.com`).
+  - `github.com/ApolloScapeAuto/dataset-api`.
+  - `github.com/shubham1810/idd3d_kit`.
+  - `github.com/mcordts/cityscapesScripts`.
+  - `github.com/AIR-THU/DAIR-V2X` and `DAIR-V2X-Seq`.
+  - AWS open-data registry entries (KITTI, Argoverse, A2D2, TruckScenes).
+- **Accident video:**
+  - `github.com/MoonBlvd/Detection-of-Traffic-Anomaly`.
+  - `github.com/JWFangit/LOTVS-DADA`.
+  - `github.com/Cogito2012/CarCrashDataset`.
+  - `github.com/getnexar/BADAS-Open`.
