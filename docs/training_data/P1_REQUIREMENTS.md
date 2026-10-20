@@ -5,7 +5,7 @@
 - **Exit criterion:** you agree with §1–§4, or change them.
 - **No code and no field definitions yet.** This fixes *what information* flows and what it looks like, not how it is stored.
 
-Evidence marks (V / R / D) as in `docs/RESEARCH_DIRECTION.md`. The examples are illustrative and invented.
+Evidence marks (V / R / D) as in `docs/RESEARCH_DIRECTION.md`. The examples are illustrative and invented. Sources are named as in NAVSIM (e.g. CAM_F0); other datasets map onto the same information (§3).
 
 ## 1. What each model sees and produces
 
@@ -45,20 +45,82 @@ Evidence marks (V / R / D) as in `docs/RESEARCH_DIRECTION.md`. The examples are 
    - every release is immutable (`README.md` §2).
 5. **Short by default:** about 40 tokens or fewer each for reasoning and narration. Output tokens cost decode time on the device (C3) (D).
 
-## 3. Scale, sources and splits
-- **Source:**
-  - NAVSIM navtrain only: ~103k samples from 1,192 logs (V).
-  - The 8 OpenScene cameras are at 2 Hz (V); only the current frame is used for now.
-- **Dev split:**
-  - About 5% of navtrain logs, frozen, stratified by city, used for model selection (D2).
-  - A dev metric cache for PDMS: feasibility to be checked in P2.
-- **Final testing only:** navtest (v1 PDMS) and navhard two-stage (EPDMS). Never train or select on them (V, NAVSIM rule).
-- **Teacher text:**
-  - First ~200 samples (P5 pilot). Then a subset or all of navtrain, decided from the pilot's cost and quality.
-  - ReCogDrive's released navtrain QA (752k QA by Qwen2.5-VL-72B, V) serves as a comparison arm (D9).
-- **Optional later** (`DATASETS.md`):
-  - human-written examples (Nu-X, BDD-X) as style references for the teacher prompt;
-  - nuReasoning, after a log-overlap check.
+## 3. Sources, scale and splits
+**Principle [agreed 2026-10-20]:** train on several datasets, not navtrain alone, for both quality and quantity. NAVSIM stays the target for fine-tuning and evaluation [proposed].
+
+A single-frame sample needs only three things, and no object labels (D):
+- a front image;
+- the ego trajectory around it: 1.5 s back and 4 s ahead, at ≥2 Hz;
+- speed and acceleration.
+
+So many datasets qualify.
+
+### 3a. Candidate sources [proposed]
+"Frames at 2 Hz" is hours × 7,200 (D). Clips shorter than ~20 s lose another ~25–30% to the 5.5 s window (D).
+
+| Source | Frames at 2 Hz | Pose quality | Command / route | Licence | Proposed role |
+|---|---|---|---|---|---|
+| **NAVSIM navtrain** | ~103k samples (V) | nuPlan localization (V) | Route-based command (V) | Non-commercial (V) | Target domain: fine-tuning, dev split |
+| **Rest of OpenScene trainval:** the same 1,192 logs, minus the scenes NAVSIM keeps for navtrain as "non-trivial" (V) | ~0.8M (D, ~120 h). Sensors 2.1 TB vs 445 GB for navtrain (V) | Same | Same | Same | Same-domain bulk; down-weight easy cruising |
+| **nuScenes** | ~34k keyframes (V) | Localization + CAN bus (V) | Derived from the future path (D) | Non-commercial (R) | Small, high quality; MVLAD-AD comparison |
+| **Waymo Perception / WOD-E2E** | ≤80k / ~90k (D) | Pose per frame (V) / ego at 4 Hz (V) | WOD-E2E has an intent field (V) | Waymo non-commercial (V) | High quality; long tail (E2E); an external check |
+| **nuReasoning** | ~0.6M in train (D, 17k × 20 s) | Not checked | Route commands (V) | Non-commercial + commercial terms (V) | NAVSIM-like at 10 Hz, plus reasoning. Check log overlap first |
+| **NVIDIA PhysicalAI-AV** | ~12M (D) | Egomotion at ~100 Hz (V) | Not found | Restrictive (R) | Scale and diversity (25 countries), if the licence fits |
+| **L2D** | ~3.6M (D) | GPS + IMU at 10 Hz (V) | OSM route waypoints (V) | Apache-2.0 (R) | Permissive bulk; drop learner-driver episodes (tagged, V) |
+| **CoVLA** | ~0.6M (D) | CAN + GNSS (R) | Not found | Custom non-commercial (R) | Front camera + captions; left-hand traffic |
+| **ZOD** | ~60k from sequences (D), plus long drives | GNSS/IMU at 100 Hz (R) | Not found | CC BY-SA 4.0 (V) | Europe; permissive |
+| **ONCE** | ~1M (D) | Pose per frame (V) | Not found | Non-commercial + extra terms (V) | China; bulk pretraining |
+| **BDD100K** | >7M (D) | Phone GPS/IMU, rate not found (V) | None | Research use (V) | Images only: GPS is likely too noisy for 0.5 s waypoints (D) |
+| **SimScale** (synthetic) | 384K samples (V) | Pseudo-expert labels (V) | NAVSIM-style | CC BY-NC-SA 4.0 (V) | NAVSIM-style augmentation. Check its source logs first |
+
+Facts and licences per dataset: `DATASETS.md`.
+
+### 3b. Rules for mixing sources [proposed] (D unless marked)
+1. **One canonical sample format for every source.** Each sample holds:
+   - the front image and its intrinsics;
+   - ego poses in the rear-axle frame (x forward, y left), with timestamps;
+   - speed and acceleration;
+   - the command, with its definition recorded;
+   - provenance: source, licence, split.
+
+   Each source's ego-frame origin is checked in P2.
+2. **One command definition.**
+   - Calibrate a rule on navtrain that reproduces NAVSIM's command from the path, and apply it to sources without routes.
+   - Record whether each command is route-based or derived.
+3. **Camera differences.**
+   - Record intrinsics.
+   - Crop or resize to a common field of view where possible.
+   - Tag the camera in the prompt.
+4. **Quality filters:**
+   - pose jumps and implausible jerk;
+   - image–pose time sync;
+   - **project the future path into the front image** and check that it follows the road. This is a cheap visual check that works on every source;
+   - drop learner drivers;
+   - drop near-duplicate frames: sample at ≤2 Hz and skip long standstills.
+5. **Balance** by source, manoeuvre (the rule-based decision classes), speed and city. Down-weight straight cruising and standstill.
+6. **Training stages:**
+   1. pretrain on the mixture;
+   2. fine-tune on navtrain;
+   3. RL on navtrain with the PDM score.
+
+   This mirrors published VLAs, which pretrain on more than navtrain (R):
+   - WAM-Diff / WAM-Flow: 668k nuPlan trajectories + VQA;
+   - AutoVLA: nuPlan + nuScenes, then RL on navtrain.
+7. **Measure each source's value before scaling downloads.** Run add-one-source ablations, scored on the navtrain dev split.
+8. **Splits:**
+   - per-source train / dev by log;
+   - each dataset's official test split stays unused;
+   - NAVSIM's navtest / navhard / warmup splits never;
+   - exclude nuPlan test logs from any raw-nuPlan pull (V);
+   - check nuReasoning and SimScale for overlap.
+9. **Storage.** Store compact views: the front image at model resolution, ~50–100 KB each. About 1M samples then take ~50–100 GB, and the raw data stays referenced, not copied.
+
+### 3c. Reasoner data across sources
+- **Decisions:** labels come from rules over each source's recorded future. So every source contributes decision labels for free (D).
+- **Teacher text:** costs one teacher call per image, so label a balanced subset across sources.
+  - Start with the P5 pilot (~200 samples).
+  - Use ReCogDrive's navtrain QA (752k, V) as a comparison arm (D9).
+- **Text-rich sources for pretraining:** CoVLA captions, nuReasoning, LingoQA, DriveLM, Nu-X and BDD-X (`DATASETS.md` §1g).
 
 ## 4. What the dataset must guarantee [proposed]
 | # | Requirement | Why |
@@ -80,15 +142,17 @@ These are decided by ablation and do not block P2.
 - The reasoner's image: one front frame or more cameras.
 
 ## 6. Next step: the P2 audit, narrowed to these two models
-On ~10–20 navtrain logs, after your OK (`README.md` §6):
+After your OK (`README.md` §6), run the same checks on a small sample of each shortlisted source: ~10–20 navtrain logs, and a few hundred frames per other source.
 - **Conventions:**
-  - ego poses and future targets;
-  - the driving-command encoding;
-  - camera timestamps vs poses.
+  - ego-frame origin and axes;
+  - future targets;
+  - the command encoding;
+  - camera timestamps vs poses;
+  - the path-projection check.
 - **Distributions:**
   - speed, command, path curvature;
   - decision classes under the v0.1 thresholds (class balance);
   - how often the command is "unknown" or disagrees with the path.
 - **Token counts** of candidate pilot and reasoner views.
-- **About 50 random samples** rendered as each model would see them, for a visual check.
+- **About 50 random samples per source,** rendered as each model would see them, for a visual check.
 - **A dev-split proposal** (which logs, city balance) and the dev metric-cache test.

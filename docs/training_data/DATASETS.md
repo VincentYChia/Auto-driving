@@ -160,8 +160,8 @@ ApolloScape and V2X-Seq trajectories are listed in §1b.
   - check the source logs of SimScale, nuReasoning and NuPlanQA by log name.
 
 ## 4. Implications [proposed]
-1. **D6:** navtrain stays the core of v1.
-2. **D6, next source: the raw nuPlan DBs for the same logs.**
+1. **D6:** several datasets [agreed 2026-10-20], with navtrain as the target domain. The single-frame shortlist and mixing rules are in `P1_REQUIREMENTS.md` §3.
+2. **For motion work (now deferred): the raw nuPlan DBs for the same logs.**
    - Same scenes, but at 20 Hz, with whole-log history, route and traffic lights. Same licence; no domain shift (D).
    - Serves C1 history length/rate studies, the motion encoder (e), the refresh loop and, later, the nuPlan closed loop.
    - Joining on log name + timestamp is to be verified in P2. The DBs are 1.22 TB for all splits (V).
