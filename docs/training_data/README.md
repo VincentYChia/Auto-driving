@@ -1,6 +1,6 @@
 # Workstream B: training data. Design before build
 
-**Status (2026-10-20): Phase 1 (requirements) for the two small models.** Draft: `P1_REQUIREMENTS.md`. Multi-frame and motion data are deferred [agreed].
+**Status (2026-10-22): Phase 1 (requirements) for the two small models.** Draft: `P1_REQUIREMENTS.md`. What the raw data looks like in each source, and how it becomes training samples: `DATA_ATLAS.md`. Multi-frame and motion data are deferred [agreed].
 - `data_pipeline/` is a **prototype (v0.1)**. It was built to explore a format, has only been run on synthetic logs, and must **not** be used to produce data for experiments.
 - Prototype format: `PROTOTYPE_v0.1_SCHEMA.md`.
 - This workstream is independent of NAVSIM scoring (`docs/navsim_eval/`). Both share only the read-only NAVSIM access layer, `navsim_tools/`.
@@ -46,7 +46,7 @@ Status markers follow `docs/RESEARCH_DIRECTION.md`: [agreed] / [proposed] / [ope
 | L1 | Each record is a self-contained NAVSIM window (4 history + 10 future). navtrain uses `frame_interval: 1` (V, `scene_filter/navtrain.yaml`), so neighbouring records share most frames | Each frame is stored up to 14×, and the window shape is baked in. Other history/horizon lengths need a re-extraction |
 | L2 | Lossy at the canonical layer: 100 m range filter, rounding, only the 4 frames NAVSIM shows at test time | Some research questions (longer history, far objects) need a re-extraction |
 | L3 | No train/dev split | A random split would leak (overlapping windows, same-log correlation); model selection would fall back to navtest |
-| L4 | Conventions checked only against NAVSIM's *code* and synthetic logs, not real data: box/velocity frames, track persistence, timing regularity, sensor sync, origin (rear axle vs LiDAR) | An undetected convention error would corrupt every motion feature |
+| L4 | Conventions checked only against NAVSIM's *code* and synthetic logs, not real data: box/velocity frames, track persistence, timing regularity, sensor sync, origin (rear axle vs LiDAR). **Found 2026-10-22 (V, OpenScene generator):** `gt_velocity_3d` is stored in the LiDAR frame, not the ego frame that `navsim_tools/raw_frames.py` assumes. `sensor2lidar_*` is filled from nuPlan camera-to-ego values. CAM_F0 images are distorted (k1 ≈ −0.36). Image–pose skew is up to 50 ms and not recorded | An undetected convention error would corrupt every motion feature |
 | L5 | Privileged data lives in the same record as inputs, separated only by a key name | A loader bug could leak the future into training inputs |
 | L6 | Labels uncalibrated: meta-action thresholds hand-picked, class balance unknown, teacher prompt untried. Hindsight labels may teach the reasoner to "know" the future | Label noise or bias would enter both pilot and reasoner training |
 | L7 | No QA tooling: no BEV or camera-overlay visualisation, no real-data checks | Errors would only show up as unexplained training results |

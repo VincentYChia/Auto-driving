@@ -73,7 +73,7 @@ So many datasets qualify.
 | **BDD100K** | >7M (D) | Phone GPS/IMU, rate not found (V) | None | Research use (V) | Images only: GPS is likely too noisy for 0.5 s waypoints (D) |
 | **SimScale** (synthetic) | 384K samples (V) | Pseudo-expert labels (V) | NAVSIM-style | CC BY-NC-SA 4.0 (V) | NAVSIM-style augmentation. Check its source logs first |
 
-Facts and licences per dataset: `DATASETS.md`.
+Facts and licences per dataset: `DATASETS.md`. What one moment looks like in each source, and how it maps to one canonical frame: `DATA_ATLAS.md`.
 
 ### 3b. Rules for mixing sources [proposed] (D unless marked)
 1. **One canonical sample format for every source.** Each sample holds:
