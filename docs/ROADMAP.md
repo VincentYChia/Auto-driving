@@ -100,7 +100,11 @@ What to compare: L2 at 1/2/3 s on nuScenes; PDMS / EPDMS on NAVSIM (see 3); code
 
 Also try per-timestep codebooks. `tokenizer/points_xy_{1,2,3}s.npy` already exist, but a single shared codebook is used today.
 
+Also compare smoother parameterisations with fewer tokens: a spline through fewer poses, frequency-domain (DCT) coefficients, or control-space outputs. Score each one's ceiling offline first (`docs/NAVSIM_TAILORING.md` §4).
+
 ### 3. Getting it working on NAVSIM, then fine-tuning
+
+**Update 2026-10-22:** the objective is the highest NAVSIM score under constrained compute [agreed]. How NAVSIM scores a plan, and what that means for horizon, output rate, smoothing and frame-to-frame consistency: `docs/NAVSIM_TAILORING.md`.
 
 1. **Agent wrapper:** implement a NAVSIM agent that turns its inputs into a prompt (front camera, ego status, driving command) and outputs a `Trajectory` with 8 poses at 0.5 s (4 s).
    - Heading = direction between consecutive waypoints.

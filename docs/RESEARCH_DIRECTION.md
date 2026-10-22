@@ -269,6 +269,7 @@ SFT → RL with the PDM score as reward (GRPO/GSPO) is standard and typically ad
 Distillation from a privileged teacher fits C1 directly: train a teacher on ground-truth tracks, then a student on tracker tokens (DriveZero pattern).
 
 ### 2.6 Evaluation protocol implications [proposed]
+- **Objective [agreed 2026-10-22]:** as a starting point, the highest NAVSIM score under constrained compute. Inputs and outputs are tailored to NAVSIM, including the output rate (Hz) and smoothing. How NAVSIM scores a plan, and what follows from it: `docs/NAVSIM_TAILORING.md`.
 - **Primary: navhard two-stage EPDMS (v2).**
   - Best reported non-VLM: 58.1 (FPD-Drive-Pro). Best VLA: 47.0 (DriveVLA-M0) (R).
   - The ~11-point gap is where object-motion context could plausibly help.
@@ -358,3 +359,4 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 | 2026-10-20 | Researcher: C3's idea stands, but the goal is to **lower compute in general**, not to meet a set compute limit. Edge tiers and budgets become reference points. | agreed |
 | 2026-10-20 | Researcher: multi-frame and object-motion data go on the back burner (C1 deferred). Next: training data for the two small models (fast pilot, reasoner). P1 requirements drafted in `docs/training_data/P1_REQUIREMENTS.md`. | agreed |
 | 2026-10-20 | Researcher: single-frame training data should come from several datasets, for quality and quantity, not navtrain alone. Proposed: navtrain stays the target for fine-tuning and evaluation; shortlist, mixing rules and training stages in `docs/training_data/P1_REQUIREMENTS.md` §3. | agreed (principle) |
+| 2026-10-22 | Researcher: the starting objective is the highest NAVSIM score under constrained compute, with inputs and outputs tailored to NAVSIM, including output rate (Hz) and smoothing. A collaborator's suggestions (focus on efficiency and explainability; smoothing post-processing; frequency-domain trajectories) are recorded as context only. Analysis and proposed experiments: `docs/NAVSIM_TAILORING.md`. | agreed (objective) |
