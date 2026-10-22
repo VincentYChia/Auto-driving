@@ -163,6 +163,25 @@ This ties to claim 3 because **latency scales with tokens × steps, not vocabula
 - **[agreed]** Lower the compute of the whole stack as far as possible at equal driving quality. Compute here means latency, memory and energy per decision. There is no fixed budget.
 - **[proposed]** Report accuracy-vs-compute curves. Measure on physical edge hardware (Jetson AGX Thor; Orin as a second point), used as reference platforms rather than targets.
 
+#### The closest rivals: performance, architecture, training data (checked 2026-10-22)
+A collaborator named these four as the strongest work in this space. All scores are R. Paper details came from third-party copies, because arXiv was blocked.
+
+| Study | navtest PDMS / EPDMS (single sample) | Model | Action output (tokens × steps) | Extra at test time | Training data | Explanation output | Latency | Released |
+|---|---|---|---|---|---|---|---|---|
+| **WAM-Diff** (Dec 2025) | 91.0 / 89.7 | LLaDA-V 8B + SigLIP2; 64-expert LoRA-MoE | 20,001 numeric bins (0.01 m), x and y separate: 32 tokens × 32 steps | Classifier-free guidance; reverse-causal order | nuPlan 668k trajectories (split not stated) + 800k VQA + navtrain 103k; GSPO RL | None | Not reported | Inference + SFT code; weights (V) |
+| **DriveFine** (Feb 2026; ECCV'26) | 90.7 / 89.7 (fixed evaluator). navhard stage 1 / 2: 74.4 / 41.0 | LaViDa (LLaDA-8B), ~9B with its refiner | 4,000 position bins + 1,800 heading bins; 12 steps + 1 refinement pass | Refinement expert | ReCogDrive QA + navtrain; GRPO + refiner RL | None | 207 ms at 4 steps (90.5 PDMS); hardware not stated | README only (V) |
+| **ReflectDrive** (Sep 2025; ICLR'26) | 84.8 model alone; 91.1 with reflection | LLaDA-V ~8B | Per-axis codebook: 16 tokens | Goal candidates + rule-based safety scorer (constant-velocity agents) + inpainting, 1–3 rounds | Not found; no RL | None | Not reported | README + MIT licence (V) |
+| **ReflectDrive-2** (May 2026) | 91.0 | Proprietary 0.7B masked-diffusion LM + 0.1B ViT | Goal token + 16 coordinate tokens + 1 AutoEdit pass | Same model edits its own draft | navtrain only: perturbation-recovery SFT + RL | None | ~31.8 ms on "Thor", averaged over full and lite frames | Nothing |
+
+**Also: WAM-Diff2** (Aug 2026), the same team on Qwen3-VL-2B. 88.3 PDMS / 88.6 EPDMS single sample; 91.1 / 90.7 with score-based selection (R). Apache-2.0 code (V). It is the open ~2B rival.
+
+**What this leaves open (D):**
+- **None of the five outputs an explanation.**
+- **Latency** is unreported, or comes from closed weights with unclear hardware.
+- **Headline numbers stack extras:** guidance, scorers and oracle best-of-N. Report score per forward pass.
+- **RL seems needed to pass ~90.**
+- **Image tokens (~2.2k into an 8B model) dominate the cost,** not action tokens.
+
 ### 2.3 Edge compute: what "edge" means, and reference budgets
 
 > **Update 2026-10-20 [agreed]:** there is no fixed compute target; the goal is to lower compute in general (C3). The tiers, budgets and size limits below are reference points for measurement, not constraints.
@@ -226,7 +245,7 @@ Other automotive chips (Horizon J6P, Qualcomm Ride Elite, XPeng Turing, NIO NX90
 4. **No chain-of-thought in the pilot.** AUGUstus generates the action before any reasoning: Qwen3.5-2B, 94.0 PDMS with one decoding step, 73.6 ms (V). Each reasoning token costs ~8 ms (Thor) or ~12 ms (Orin) at 2B.
 5. **Refreshing the plan by inpainting.**
    - Keep the tokens of the previous plan that execute during compute latency (Physical Intelligence's real-time chunking) and regenerate the rest.
-   - ReflectDrive's safety-guided inpainting raised PDMS 84.8 → 91.1 (V).
+   - ReflectDrive raised PDMS 84.8 → 91.1 with candidate selection plus safety-guided inpainting, both driven by external rule-based scorers (R; corrected 2026-10-22).
    - ReflectDrive-2 alternates a full and a lite edit pass (~41 / 19 ms on Thor) (R).
    - Measure temporal consistency with MomAD's TPC metric.
 
@@ -264,7 +283,10 @@ Evidence:
 
 **Fine-tuning**
 
-SFT → RL with the PDM score as reward (GRPO/GSPO) is standard and typically adds 1–4 PDMS: DriveFine 90.7 → 91.8; ReCogDrive 86.5 → 90.8 (V/R).
+SFT → RL with the PDM score as reward (GRPO/GSPO) is standard and adds about 3–4 PDMS (R; corrected 2026-10-22):
+- DriveFine: SFT 86.7 → GRPO 89.6 → refiner RL 90.8. Its 91.8 comes from an extra trained scorer.
+- WAM-Diff: GSPO adds +4.4.
+- ReCogDrive: 86.5 → 90.8.
 
 Distillation from a privileged teacher fits C1 directly: train a teacher on ground-truth tracks, then a student on tracker tokens (DriveZero pattern).
 
