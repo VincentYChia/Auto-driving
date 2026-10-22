@@ -42,37 +42,64 @@ Evidence marks (V / R / D) as in `docs/RESEARCH_DIRECTION.md`. Facts marked V we
   - The root-mean-square differences must stay within 0.7 m/s² (acceleration), 0.5 m/s³ (jerk), 0.1 rad/s (yaw rate) and 0.1 rad/s² (yaw acceleration).
   - It is all-or-nothing per frame.
 
-**Why smoothness matters (D):**
-- In PDMS, comfort is 2/12 (17%) of the weighted part.
-- In EPDMS, HC + EC are 4/16 (25%), and both are pass/fail.
-- In other words, smoothness and frame-to-frame consistency carry about a quarter of the weighted EPDMS.
+**Weights are not where points are lost.** Published sub-scores and SimScale's official per-scene CSVs show:
+- **Single-plan comfort is already saturated.**
+  - v1 Comfort is 99.3–100 for almost every method (R).
+  - v2 History Comfort is ~97–98 (R).
+  - Smoothing one plan has little left to win.
+- **Imitation planners lose most on Ego Progress and Drivable Area.** Recomputed from SimScale's per-scene CSVs (D):
+  - LTF and DiffusionDrive lose ~3.9 EPDMS to EP (about the human ceiling, EP 87.4) and 2.5–3.8 to DAC.
+  - They lose only ~1.1–1.2 to EC.
+- **Extended Comfort (consistency between consecutive plans) is the comfort term that moves:**
+
+  | Planner / setting | EC result |
+  |---|---|
+  | Human logs | Pass only 90.1% (R) |
+  | Published navtest EC values | 59–92 (R) |
+  | Vocabulary-scorer planners | EC is their largest single loss: 4.0–4.4 points, with 41–45% of frames failing (D) |
+  | navhard | Stage-1 EC 31–77; stage-2 EC 31–43 and stage-2 Lane Keeping 58–62 are the weakest terms (D) |
+- **Pin the devkit commit.** NAVSIM fixed a human-filter bug on 2025-09-29 (commit `359c7f7`, V). It moves EPDMS by +2 to +3.8, which is more than most gaps between methods (R/D). Report which evaluator was used.
 
 ## 2. What this means for the output (D unless marked)
 - **Horizon: exactly 4 s.** MVLAD-AD predicts 10 waypoints (5 s), so 2 of its 10 action tokens are wasted compute. A shorter horizon gets its last pose held and reads as stopping.
-- **Rate.** The scorer resamples to 10 Hz with straight lines between our poses, so finer output only helps if it carries real smoothness. A smooth parameterization can use **fewer** tokens than 8 poses:
+- **Rate is not the bottleneck** (evidence above).
+  - Most planners, including the strongest, output 8 poses × 0.5 s (V, code), and 40 × 0.1 s shows no comfort advantage (R, confounded).
+  - Pick the representation for **tokens and accuracy**, not smoothness. A common budget is 8 poses × (x, y[, heading]) = 16–24 tokens. A smooth parameterisation could use fewer:
 
-  | Output design | Action tokens | Smooth? | Notes |
-  |---|---|---|---|
-  | **A.** 8 poses at 2 Hz (NAVSIM default) | 8 (joint codebook) or 16 (separate x and y) | Kinks at each pose | The baseline |
-  | **B.** 4 poses at 1 Hz + a spline to 4 s | 4–8 | Yes | Fewer tokens; needs a curvature check |
-  | **C.** Frequency domain: K DCT coefficients per axis (FAST-style) | 2K (K ≈ 3–6) | Yes, low-pass by construction | Matches the collaborator's frequency-domain idea; ties to C2 |
-  | **D.** Control space: acceleration + curvature per 0.5 s, integrated with a bicycle model | 16 | Dynamically feasible by construction | Comfort and HC become directly controllable |
-  | **E.** 40 poses at 10 Hz | 40–80 | Only if learned | 5× the tokens; probably not worth it |
+  | Output design | Action tokens | Notes |
+  |---|---|---|
+  | **A.** 8 poses at 2 Hz (NAVSIM default) | 8 (joint codebook) or 16 (separate x and y) | The baseline |
+  | **B.** 4 poses at 1 Hz + a spline to 4 s | 4–8 | Fewer tokens; needs a curvature check |
+  | **C.** Frequency domain: K DCT coefficients per axis (FAST-style) | 2K (K ≈ 3–6) | The collaborator's idea. On its own it doesn't buy consistency: DriveVLA-W0 uses FAST and has the lowest published EC (58.9), though that is confounded (R) |
+  | **D.** Control space: acceleration + curvature per 0.5 s, integrated with a bicycle model | 16 | Feasible by construction |
+  | **E.** 40 poses at 10 Hz | 40–80 | 5× the tokens; no shown benefit |
+
+  Prior representations on NAVSIM, all R:
+  - Bézier control points inside a vocabulary: +3.25 PDMS over text waypoints (GRAVA).
+  - 2 latent tokens: no loss (WALT).
+- **Denoising steps: 2–4 look viable** (R).
+  - DriveFine reaches ~90.5 PDMS with 4 steps at 207 ms.
+  - WAM-Flow defaults to 5 steps; MVLAD-AD uses 2–10.
+  - This supports a ~16-token, 2–4-step head [proposed].
 - **The first 0.5 s must match the current speed and acceleration.**
   - The scorer starts from the real ego state and runs a straight line to the first pose.
   - A first pose that implies a different speed creates an acceleration spike, which fails C and HC.
   - Options: predict residuals from a constant-velocity or constant-acceleration roll-out, or condition strongly on ego status.
 - **Heading.** The tracker uses heading error, so headings must agree with the path. Derive them from the path, as `navsim_eval/predictions.py` does, or predict them consistently.
 - **Post-processing smoothing** (the collaborator's idea).
-  - Methods:
-    - a smoothing spline or Savitzky–Golay filter on the poses;
-    - or a small optimisation that fits acceleration and curvature to the poses with a jerk penalty (the same idea as the tracker's reference fit).
-  - It costs almost no compute.
-  - Risk: over-smoothing cuts corners, which costs drivable-area and collision scores. Tune it on a navtrain dev split, never on navtest.
-- **Consistency across frames (EC):**
-  - decode deterministically: confidence-ordered unmasking with no random sampling;
-  - train with a consistency loss between plans for frames 0.5 s apart (navtrain frames are consecutive);
-  - test whether coarser tokens make plans steadier.
+  - It is cheap, but expected gains are small, because single-plan comfort is already ~99–100 (above).
+  - It may still help a model whose raw waypoints are noisy, e.g. MVLAD-AD's codebook rounding, so it is worth one cheap check (§4.2).
+  - Risk: cutting corners costs drivable-area and collision scores. Tune it on a navtrain dev split, never on navtest.
+- **Consistency across frames (EC) is the comfort lever that pays.** Every measured gain makes the new plan agree with the previous one or with a single mode (R):
+  - re-ranking candidates against the previous plan: EC 77.0 → 92.8, EPDMS +1.6;
+  - an anchor: EC 35 → 75.5.
+
+  For a masked-diffusion head [proposed]:
+  - decode deterministically;
+  - condition decoding on the previous plan, shifted by 0.5 s, as soft anchors or as an inpainting prompt;
+  - train with a consistency loss between frames 0.5 s apart.
+
+  Caveat: NAVSIM's `compute_trajectory` does not receive the agent's own previous output (V). Previous-plan conditioning needs an internal cache and frames processed in log order. Whether the leaderboard allows that is not checked.
 
 ## 3. What this means for the input (D)
 - **Ego history: 4 poses at 2 Hz (1.5 s).** That is what NAVSIM gives; MVLAD-AD was trained on 10 poses. Alternatively, summarise it as speed, acceleration and yaw rate, which is fewer tokens and serves HC directly.
@@ -84,9 +111,10 @@ Evidence marks (V / R / D) as in `docs/RESEARCH_DIRECTION.md`. Facts marked V we
    - Encode the human trajectories of a navtrain dev split with each design: A–E, plus codebook sizes 256 / 1,024 / 2,048 and coarse + fine tokens.
    - Decode them and score the result with NAVSIM's scorer on a navtrain metric cache.
    - This measures what each representation costs before training anything. It includes the shipped 256-token codebook (0.54 m rounding).
-2. **Post-processing on existing predictions.** Re-score MVLAD-AD's zero-shot NAVSIM predictions (workstream A) with and without smoothing and first-segment correction. This shows how much C/HC/EC alone is worth.
+2. **Post-processing on existing predictions.** Re-score MVLAD-AD's zero-shot NAVSIM predictions with and without smoothing and first-segment correction. Expect small gains, given saturated comfort, unless the raw waypoints are noisy.
 3. **Train the small pilot with the best 2–3 designs from (1).** Report score vs action tokens × denoising steps.
-4. **EC study:** deterministic vs sampled decoding, with and without the consistency loss.
+4. **EC study:** deterministic vs sampled decoding, previous-plan conditioning, and a consistency loss. On navhard, EC and lane keeping are the weakest terms.
+5. **Always** report the devkit commit, and both EPDMS variants (before and after the 2025-09-29 human-filter fix) when comparing with published numbers.
 
 Steps 1 and 2 need only the NAVSIM devkit and a metric cache, not GPUs, and can run beside the workstream-A setup.
 
