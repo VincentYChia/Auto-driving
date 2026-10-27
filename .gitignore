@@ -23,3 +23,15 @@ scripts/anvil/config.local.sh
 # Partial weight downloads, test caches
 *.download
 .pytest_cache/
+
+# Pretraining data built by data_pipeline/v1 (docs/training_data/PRETRAIN_V1_PLAN.md §5). Images and
+# per-frame tables stay local: nuPlan's terms for sharing derived data are not checked yet, and this
+# repo is public. Only ID lists, manifests and aggregate statistics are committed.
+data/pretrain/**
+!data/pretrain/**/
+!data/pretrain/**/manifest.json
+!data/pretrain/**/DATA_CARD.md
+!data/pretrain/**/audit/summary.json
+!data/pretrain/**/audit/report.md
+!data/pretrain/**/splits/*.txt
+data/pretrain/smoke/**
