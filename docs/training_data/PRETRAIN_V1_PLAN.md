@@ -91,6 +91,25 @@ It is used later for teacher labels and for quality checks.
 
 **Text:** none in OpenScene. The column exists and is empty, so later sources fit the same table.
 
+## 4b. When discretisation happens [proposed]
+**Never in the stored dataset. Only at training time, from the stored floats.** The release keeps continuous poses, and each experiment tokenises them when it loads them.
+
+| Stage | Continuous or discrete | What happens |
+|---|---|---|
+| Canonical record (§4) | **Continuous** (float32 poses) | Nothing is rounded except the fixed 0.5 s time grid |
+| Tokenizer fit (new step 6b) | Continuous in → codebook out | Fit on the **train split only**. Versioned as `tokenizer_<kind>_<size>_v<n>` with a hash of its fit data |
+| Ceiling test (step 6b) | Encode → decode → score | Dev-split human paths are run through each tokenizer and scored with NAVSIM's scorer. This measures what the representation alone costs (`docs/NAVSIM_TAILORING.md` §4.1) |
+| Training data loader | **Discrete**, on the fly | Path → token indices → model vocabulary IDs. Nearest-centre lookup takes microseconds, so switching tokenizer needs no rewrite of the data |
+| Inference | Discrete → continuous | Tokens are decoded back to poses before NAVSIM scores them; RL rewards are computed on the decoded path |
+
+**Why this way:**
+- **The C2 study needs continuous paths:** comparing 256 / 1,024 / 2,048 codebooks, coarse + fine tokens, separate x and y, frequency-domain coefficients.
+- **Discretisation has two layers, kept apart:**
+  - path → token index, which is model-agnostic;
+  - index → vocabulary ID, which differs between LLaDA-V, Qwen and Gemma.
+- **This is already how MVLAD-AD works:** its training code converts continuous waypoint text to tokens on load (`train/llava/train/train.py` ~L821–836, `point_tokenizer.encode_points`).
+- **The prompt's numbers are also formatted at load time:** ego history, speed and acceleration, at a chosen precision. That is a view choice, not storage.
+
 ## 5. On disk after the build [proposed]
 ```
 $DATA_PERSIST/pretrain/v1.0-pilot/
@@ -112,7 +131,8 @@ $DATA_PERSIST/pretrain/v1.0-pilot/
 | **4** | Build the smoke set (10k + 1k dev), then the QA report: **future path projected onto CAM_F0** for 50 random samples, BEV path plots, timing histogram, flag rates | **Gate 1:** look at the 50 renders; agree the conventions and the record | ~15 min |
 | **5** | Stream 52 more archives, then sample the v1-pilot set (50k + 2k dev) | QA report again | ~290 GB streamed, ~4–6 h |
 | **6** | Freeze the v1.0-pilot release: manifest, checksums, data card | **Gate 2:** sign off the release | Minutes |
-| **7** | Write the pilot view: image path + prompt + 8 target poses (JSONL). Tokenisation happens at training time (C2) | Ready for the first pretraining run | Minutes |
+| **6b** | Fit tokenizers on the train split: MVLAD-AD's shipped 256 for reference, plus refits at 256 / 1,024 / 2,048 and coarse + fine. Run the ceiling test on the dev split, and record rounding error per horizon | One table: tokenizer × rounding error × NAVSIM ceiling | CPU, ~1–2 h |
+| **7** | Write the pilot view: image path + prompt + 8 **continuous** target poses (JSONL). Tokenisation happens in the data loader (§4b) | Ready for the first pretraining run | Minutes |
 
 **Compute note:** you have no CPU allocation, so steps 2–6 run as GPU-partition jobs on 1 GPU (8–16 cores), about 6–8 GPU-hours in total (D). Downloads may also run on a login node if Anvil's policy allows it.
 
@@ -141,7 +161,7 @@ Following the repo rules (`CLAUDE.md`, `README.md`): no full run without your si
 | L7 (no QA) | `qa/report.html` with renders |
 | L8 (no release discipline) | Manifest, checksums, data card |
 
-## 9. Defaults to confirm (or change)
+## 9. Defaults (confirmed by the researcher's "Yes", 2026-10-27; change any time)
 1. **Dev split** = NAVSIM's official val logs. 214 of navtrain's logs; final fine-tuning would then use the 978 train logs.
 2. **Balance:** cap "keep speed + straight" at 40%; thin standstills to 1 anchor per 5 s; space anchors ≥ 2 s apart.
 3. **Wide window:** store −4 … +6 s per anchor, although the pilot uses −1.5 … +4.0.
