@@ -87,10 +87,10 @@ Facts and licences per dataset: `DATASETS.md`. What one moment looks like in eac
 2. **One command definition.**
    - Calibrate a rule on navtrain that reproduces NAVSIM's command from the path, and apply it to sources without routes.
    - Record whether each command is route-based or derived.
-3. **Camera differences.**
-   - Record intrinsics.
-   - Crop or resize to a common field of view where possible.
+3. **Camera differences [agreed 2026-10-27]: keep native images.** The aim is a general-purpose model that learns every camera.
+   - Record intrinsics, distortion and field of view.
    - Tag the camera in the prompt.
+   - Rectify to one view only if results are poor.
 4. **Quality filters:**
    - pose jumps and implausible jerk;
    - image–pose time sync;

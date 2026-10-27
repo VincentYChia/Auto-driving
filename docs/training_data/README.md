@@ -1,6 +1,6 @@
 # Workstream B: training data. Design before build
 
-**Status (2026-10-22): Phase 1 (requirements) for the two small models.** Draft: `P1_REQUIREMENTS.md`. What the raw data looks like in each source, and how it becomes training samples: `DATA_ATLAS.md`. Multi-frame and motion data are deferred [agreed].
+**Status (2026-10-22): Phase 1 (requirements) for the two small models.** Draft: `P1_REQUIREMENTS.md`. What the raw data looks like in each source, and how it becomes training samples: `DATA_ATLAS.md`. **Execution plan for the first pretraining build (OpenScene, 10k → 50k samples), with gates: `PRETRAIN_V1_PLAN.md`.** Multi-frame and motion data are deferred [agreed].
 - `data_pipeline/` is a **prototype (v0.1)**. It was built to explore a format, has only been run on synthetic logs, and must **not** be used to produce data for experiments.
 - Prototype format: `PROTOTYPE_v0.1_SCHEMA.md`.
 - This workstream is independent of NAVSIM scoring (`docs/navsim_eval/`). Both share only the read-only NAVSIM access layer, `navsim_tools/`.
@@ -89,8 +89,8 @@ Worth keeping from the prototype (tested, and likely to carry into v1):
 | D3 | What the canonical layer keeps | All objects, full precision, whole logs vs filtered | **Keep everything**; filter in views |
 | D4 | Privileged separation | Key inside the record vs separate stores | **Separate stores**: observations / targets / privileged |
 | D5 | Format | Parquet (columnar, partial reads) vs gzipped JSONL | **Parquet** for canonical, **JSONL** for training views. `pyarrow` is already in NAVSIM's requirements (V) |
-| D6 | Sources in v1 | navtrain only, or several datasets. Table: `DATASETS.md` | **Several datasets [agreed 2026-10-20]**, with navtrain as the target domain for fine-tuning and evaluation. Shortlist and mixing rules [proposed]: `P1_REQUIREMENTS.md` §3 |
-| D7 | Sensors referenced | Front camera only vs all 8 cameras + LiDAR + calibration | **All** (paths are cheap); image choice is a view concern |
+| D6 | Sources in v1 | navtrain only, or several datasets. Table: `DATASETS.md` | **Several datasets [agreed 2026-10-20]**, with navtrain as the target domain for fine-tuning and evaluation. Shortlist and mixing rules [proposed]: `P1_REQUIREMENTS.md` §3. **First build [agreed 2026-10-27]:** OpenScene trainval only, 10k–100k samples (`PRETRAIN_V1_PLAN.md`) |
+| D7 | Sensors referenced | Front camera only vs all 8 cameras + LiDAR + calibration | **Front camera images only [agreed 2026-10-27]**, native, not rectified. The other cameras' paths are recorded but not downloaded |
 | D8 | Decision vocabulary | Rule-based meta-actions vs teacher-defined | **Rule-based**: deterministic and checkable; calibrate in P2 |
 | D9 | Reasoning labels | Teacher model; hindsight (sees the future) vs causal prompting; review protocol; budget | **Decide from the P5 pilot**, not upfront. Include ReCogDrive's released navtrain QA as a comparison arm (`DATASETS.md` §1g) |
 | D10 | Licences / terms | OpenScene / nuPlan dataset terms; teacher model output terms | **Verify before generating or sharing derived data.** First pass in `DATASETS.md` §3; the full licence texts are not yet read |

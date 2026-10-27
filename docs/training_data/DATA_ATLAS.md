@@ -421,7 +421,7 @@ At ~100 KB per sample, 1M samples take ~100 GB of compact views. Raw data stays 
    - NAVSIM, nuScenes, WOD-E2E: high quality, known conventions;
    - PhysicalAI-AV: scale;
    - L2D: permissive, routes.
-2. **Camera handling:** rectify every source to one pinhole field of view around 64° (NAVSIM's), or keep native images with a camera tag?
+2. ~~**Camera handling**~~ **Answered 2026-10-27:** keep native images with a camera tag (general purpose). Rectify only if results are poor.
 3. **Access you'd need to request:**
    - nuScenes and Waymo accounts;
    - PhysicalAI-AV licence acceptance;
