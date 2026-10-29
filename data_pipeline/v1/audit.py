@@ -4,7 +4,9 @@ Reads ``<out>/index/`` and writes:
 * ``audit/summary.json`` and ``audit/report.md``: aggregate statistics only, no per-frame rows, so
   both can be committed while the index itself stays local;
 * ``splits/{train,dev}_logs.txt`` and ``splits/excluded_logs.txt``: the log-level split (log names
-  are public IDs; NAVSIM's own split files list them).
+  are public IDs; NAVSIM's own split files list them);
+* ``audit/examples.html``: three example samples with the reasons for their command and label
+  (``examples.py``). It holds per-frame data, so it stays local.
 
     python -m data_pipeline.v1.audit --out data/pretrain/v1.0-pilot
 """
@@ -19,7 +21,7 @@ from typing import Any, Dict, List, Optional, Sequence
 import numpy as np
 
 from data_pipeline.v1 import openscene_index as oi
-from data_pipeline.v1 import selection, tables
+from data_pipeline.v1 import examples, selection, tables
 from data_pipeline.v1.stats import INF, histogram, percentiles, value_counts
 from navsim_tools import geometry
 
@@ -444,8 +446,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     with open(os.path.join(audit_dir, "report.md"), "w") as f:
         f.write(render(summary) + "\n")
     split_counts = write_splits(args.out)
+    examples_page = examples.write(args.out)
     failed = [c["check"] for c in summary["checks"] if not c["ok"]]
     print(f"audit written to {audit_dir}; splits {split_counts}; checks failed: {failed or 'none'}")
+    print(f"examples: {examples_page or 'none (no eligible rows)'}")
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ wandb/
 
 # Env
 .env
+.venv/
 
 # Local machine settings for the Anvil job scripts
 scripts/anvil/config.local.sh

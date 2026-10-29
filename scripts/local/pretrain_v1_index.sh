@@ -43,3 +43,4 @@ fi
     --out "$OUT" ${EXTRA[@]+"${EXTRA[@]}"}
 "$PYTHON" -m data_pipeline.v1.audit --out "$OUT"
 echo "Gate 0 report: $OUT/audit/report.md"
+echo "Examples:      $OUT/audit/examples.html"

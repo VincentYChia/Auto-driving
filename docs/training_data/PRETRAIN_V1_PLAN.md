@@ -131,6 +131,7 @@ data/pretrain/v1.0-pilot/
 ├── index/candidates.parquet, logs.parquet  # step 2: every valid anchor and every log
 ├── index/manifest.json                     # (git) inputs, parameters, counts, checksums
 ├── audit/summary.json, report.md           # (git) Gate 0: aggregate statistics only
+├── audit/examples.html                     # three example samples, with why each got its command and label (local)
 ├── splits/{train,dev,excluded}_logs.txt    # (git) the log-level split
 ├── splits/selected_tokens_{train,dev}.txt  # (git) step 4
 ├── frames.parquet, privileged.parquet, labels/decision_rules_v0.1.parquet   # step 4
@@ -182,7 +183,7 @@ python3 -m pip install numpy pyarrow pyyaml
 bash scripts/local/pretrain_v1_index.sh          # smoke test: the first 20 logs -> data/pretrain/smoke/
 bash scripts/local/pretrain_v1_index.sh --full   # step 2: all logs            -> data/pretrain/v1.0-pilot/
 ```
-The first run downloads NAVSIM's split lists and the metadata into `data/pretrain/downloads/`. If the download is interrupted, run the script again to resume it.
+The first run downloads NAVSIM's split lists and the metadata into `data/pretrain/downloads/`. If the download is interrupted, run the script again to resume it. Each run ends with two pages to open: `audit/report.md` (the statistics) and `audit/examples.html` (three samples, each with the reasons for its command and label).
 
 **Without bash** (e.g. Windows, where the command is `curl.exe`):
 ```bash

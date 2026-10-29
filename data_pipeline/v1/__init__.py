@@ -9,6 +9,7 @@ trainval only, native CAM_F0 images, log-level splits from NAVSIM's official lis
 * ``openscene_index``: steps 1–2, every valid anchor frame in the metadata (no images).
 * ``selection``: rules 3–8, which anchors become samples.
 * ``audit``: the Gate 0 report (aggregate statistics only, safe to commit).
+* ``examples``: three example samples, with why each got its command and label (local only).
 
 Outputs go to ``data/pretrain/<version>/`` in the repo and stay local (git-ignored), except ID lists
 and aggregate statistics; see the plan, §5.
