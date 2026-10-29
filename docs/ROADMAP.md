@@ -47,11 +47,11 @@ Known problems to fix before starting:
 |---|---|---|
 | Purpose | Score models on NAVSIM; first, a quick MVLAD-AD baseline | The foundation for fine-tuning the pilot (Qwen) and the reasoner (Gemma) |
 | Pace | Deterministic; run when convenient | **Deliberate**: design and review before building |
-| Code | `navsim_eval/` | `data_pipeline/` (prototype v0.1 only) |
-| Jobs | `scripts/anvil/navsim_eval/` | `scripts/anvil/data_pipeline/` (guarded: smoke tests only) |
-| Docs | `docs/navsim_eval/RUNBOOK.md` | `docs/training_data/README.md` (process, decisions) |
+| Code | `navsim_eval/` | `data_pipeline/v1/` (pretraining build); the top-level modules are prototype v0.1 |
+| Jobs | `scripts/anvil/navsim_eval/` | `scripts/local/` (data builds run locally); `scripts/anvil/data_pipeline/` (optional) |
+| Docs | `docs/navsim_eval/RUNBOOK.md` | `docs/training_data/README.md` (process, decisions); `PRETRAIN_V1_PLAN.md` (first build) |
 | Tests | `tests/eval/` | `tests/data/` |
-| Status | Built; tests pass against the NAVSIM v1.1 and v2 devkits; ready to run on Anvil | **Design phase**: next is P1 requirements, then P2 real-data audit |
+| Status | Built; tests pass against the NAVSIM v1.1 and v2 devkits; ready to run on Anvil | **First build:** steps 1–2 coded (metadata index, Gate 0 audit); not yet run on real data |
 
 - **Shared by both:** read-only NAVSIM access (`navsim_tools/`, `tests/shared/`) and the Anvil config and downloads (`scripts/anvil/*.sh`).
 - **No cross-imports:** neither workstream imports the other.

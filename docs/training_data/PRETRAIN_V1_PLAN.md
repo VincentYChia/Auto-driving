@@ -13,6 +13,7 @@
 - **Size:** a small first test, 10k–100k samples.
 - **Cameras:** the front camera only.
 - **Storage:** local only, inside the repo (`data/pretrain/`). No persistent storage for now (§5).
+- **Compute (2026-10-29):** the data build runs on your own computer [agreed]. Fine-tuning compute is [open]: perhaps a rented cloud GPU, or Anvil (§6).
 
 Everything else below is a default, marked [proposed]; change any of it. Background on the raw data is in `DATA_ATLAS.md` §2.1.
 
@@ -136,14 +137,15 @@ data/pretrain/v1.0-pilot/
 ├── images/CAM_F0/<log>/<token>.jpg         # steps 3–4: native JPEGs
 ├── qa/report.html                          # step 4: renders real images, so it stays local
 └── manifest.json, DATA_CARD.md             # (git) step 6: release manifest and data card
-data/pretrain/smoke/                        # smoke tests (MAX_LOGS); never committed
+data/pretrain/smoke/                        # smoke tests (first 20 logs); never committed
+data/pretrain/downloads/                    # metadata archive (6.6 GB) and NAVSIM's split lists; never committed
 ```
 **What is committed, and why:**
 - **Committed:** ID lists, manifests and aggregate statistics. ID lists are safe to share, because NAVSIM publishes the same kind of lists.
 - **Local only:** images and per-frame tables (poses, calibration).
 - **Why:** the repo is public, and nuPlan's terms on sharing derived data are not yet checked (D10 in `README.md` §5).
 
-**Disk:** set `OUT` to a bigger disk if the checkout's disk is too small (on Anvil: scratch). The layout stays the same.
+**Disk:** the table below excludes the 6.6 GB metadata archive. If the checkout's disk is too small, set `OUT` to a bigger disk; the layout stays the same.
 
 | | While building | After pruning |
 |---|---|---|
@@ -155,39 +157,52 @@ All figures are estimates (D).
 ## 6. Execution steps and gates
 | Step | What runs | Output you review | Resources (D) |
 |---|---|---|---|
-| **1** | Get the metadata: download it (6.6 GB), or let step 2 stream it from the URL | — | Login node; ~15 min |
-| **2** | Metadata index and audit, no images (`openscene_index.py`, `audit.py`):<br>• every valid window<br>• distributions of speed, acceleration, curvature, command, decision classes and city<br>• flag rates and dev-split counts<br>• command vs path, and calibration<br>• a selection simulation for 8 and 60 archives | **Gate 0:**<br>• the population statistics<br>• the thresholds<br>• the decision-class cap<br>• the archive counts | 1 job. ~6 min on synthetic logs of real length; real logs carry more annotations, so expect longer |
+| **1** | Download the metadata (6.6 GB, once) and NAVSIM's split lists (a few MB). The local script does both | — | ~15 min |
+| **2** | Metadata index and audit, no images (`openscene_index.py`, `audit.py`):<br>• every valid window<br>• distributions of speed, acceleration, curvature, command, decision classes and city<br>• flag rates and dev-split counts<br>• command vs path, and calibration<br>• a selection simulation for 8 and 60 archives | **Gate 0:**<br>• the population statistics<br>• the thresholds<br>• the decision-class cap<br>• the archive counts | CPU only. ~6 min here for synthetic logs of real length; real logs carry more annotations, so expect longer |
 | **3** | Stream 8 camera archives; record which logs are in each; keep their CAM_F0 JPEGs | The archive → log map | ~44 GB downloaded, ~4.5 GB kept, ~1 h |
 | **4** | Build the smoke set (10k + 1k dev), then the QA report: **future path projected onto CAM_F0** for 50 random samples, BEV path plots, timing histogram, flag rates | **Gate 1:** look at the 50 renders; agree the conventions and the record | ~15 min |
-| **5** | Stream 52 more archives, then sample the v1-pilot set (50k + 2k dev) | QA report again | ~290 GB downloaded, ~30 GB kept, ~4–6 h |
+| **5** | Stream 52 more archives, then sample the v1-pilot set (50k + 2k dev) | QA report again | ~290 GB downloaded, ~30 GB kept, ~6.5 h |
 | **6** | Freeze the v1.0-pilot release: manifest, checksums, data card | **Gate 2:** sign off the release | Minutes |
 | **6b** | Fit tokenizers on the train split: MVLAD-AD's shipped 256 for reference, plus refits at 256 / 1,024 / 2,048 and coarse + fine. Run the ceiling test on the dev split, and record rounding error per horizon | One table: tokenizer × rounding error × NAVSIM ceiling | CPU, ~1–2 h |
 | **7** | Write the pilot view: image path + prompt + 8 **continuous** target poses (JSONL). Tokenisation happens in the data loader (§4b) | Ready for the first pretraining run | Minutes |
 
-All resource figures in the table are estimates (D).
+All resource figures in the table are estimates (D). Download times assume a 100 Mbit/s connection, which moves ~45 GB per hour.
 
-**Compute note:**
-- You have no CPU allocation, so steps 2–6 run as GPU-partition jobs on 1 GPU (8–16 cores), about 6–8 GPU-hours in total (D).
-- Downloads may also run on a login node if Anvil's policy allows it.
+**Where it runs (2026-10-29):**
+- **Data build, steps 1–7 [agreed]:** your own computer, CPU only; no GPU is needed.
+  - Disk: ~7 GB for steps 1–2, and up to ~45 GB while the v1-pilot images are being built (§5).
+- **Fine-tuning [open]:** perhaps a rented cloud GPU, or Anvil.
+  - The finished samples to upload are ~2 GB for the smoke set and ~9 GB for the v1-pilot.
+- **Anvil job scripts:** they stay as an alternative for the data build.
 
 ### How to run steps 1–2
-**On Anvil.** Run from the repo root, with `scripts/anvil/config.local.sh` set up:
+**On your computer (default).** macOS or Linux, with Python 3.9 or later, git and curl. Run from the repo root:
+```bash
+python3 -m pip install numpy pyarrow pyyaml
+bash scripts/local/pretrain_v1_index.sh          # smoke test: the first 20 logs -> data/pretrain/smoke/
+bash scripts/local/pretrain_v1_index.sh --full   # step 2: all logs            -> data/pretrain/v1.0-pilot/
+```
+The first run downloads NAVSIM's split lists and the metadata into `data/pretrain/downloads/`. If the download is interrupted, run the script again to resume it.
+
+**Without bash** (e.g. Windows, where the command is `curl.exe`):
+```bash
+git clone --depth 1 https://github.com/autonomousvision/navsim data/pretrain/downloads/navsim
+curl -L -o data/pretrain/downloads/openscene_metadata_trainval.tgz https://huggingface.co/datasets/OpenDriveLab/OpenScene/resolve/main/openscene-v1.1/openscene_metadata_trainval.tgz
+python -m data_pipeline.v1.openscene_index --metadata data/pretrain/downloads/openscene_metadata_trainval.tgz \
+    --navsim-root data/pretrain/downloads/navsim --out data/pretrain/v1.0-pilot
+python -m data_pipeline.v1.audit --out data/pretrain/v1.0-pilot
+```
+Options:
+- `--metadata` also takes the URL itself (read as a stream, nothing stored) or a directory of `*.pkl`.
+- `--max-logs 20` makes a smoke test.
+
+**On Anvil (optional).** Run from the repo root, with `scripts/anvil/config.local.sh` set up:
 ```bash
 bash scripts/anvil/download_navsim_data.sh trainval-logs                       # step 1, on a login node
 MAX_LOGS=20 sbatch --partition=gpu-debug --time=00:30:00 \
     scripts/anvil/data_pipeline/pretrain_v1_index.sbatch                        # smoke test -> data/pretrain/smoke/
 ALLOW_FULL_RUN=1 sbatch scripts/anvil/data_pipeline/pretrain_v1_index.sbatch   # step 2 -> data/pretrain/v1.0-pilot/
 ```
-**Anywhere else.** You need Python 3.9 or later with numpy, pyarrow and PyYAML. The NAVSIM checkout is used only for its split lists:
-```bash
-git clone --depth 1 https://github.com/autonomousvision/navsim ~/navsim
-python -m data_pipeline.v1.openscene_index --navsim-root ~/navsim --out data/pretrain/v1.0-pilot \
-    --metadata https://huggingface.co/datasets/OpenDriveLab/OpenScene/resolve/main/openscene-v1.1/openscene_metadata_trainval.tgz
-python -m data_pipeline.v1.audit --out data/pretrain/v1.0-pilot
-```
-Options:
-- `--metadata` also takes a downloaded `.tgz` or a directory of `*.pkl`.
-- `--max-logs 20` makes a smoke test.
 
 **For Gate 0:**
 - Read `audit/report.md`. Its first table lists the decisions.
@@ -198,12 +213,12 @@ Options:
 - **Evaluation logs excluded:** a log is excluded if it is in nuPlan's test list or in any NAVSIM evaluation split (navtest, navhard, warmup, navsafe, private tests). Tokens those splits list are excluded too. The audit counts both; 0 is expected.
 
 ## 7. Code
-Following the repo rules (`CLAUDE.md`, `README.md`), each job refuses a full run unless `ALLOW_FULL_RUN=1`.
+Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs without an explicit opt-in: `--full` for the local script, `ALLOW_FULL_RUN=1` for the Anvil jobs.
 
 | Piece | Location | Status |
 |---|---|---|
 | Safe pickle loading, NAVSIM split lists, Parquet helpers | `data_pipeline/v1/safe_pickle.py`, `navsim_splits.py`, `tables.py` | **Written 2026-10-27**, tested |
-| Metadata index + candidate windows (steps 1–2) | `data_pipeline/v1/openscene_index.py`, job `scripts/anvil/data_pipeline/pretrain_v1_index.sbatch` | **Written**, tested on synthetic logs. Reuses `navsim_tools/raw_frames.py` and the v0.1 rules in `data_pipeline/labels.py` |
+| Metadata index + candidate windows (steps 1–2) | `data_pipeline/v1/openscene_index.py`; runners `scripts/local/pretrain_v1_index.sh` and `scripts/anvil/data_pipeline/pretrain_v1_index.sbatch` | **Written**, tested on synthetic logs. Reuses `navsim_tools/raw_frames.py` and the v0.1 rules in `data_pipeline/labels.py` |
 | Selection (rules 2–8) | `data_pipeline/v1/selection.py` | **Written**, tested |
 | Gate 0 audit | `data_pipeline/v1/audit.py` | **Written**, tested |
 | Archive streaming + CAM_F0 extraction (step 3) | `data_pipeline/v1/openscene_images.py`, `scripts/anvil/data_pipeline/pretrain_v1_images.sbatch` | After Gate 0 |
@@ -248,3 +263,4 @@ Following the repo rules (`CLAUDE.md`, `README.md`), each job refuses a full run
 4. **Privileged table:** keep boxes and lights for later teacher labels.
 5. **Sizes:** smoke set 10k, then 50k.
 6. **Storage [agreed 2026-10-27]:** local, inside the repo (`data/pretrain/`). No persistent storage for now (§5).
+7. **Compute [agreed 2026-10-29]:** the data build runs on your own computer. Fine-tuning compute is still open: a cloud GPU or Anvil (§6).

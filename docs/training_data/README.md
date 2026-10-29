@@ -1,6 +1,6 @@
 # Workstream B: training data. Design before build
 
-**Status (2026-10-22): Phase 1 (requirements) for the two small models.** Draft: `P1_REQUIREMENTS.md`. What the raw data looks like in each source, and how it becomes training samples: `DATA_ATLAS.md`. **Execution plan for the first pretraining build (OpenScene, 10k → 50k samples), with gates: `PRETRAIN_V1_PLAN.md`.** Its steps 1–2 (metadata index and Gate 0 audit) are coded in `data_pipeline/v1/` and write to `data/pretrain/` in the repo. Multi-frame and motion data are deferred [agreed].
+**Status (2026-10-22): Phase 1 (requirements) for the two small models.** Draft: `P1_REQUIREMENTS.md`. What the raw data looks like in each source, and how it becomes training samples: `DATA_ATLAS.md`. **Execution plan for the first pretraining build (OpenScene, 10k → 50k samples), with gates: `PRETRAIN_V1_PLAN.md`.** Its steps 1–2 (metadata index and Gate 0 audit) are coded in `data_pipeline/v1/`. They run on your own computer (`bash scripts/local/pretrain_v1_index.sh`) and write to `data/pretrain/` in the repo. Multi-frame and motion data are deferred [agreed].
 - The top-level modules of `data_pipeline/` are a **prototype (v0.1)**. It was built to explore a format, has only been run on synthetic logs, and must **not** be used to produce data for experiments. `data_pipeline/v1/` follows the agreed plan instead.
 - Prototype format: `PROTOTYPE_v0.1_SCHEMA.md`.
 - This workstream is independent of NAVSIM scoring (`docs/navsim_eval/`). Both share only the read-only NAVSIM access layer, `navsim_tools/`.

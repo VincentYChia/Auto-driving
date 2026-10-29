@@ -12,8 +12,8 @@ This is a fork of MVLAD-AD (masked-diffusion driving VLA, LLaDA-V 8B). The resea
 ## Workstreams are separate
 | | A. NAVSIM evaluation | B. Training data |
 |---|---|---|
-| Code | `navsim_eval/` | `data_pipeline/` (prototype v0.1) |
-| Jobs | `scripts/anvil/navsim_eval/` | `scripts/anvil/data_pipeline/` |
+| Code | `navsim_eval/` | `data_pipeline/v1/` (first build); top-level modules are prototype v0.1 |
+| Jobs | `scripts/anvil/navsim_eval/` | `scripts/local/` (default); `scripts/anvil/data_pipeline/` |
 | Tests | `tests/eval/` | `tests/data/` |
 
 - **Shared:** `navsim_tools/` (read-only NAVSIM access: `geometry`, `raw_frames` are pure numpy; `loader` needs the devkit), `tests/shared/`, `scripts/anvil/*.sh`.
@@ -38,6 +38,7 @@ This is a fork of MVLAD-AD (masked-diffusion driving VLA, LLaDA-V 8B). The resea
 - The shipped image setting (`anyres_max_4`) gives ~3.6k image tokens per frame.
 
 ## Environment facts
+- **Data builds (small scale):** run on the researcher's own computer, CPU only, writing to `data/pretrain/` in the repo [agreed 2026-10-29]. Only ID lists, manifests and aggregate statistics are committed. Fine-tuning compute is open: a cloud GPU or Anvil.
 - **Training/eval GPUs:** Purdue Anvil. `gpu` partition = A100 40 GB; 48 h jobs; 12 GPUs per user. Anvil AI (H100) needs a separate allocation. No CPU allocation. Scratch is purged 30 days after last access.
 - **On-device latency claims** must be measured on a physical Jetson (AGX Thor primary, AGX Orin stretch). Anvil is not a proxy.
 - **NAVSIM rule:** never train on navtest / navhard / warmup splits.

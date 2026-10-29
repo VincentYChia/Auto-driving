@@ -35,3 +35,4 @@ data/pretrain/**
 !data/pretrain/**/audit/report.md
 !data/pretrain/**/splits/*.txt
 data/pretrain/smoke/**
+data/pretrain/downloads/
