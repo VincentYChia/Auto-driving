@@ -363,7 +363,7 @@ def write(out_dir: str, n: int = 3, seed: int = 0) -> Optional[str]:
              "This page holds per-frame data, so it stays on this computer.</p>")
     path = os.path.join(out_dir, "audit", "examples.html")
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(render([describe(cands, r) for r in rows], "Example samples", intro))
     return path
 
