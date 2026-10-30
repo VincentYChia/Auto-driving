@@ -137,7 +137,7 @@ def summarize(out_dir: str) -> Dict[str, Any]:
     index_dir = os.path.join(out_dir, "index")
     cands = tables.read(os.path.join(index_dir, "candidates.parquet"))
     logs = tables.read(os.path.join(index_dir, "logs.parquet"))
-    with open(os.path.join(index_dir, "manifest.json")) as f:
+    with open(os.path.join(index_dir, "manifest.json"), encoding="utf-8") as f:
         manifest = json.load(f)
     dt_edges = tables.read_metadata(os.path.join(index_dir, "logs.parquet"))["dt_hist_edges_s"]
 
@@ -427,7 +427,7 @@ def write_splits(out_dir: str) -> Dict[str, int]:
             f"{name}\t{reason}" if split == "excluded" else name
             for name, reason in zip(logs["log_name"][mask], logs["guard_reason"][mask])
         )
-        with open(os.path.join(split_dir, f"{split}_logs.txt"), "w") as f:
+        with open(os.path.join(split_dir, f"{split}_logs.txt"), "w", encoding="utf-8") as f:
             f.write("".join(line + "\n" for line in lines))
         counts[split] = len(lines)
     return counts
@@ -440,10 +440,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     summary = summarize(args.out)
     audit_dir = os.path.join(args.out, "audit")
     os.makedirs(audit_dir, exist_ok=True)
-    with open(os.path.join(audit_dir, "summary.json"), "w") as f:
+    with open(os.path.join(audit_dir, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=1)
         f.write("\n")
-    with open(os.path.join(audit_dir, "report.md"), "w") as f:
+    with open(os.path.join(audit_dir, "report.md"), "w", encoding="utf-8") as f:
         f.write(render(summary) + "\n")
     split_counts = write_splits(args.out)
     examples_page = examples.write(args.out)

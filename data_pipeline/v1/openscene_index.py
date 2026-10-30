@@ -433,7 +433,7 @@ def build_index(
         tables.write(path, columns, metadata=meta)
         manifest["outputs"][name] = {"rows": len(next(iter(columns.values()))), "sha256": provenance.sha256_file(path)}
     manifest["runtime_s"] = round(time.time() - started, 1)
-    with open(os.path.join(index_dir, "manifest.json"), "w") as f:
+    with open(os.path.join(index_dir, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
         f.write("\n")
     return manifest
