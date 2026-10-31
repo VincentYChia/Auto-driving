@@ -17,7 +17,7 @@ placeholder per image, which Qwen-VL / Gemma fine-tuning stacks accept or conver
 from __future__ import annotations
 
 import math
-import os
+import posixpath
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -46,7 +46,8 @@ def _image_paths(sample: Dict[str, Any], sensor_root: str, history: bool) -> Lis
     chosen = paths if history else paths[-1:]
     if any(p is None for p in chosen):
         raise ValueError(f"{sample['sample_id']}: missing {FRONT_CAMERA} image")
-    return [os.path.join(sensor_root, p) for p in chosen]
+    # Training runs on Linux, so the paths use "/" whatever OS writes the view.
+    return [posixpath.join(sensor_root, p) for p in chosen]
 
 
 def _ego_state_lines(sample: Dict[str, Any]) -> List[str]:
