@@ -1,0 +1,1292 @@
+{
+ "input": {
+  "index_created_utc": "2026-10-31T14:06:56Z",
+  "source": {
+   "kind": "tgz",
+   "name": "openscene_metadata_trainval.tgz",
+   "bytes": 7052210642,
+   "max_logs": null,
+   "logs_read": 1310
+  },
+  "partial_run": false,
+  "repo_commit": "f358a12a5a1a196314c20a3302dcad9b188c0925",
+  "devkit_commit": "0a380a9063d7162ec93d0f51e9990ebac585f720",
+  "decision_rules_version": "0.1.0",
+  "parameters": {
+   "dt_s": 0.5,
+   "dt_tolerance_s": 0.05,
+   "history_required_s": 1.5,
+   "future_required_s": 4.0,
+   "path_offsets_s": [
+    -4.0,
+    -3.5,
+    -3.0,
+    -2.5,
+    -2.0,
+    -1.5,
+    -1.0,
+    -0.5,
+    0.0,
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+    4.5,
+    5.0,
+    5.5,
+    6.0
+   ],
+   "max_step_m": 25.0,
+   "max_turn_rad": 0.5,
+   "speed_tolerance_mps": 1.0,
+   "standstill_speed_mps": 0.3,
+   "standstill_move_m": 0.5,
+   "decision_rules_version": "0.1.0",
+   "path_frame": "ego rear axle at the anchor frame: x forward, y left; metres, radians"
+  }
+ },
+ "logs": {
+  "total": 1310,
+  "by_nuplan_split": {
+   "train": 1085,
+   "val": 225
+  },
+  "by_our_split": {
+   "train": 1085,
+   "dev": 225
+  },
+  "excluded_by_reason": {},
+  "by_city": {
+   "us-nv-las-vegas-strip": 818,
+   "us-ma-boston": 255,
+   "us-pa-pittsburgh-hazelwood": 140,
+   "sg-one-north": 97
+  },
+  "vehicles": 16,
+  "hours": 100.33,
+  "minutes_per_log": {
+   "p0": 0.9901,
+   "p50": 2.7417,
+   "p100": 49.675
+  },
+  "not_time_sorted": 0,
+  "name_differs_from_file": 0,
+  "city_varies": 0,
+  "with_duplicate_timestamps": 0,
+  "with_duplicate_tokens": 0,
+  "with_timing_gaps": 244
+ },
+ "frames": {
+  "total": 723019,
+  "valid_windows (rule 1)": 701570,
+  "lost: too close to a log's start or end": 14410,
+  "lost: timing gap inside the window": 7039,
+  "without CAM_F0 path": 0,
+  "without route": 44724,
+  "command not one-hot": 0,
+  "navtrain tokens in NAVSIM": 103288,
+  "navtrain tokens found in this metadata": 103288,
+  "navtrain tokens with a valid window": 102373
+ },
+ "timing": {
+  "frame_gap_s": {
+   "edges": [
+    0.0,
+    0.45,
+    0.49,
+    0.499,
+    0.501,
+    0.51,
+    0.55,
+    1.0,
+    5.0,
+    "inf"
+   ],
+   "counts": [
+    0,
+    0,
+    6083,
+    714927,
+    24,
+    0,
+    360,
+    315,
+    0
+   ]
+  },
+  "gaps_outside_tolerance": 675,
+  "pose_jump_links": 1,
+  "window_max_time_error_s": {
+   "edges": [
+    0,
+    0.001,
+    0.005,
+    0.01,
+    0.02,
+    0.05,
+    0.1,
+    "inf"
+   ],
+   "counts": [
+    534002,
+    157999,
+    4906,
+    4663,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ "rules": {
+  "1 valid window": 701570,
+  "2 CAM_F0 path present": 701570,
+  "3 pose sane": 701570,
+  "3 dropped: step > max_step_m": 0,
+  "3 dropped: turn > max_turn_rad": 0,
+  "3 flag: speed inconsistent": 10,
+  "5 not guarded": 701570,
+  "6 after standstill thinning": 511161,
+  "by split": {
+   "train": {
+    "eligible (rules 1-5)": 604071,
+    "after thinning (rule 6)": 435274
+   },
+   "dev": {
+    "eligible (rules 1-5)": 97499,
+    "after thinning (rule 6)": 75887
+   }
+  },
+  "pose": {
+   "max_step_m": {
+    "edges": [
+     0,
+     5,
+     10,
+     15,
+     20,
+     25,
+     50,
+     "inf"
+    ],
+    "counts": [
+     585643,
+     115900,
+     27,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "max_turn_rad": {
+    "edges": [
+     0,
+     0.1,
+     0.2,
+     0.3,
+     0.4,
+     0.5,
+     1.0,
+     "inf"
+    ],
+    "counts": [
+     638568,
+     47072,
+     15272,
+     597,
+     61,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "distributions": {
+  "train": {
+   "rows": 604071,
+   "speed_mps": {
+    "hist": {
+     "edges": [
+      0,
+      0.3,
+      1,
+      2,
+      5,
+      8,
+      11,
+      14,
+      17,
+      20,
+      25,
+      30,
+      "inf"
+     ],
+     "counts": [
+      223184,
+      24103,
+      31630,
+      95035,
+      88014,
+      81853,
+      55380,
+      4449,
+      395,
+      28,
+      0,
+      0
+     ]
+    },
+    "pct": {
+     "p1": 0.0002,
+     "p5": 0.0004,
+     "p50": 2.821,
+     "p95": 12.2368,
+     "p99": 13.8496
+    }
+   },
+   "accel_lon_mps2": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -4,
+      -2,
+      -1,
+      -0.5,
+      0.5,
+      1,
+      2,
+      4,
+      "inf"
+     ],
+     "counts": [
+      15,
+      1143,
+      28411,
+      43736,
+      451498,
+      49050,
+      29087,
+      1131,
+      0
+     ]
+    },
+    "pct": {
+     "p1": -1.54,
+     "p5": -0.9914,
+     "p50": -0.0034,
+     "p95": 1.0002,
+     "p99": 1.5868
+    }
+   },
+   "accel_lat_mps2": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -4,
+      -2,
+      -1,
+      -0.5,
+      0.5,
+      1,
+      2,
+      4,
+      "inf"
+     ],
+     "counts": [
+      2,
+      1649,
+      6577,
+      10379,
+      556001,
+      17536,
+      9119,
+      2795,
+      13
+     ]
+    },
+    "pct": {
+     "p1": -1.2207,
+     "p5": -0.3291,
+     "p50": -0.0012,
+     "p95": 0.4884,
+     "p99": 1.477
+    }
+   },
+   "yaw_rate_radps": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -0.5,
+      -0.2,
+      -0.1,
+      -0.03,
+      0.03,
+      0.1,
+      0.2,
+      0.5,
+      "inf"
+     ],
+     "counts": [
+      278,
+      8059,
+      6150,
+      14608,
+      522130,
+      23265,
+      18684,
+      10777,
+      120
+     ]
+    },
+    "pct": {
+     "p1": -0.2509,
+     "p5": -0.028,
+     "p50": 0.0,
+     "p95": 0.0976,
+     "p99": 0.2567
+    }
+   },
+   "heading_change_4s_deg": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -90,
+      -45,
+      -25,
+      -8,
+      -2,
+      2,
+      8,
+      25,
+      45,
+      90,
+      "inf"
+     ],
+     "counts": [
+      47,
+      7577,
+      6978,
+      12168,
+      30033,
+      463288,
+      33335,
+      23445,
+      17674,
+      9457,
+      69
+     ]
+    },
+    "pct": {
+     "p1": -51.2181,
+     "p5": -6.4218,
+     "p50": 0.0004,
+     "p95": 22.4449,
+     "p99": 53.2059
+    }
+   },
+   "lateral_offset_4s_m": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -10,
+      -3.5,
+      -1.5,
+      -0.5,
+      0.5,
+      1.5,
+      3.5,
+      10,
+      "inf"
+     ],
+     "counts": [
+      3586,
+      11475,
+      13554,
+      26457,
+      470142,
+      32323,
+      20699,
+      20095,
+      5740
+     ]
+    },
+    "pct": {
+     "p1": -8.052,
+     "p5": -1.3868,
+     "p50": 0.0,
+     "p95": 2.8535,
+     "p99": 9.7522
+    }
+   },
+   "speed_minus_path_speed_mps": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -2,
+      -1,
+      -0.5,
+      -0.2,
+      0.2,
+      0.5,
+      1,
+      2,
+      "inf"
+     ],
+     "counts": [
+      0,
+      0,
+      5,
+      45,
+      471302,
+      131487,
+      1222,
+      10,
+      0
+     ]
+    },
+    "pct": {
+     "p1": -0.0872,
+     "p5": -0.0302,
+     "p50": 0.0479,
+     "p95": 0.3622,
+     "p99": 0.4367
+    }
+   },
+   "command": {
+    "straight": 427330,
+    "unknown": 77052,
+    "left": 65723,
+    "right": 33966
+   },
+   "decision_lon": {
+    "keep_speed": 228037,
+    "stopped": 200981,
+    "decelerate": 71146,
+    "accelerate": 60082,
+    "start": 22203,
+    "stop": 21622
+   },
+   "decision_lat": {
+    "straight": 301780,
+    "stationary": 222404,
+    "turn_left": 27157,
+    "curve_left": 21351,
+    "turn_right": 14602,
+    "curve_right": 10577,
+    "lane_change_left": 3131,
+    "lane_change_right": 3069
+   },
+   "decision_pair": {
+    "stopped+stationary": 200829,
+    "keep_speed+straight": 180452,
+    "decelerate+straight": 61102,
+    "accelerate+straight": 40435,
+    "keep_speed+turn_left": 17808,
+    "stop+stationary": 16199,
+    "start+straight": 14586,
+    "keep_speed+curve_left": 12077,
+    "keep_speed+turn_right": 6636,
+    "accelerate+turn_left": 6432,
+    "keep_speed+curve_right": 5956,
+    "accelerate+turn_right": 5754,
+    "stop+straight": 5055,
+    "start+stationary": 4030,
+    "accelerate+curve_left": 3808,
+    "decelerate+curve_left": 3728,
+    "decelerate+turn_left": 2158,
+    "accelerate+curve_right": 1980,
+    "keep_speed+lane_change_left": 1923,
+    "keep_speed+lane_change_right": 1875,
+    "decelerate+curve_right": 1766,
+    "decelerate+turn_right": 1650,
+    "start+curve_left": 1475,
+    "keep_speed+stationary": 1310,
+    "accelerate+lane_change_left": 844,
+    "accelerate+lane_change_right": 824,
+    "start+curve_right": 776,
+    "start+turn_left": 755,
+    "start+turn_right": 558,
+    "decelerate+lane_change_right": 365,
+    "decelerate+lane_change_left": 346,
+    "stop+curve_left": 261,
+    "stopped+straight": 150,
+    "stop+curve_right": 99,
+    "decelerate+stationary": 31,
+    "start+lane_change_left": 18,
+    "accelerate+stationary": 5,
+    "start+lane_change_right": 5,
+    "stop+turn_left": 4,
+    "stop+turn_right": 4,
+    "stopped+curve_left": 2
+   },
+   "city": {
+    "us-nv-las-vegas-strip": 471419,
+    "us-ma-boston": 62154,
+    "us-pa-pittsburgh-hazelwood": 51851,
+    "sg-one-north": 18647
+   },
+   "share": {
+    "cruise (keep_speed+straight)": 0.2987,
+    "standstill": 0.3139,
+    "reversing (vx < -0.3 m/s)": 0.0003,
+    "has_route": 0.9337,
+    "command_onehot_ok": 1.0,
+    "speed_consistent": 1.0,
+    "crosses_scene_boundary": 0.2752,
+    "in_navtrain": 0.1396,
+    "path_valid_at_-4s": 0.9869,
+    "path_valid_at_+6s": 0.9895
+   }
+  },
+  "dev": {
+   "rows": 97499,
+   "speed_mps": {
+    "hist": {
+     "edges": [
+      0,
+      0.3,
+      1,
+      2,
+      5,
+      8,
+      11,
+      14,
+      17,
+      20,
+      25,
+      30,
+      "inf"
+     ],
+     "counts": [
+      29100,
+      2954,
+      4104,
+      15528,
+      20307,
+      18261,
+      6714,
+      460,
+      71,
+      0,
+      0,
+      0
+     ]
+    },
+    "pct": {
+     "p1": 0.0002,
+     "p5": 0.0004,
+     "p50": 4.5152,
+     "p95": 11.6736,
+     "p99": 13.5085
+    }
+   },
+   "accel_lon_mps2": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -4,
+      -2,
+      -1,
+      -0.5,
+      0.5,
+      1,
+      2,
+      4,
+      "inf"
+     ],
+     "counts": [
+      0,
+      258,
+      5129,
+      7549,
+      70849,
+      8655,
+      4894,
+      165,
+      0
+     ]
+    },
+    "pct": {
+     "p1": -1.6495,
+     "p5": -1.0457,
+     "p50": -0.0036,
+     "p95": 1.0171,
+     "p99": 1.6096
+    }
+   },
+   "accel_lat_mps2": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -4,
+      -2,
+      -1,
+      -0.5,
+      0.5,
+      1,
+      2,
+      4,
+      "inf"
+     ],
+     "counts": [
+      5,
+      575,
+      1828,
+      2916,
+      85562,
+      3345,
+      2484,
+      776,
+      8
+     ]
+    },
+    "pct": {
+     "p1": -1.6822,
+     "p5": -0.5442,
+     "p50": -0.0042,
+     "p95": 0.6768,
+     "p99": 1.865
+    }
+   },
+   "yaw_rate_radps": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -0.5,
+      -0.2,
+      -0.1,
+      -0.03,
+      0.03,
+      0.1,
+      0.2,
+      0.5,
+      "inf"
+     ],
+     "counts": [
+      105,
+      2345,
+      1712,
+      4294,
+      78196,
+      4974,
+      2893,
+      2905,
+      75
+     ]
+    },
+    "pct": {
+     "p1": -0.3239,
+     "p5": -0.0755,
+     "p50": 0.0,
+     "p95": 0.1274,
+     "p99": 0.3195
+    }
+   },
+   "heading_change_4s_deg": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -90,
+      -45,
+      -25,
+      -8,
+      -2,
+      2,
+      8,
+      25,
+      45,
+      90,
+      "inf"
+     ],
+     "counts": [
+      52,
+      2309,
+      1832,
+      3844,
+      6742,
+      64839,
+      7152,
+      5014,
+      3046,
+      2616,
+      53
+     ]
+    },
+    "pct": {
+     "p1": -64.2989,
+     "p5": -19.5469,
+     "p50": 0.0002,
+     "p95": 29.3683,
+     "p99": 63.1607
+    }
+   },
+   "lateral_offset_4s_m": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -10,
+      -3.5,
+      -1.5,
+      -0.5,
+      0.5,
+      1.5,
+      3.5,
+      10,
+      "inf"
+     ],
+     "counts": [
+      1223,
+      3356,
+      3978,
+      6050,
+      65307,
+      6752,
+      4608,
+      4486,
+      1739
+     ]
+    },
+    "pct": {
+     "p1": -10.8128,
+     "p5": -3.2269,
+     "p50": 0.0,
+     "p95": 4.8164,
+     "p99": 12.1876
+    }
+   },
+   "speed_minus_path_speed_mps": {
+    "hist": {
+     "edges": [
+      "-inf",
+      -2,
+      -1,
+      -0.5,
+      -0.2,
+      0.2,
+      0.5,
+      1,
+      2,
+      "inf"
+     ],
+     "counts": [
+      0,
+      0,
+      0,
+      7,
+      69538,
+      27807,
+      147,
+      0,
+      0
+     ]
+    },
+    "pct": {
+     "p1": -0.085,
+     "p5": -0.0255,
+     "p50": 0.1023,
+     "p95": 0.3499,
+     "p99": 0.4255
+    }
+   },
+   "command": {
+    "straight": 67616,
+    "left": 11866,
+    "right": 9474,
+    "unknown": 8543
+   },
+   "decision_lon": {
+    "keep_speed": 41406,
+    "stopped": 25837,
+    "decelerate": 12943,
+    "accelerate": 10806,
+    "start": 3263,
+    "stop": 3244
+   },
+   "decision_lat": {
+    "straight": 49606,
+    "stationary": 28573,
+    "turn_left": 5698,
+    "curve_left": 4452,
+    "turn_right": 4193,
+    "curve_right": 3439,
+    "lane_change_left": 800,
+    "lane_change_right": 738
+   },
+   "decision_pair": {
+    "keep_speed+straight": 30709,
+    "stopped+stationary": 25816,
+    "decelerate+straight": 10094,
+    "accelerate+straight": 5690,
+    "keep_speed+turn_left": 2981,
+    "keep_speed+curve_left": 2549,
+    "stop+stationary": 2187,
+    "keep_speed+turn_right": 2172,
+    "start+straight": 2116,
+    "keep_speed+curve_right": 2037,
+    "accelerate+turn_left": 1827,
+    "accelerate+turn_right": 1431,
+    "stop+straight": 976,
+    "decelerate+curve_left": 800,
+    "accelerate+curve_left": 746,
+    "decelerate+turn_left": 723,
+    "accelerate+curve_right": 641,
+    "decelerate+curve_right": 584,
+    "decelerate+turn_right": 496,
+    "keep_speed+lane_change_left": 468,
+    "start+stationary": 427,
+    "keep_speed+lane_change_right": 348,
+    "start+curve_left": 299,
+    "accelerate+lane_change_left": 246,
+    "accelerate+lane_change_right": 224,
+    "decelerate+lane_change_right": 164,
+    "start+turn_left": 163,
+    "start+curve_right": 158,
+    "keep_speed+stationary": 142,
+    "start+turn_right": 94,
+    "decelerate+lane_change_left": 82,
+    "stop+curve_left": 58,
+    "stopped+straight": 21,
+    "stop+curve_right": 19,
+    "start+lane_change_left": 4,
+    "stop+turn_left": 4,
+    "start+lane_change_right": 2,
+    "accelerate+stationary": 1
+   },
+   "city": {
+    "us-nv-las-vegas-strip": 36124,
+    "us-ma-boston": 22689,
+    "sg-one-north": 22277,
+    "us-pa-pittsburgh-hazelwood": 16409
+   },
+   "share": {
+    "cruise (keep_speed+straight)": 0.315,
+    "standstill": 0.2492,
+    "reversing (vx < -0.3 m/s)": 0.0002,
+    "has_route": 0.9659,
+    "command_onehot_ok": 1.0,
+    "speed_consistent": 1.0,
+    "crosses_scene_boundary": 0.2756,
+    "in_navtrain": 0.1851,
+    "path_valid_at_-4s": 0.9844,
+    "path_valid_at_+6s": 0.9875
+   }
+  }
+ },
+ "command_vs_path": {
+  "left": {
+   "rows": 77589,
+   "decision_lat": {
+    "turn_left": 26679,
+    "stationary": 24459,
+    "curve_left": 14233,
+    "straight": 10451,
+    "lane_change_left": 1306,
+    "curve_right": 332,
+    "lane_change_right": 67,
+    "turn_right": 62
+   },
+   "heading_change_4s_deg": {
+    "p10": -0.0025,
+    "p50": 11.7584,
+    "p90": 50.7552
+   },
+   "lateral_offset_4s_m": {
+    "p10": -0.0004,
+    "p50": 0.9071,
+    "p90": 9.0544
+   }
+  },
+  "straight": {
+   "rows": 494946,
+   "decision_lat": {
+    "straight": 299161,
+    "stationary": 175660,
+    "curve_left": 7414,
+    "curve_right": 5839,
+    "lane_change_right": 2254,
+    "lane_change_left": 2011,
+    "turn_left": 1521,
+    "turn_right": 1086
+   },
+   "heading_change_4s_deg": {
+    "p10": -1.2676,
+    "p50": -0.0,
+    "p90": 1.3836
+   },
+   "lateral_offset_4s_m": {
+    "p10": -0.3613,
+    "p50": -0.0,
+    "p90": 0.3988
+   }
+  },
+  "right": {
+   "rows": 43440,
+   "decision_lat": {
+    "turn_right": 14764,
+    "stationary": 14192,
+    "straight": 7245,
+    "curve_right": 5952,
+    "lane_change_right": 1026,
+    "curve_left": 155,
+    "lane_change_left": 53,
+    "turn_left": 53
+   },
+   "heading_change_4s_deg": {
+    "p10": -61.0623,
+    "p50": -7.3324,
+    "p90": 0.0045
+   },
+   "lateral_offset_4s_m": {
+    "p10": -9.7781,
+    "p50": -0.4919,
+    "p90": 0.0038
+   }
+  },
+  "unknown": {
+   "rows": 85595,
+   "decision_lat": {
+    "stationary": 36666,
+    "straight": 34529,
+    "turn_left": 4602,
+    "curve_left": 4001,
+    "turn_right": 2883,
+    "curve_right": 1893,
+    "lane_change_left": 561,
+    "lane_change_right": 460
+   },
+   "heading_change_4s_deg": {
+    "p10": -2.2401,
+    "p50": 0.0001,
+    "p90": 9.4541
+   },
+   "lateral_offset_4s_m": {
+    "p10": -0.4461,
+    "p50": 0.0,
+    "p90": 1.1551
+   }
+  }
+ },
+ "calibration": {
+  "logs_with_cam_f0": 1310,
+  "distinct_intrinsics_0.1px": 2,
+  "logs_with_varying_calibration": 0,
+  "fx": {
+   "p0": 1528.7116,
+   "p50": 1545.0,
+   "p100": 1545.0
+  },
+  "fy": {
+   "p0": 1526.0806,
+   "p50": 1545.0,
+   "p100": 1545.0
+  },
+  "cx": {
+   "p0": 960.0,
+   "p50": 960.0,
+   "p100": 970.4599
+  },
+  "cy": {
+   "p0": 560.0,
+   "p50": 560.0,
+   "p100": 578.4138
+  },
+  "hfov_pinhole_deg (width = 2 cx)": {
+   "p0": 63.7103,
+   "p50": 63.7103,
+   "p100": 64.8166
+  },
+  "distortion": {
+   "k1": {
+    "p0": -0.3561,
+    "p50": -0.3561,
+    "p100": -0.3527
+   },
+   "k2": {
+    "p0": 0.1725,
+    "p50": 0.1725,
+    "p100": 0.1827
+   },
+   "p1": {
+    "p0": -0.0021,
+    "p50": -0.0021,
+    "p100": -0.0012
+   },
+   "p2": {
+    "p0": -0.0013,
+    "p50": 0.0005,
+    "p100": 0.0005
+   },
+   "k3": {
+    "p0": -0.068,
+    "p50": -0.0523,
+    "p100": -0.0523
+   }
+  },
+  "cam_translation_m": {
+   "x": {
+    "p0": 1.624,
+    "p50": 1.6551,
+    "p100": 1.691
+   },
+   "y": {
+    "p0": -0.0262,
+    "p50": -0.011,
+    "p100": -0.0047
+   },
+   "z": {
+    "p0": 1.4911,
+    "p50": 1.5226,
+    "p100": 1.5355
+   }
+  },
+  "cam_optical_axis": {
+   "x": {
+    "p0": 0.9986,
+    "p50": 0.9997,
+    "p100": 1.0
+   },
+   "y": {
+    "p0": -0.0077,
+    "p50": -0.003,
+    "p100": 0.0333
+   },
+   "z": {
+    "p0": -0.0417,
+    "p50": -0.0253,
+    "p100": -0.0058
+   }
+  },
+  "lidar2ego_translation_m": {
+   "x": {
+    "p0": 0.0,
+    "p50": 0.0,
+    "p100": 0.0
+   },
+   "y": {
+    "p0": 0.0,
+    "p50": 0.0,
+    "p100": 0.0
+   },
+   "z": {
+    "p0": 0.0,
+    "p50": 0.0,
+    "p100": 0.0
+   }
+  },
+  "lidar2ego_yaw_pitch_roll_deg": {
+   "yaw": {
+    "p0": 0.0,
+    "p50": 0.0,
+    "p100": 0.0
+   },
+   "pitch": {
+    "p0": 0.0,
+    "p50": 0.0,
+    "p100": 0.0
+   },
+   "roll": {
+    "p0": 0.0,
+    "p50": 0.0,
+    "p100": 0.0
+   }
+  }
+ },
+ "selection_simulation": {
+  "smoke, 8 archives": {
+   "config": {
+    "name": "smoke",
+    "n_train": 10000,
+    "n_dev": 1000,
+    "spacing_s": 1.0,
+    "standstill_period_s": 5.0,
+    "cruise_cap": 0.4,
+    "seed": 20261027
+   },
+   "available_logs": 52,
+   "splits": {
+    "train": {
+     "candidates": 604071,
+     "eligible": 25136,
+     "after_thinning": 17928,
+     "pool_cruise": 7564,
+     "target": 10000,
+     "selected": 8247,
+     "shortfall": 1753,
+     "cruise_share": 0.3815,
+     "cruise_cap_exceeded": false,
+     "logs": 46,
+     "decision_lon": {
+      "keep_speed": 4006,
+      "decelerate": 1328,
+      "accelerate": 1109,
+      "stopped": 1039,
+      "start": 385,
+      "stop": 380
+     },
+     "decision_lat": {
+      "straight": 5401,
+      "stationary": 1411,
+      "turn_left": 482,
+      "curve_left": 419,
+      "turn_right": 203,
+      "curve_right": 200,
+      "lane_change_left": 74,
+      "lane_change_right": 57
+     },
+     "standstill_share": 0.101
+    },
+    "dev": {
+     "candidates": 97499,
+     "eligible": 2593,
+     "after_thinning": 1747,
+     "pool_cruise": 868,
+     "target": 1000,
+     "selected": 810,
+     "shortfall": 190,
+     "cruise_share": 0.4494,
+     "cruise_cap_exceeded": false,
+     "logs": 6,
+     "decision_lon": {
+      "keep_speed": 470,
+      "stopped": 108,
+      "decelerate": 96,
+      "accelerate": 81,
+      "start": 29,
+      "stop": 26
+     },
+     "decision_lat": {
+      "straight": 530,
+      "stationary": 133,
+      "turn_left": 46,
+      "curve_left": 45,
+      "curve_right": 24,
+      "turn_right": 20,
+      "lane_change_left": 7,
+      "lane_change_right": 5
+     },
+     "standstill_share": 0.1198
+    }
+   },
+   "simulated_archives": 8
+  },
+  "v1-pilot, 60 archives": {
+   "config": {
+    "name": "v1-pilot",
+    "n_train": 50000,
+    "n_dev": 2000,
+    "spacing_s": 2.0,
+    "standstill_period_s": 5.0,
+    "cruise_cap": 0.4,
+    "seed": 20261027
+   },
+   "available_logs": 393,
+   "splits": {
+    "train": {
+     "candidates": 604071,
+     "eligible": 195399,
+     "after_thinning": 140085,
+     "pool_cruise": 57779,
+     "target": 50000,
+     "selected": 33220,
+     "shortfall": 16780,
+     "cruise_share": 0.3093,
+     "cruise_cap_exceeded": false,
+     "logs": 331,
+     "decision_lon": {
+      "keep_speed": 13660,
+      "stopped": 7032,
+      "decelerate": 5191,
+      "accelerate": 4432,
+      "start": 1489,
+      "stop": 1416
+     },
+     "decision_lat": {
+      "straight": 19240,
+      "stationary": 8448,
+      "turn_left": 1746,
+      "curve_left": 1485,
+      "turn_right": 954,
+      "curve_right": 801,
+      "lane_change_right": 284,
+      "lane_change_left": 262
+     },
+     "standstill_share": 0.1807
+    },
+    "dev": {
+     "candidates": 97499,
+     "eligible": 26192,
+     "after_thinning": 21484,
+     "pool_cruise": 8289,
+     "target": 2000,
+     "selected": 2000,
+     "shortfall": 0,
+     "cruise_share": 0.4,
+     "cruise_cap_exceeded": false,
+     "logs": 62,
+     "decision_lon": {
+      "keep_speed": 1076,
+      "decelerate": 347,
+      "accelerate": 282,
+      "start": 105,
+      "stopped": 105,
+      "stop": 85
+     },
+     "decision_lat": {
+      "straight": 1308,
+      "stationary": 178,
+      "turn_left": 136,
+      "turn_right": 132,
+      "curve_left": 106,
+      "curve_right": 100,
+      "lane_change_left": 22,
+      "lane_change_right": 18
+     },
+     "standstill_share": 0.0355
+    }
+   },
+   "simulated_archives": 60
+  }
+ },
+ "checks": [
+  {
+   "check": "no nuPlan test or NAVSIM evaluation log in the trainval metadata",
+   "ok": true,
+   "detail": "0 logs (excluded)"
+  },
+  {
+   "check": "frame ids are unique",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "logs are time-sorted (NAVSIM relies on pickle order)",
+   "ok": true,
+   "detail": "0 logs"
+  },
+  {
+   "check": "no duplicate timestamps or tokens",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "every command is one-hot",
+   "ok": true,
+   "detail": "0 frames"
+  },
+  {
+   "check": "every frame has a CAM_F0 path",
+   "ok": true,
+   "detail": "0 frames"
+  },
+  {
+   "check": "every navtrain token found has a valid window",
+   "ok": false,
+   "detail": "915 without"
+  }
+ ]
+}

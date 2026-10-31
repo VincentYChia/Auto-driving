@@ -1,0 +1,92 @@
+{
+  "dataset": "pretrain v1.0-pilot",
+  "stage": "index: PRETRAIN_V1_PLAN.md steps 1-2",
+  "created_utc": "2026-10-31T14:06:56Z",
+  "code": {
+    "module": "__main__",
+    "repo_commit": "f358a12a5a1a196314c20a3302dcad9b188c0925",
+    "repo_dirty": false,
+    "python": "3.12.0",
+    "numpy": "1.26.4",
+    "pyarrow": "19.0.0"
+  },
+  "navsim": {
+    "devkit_commit": "0a380a9063d7162ec93d0f51e9990ebac585f720",
+    "files": {
+      "navsim/planning/script/config/training/default_train_val_test_log_split.yaml": "76a89093e8ba760bac20a716d23e189bdd72d769fbe710ca1949608150d8b333",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/all_scenes.yaml": "9393c814abaf118e3a9a81ad13ab9d02d9846062f8aa79365b8105aa5da8e517",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/competition_private_tokens.yaml": "0e45e6518908534b2d2960c2ca2e114415ebfa5fc470f684edf78e3352d10a0b",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/navhard_two_stage.yaml": "8dc28f6a3c375e230e03980d861cf06c863a1bd4c178372c038ddc1797ac5ed6",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/navmini.yaml": "42ba9d2d5791b572a1b2e54a5f4ce71dc5970cb489f92f29081e5a73dd65bb8c",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/navsafe_two_stage.yaml": "6678b73c5ded8540d25525749be6bc1a4721abe1f750cfbad24dfc8df02855fe",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/navtest.yaml": "d618541de1680c890ef63d305928a24a4fc295ccce55dbf658942a449fb98fcf",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/navtest_two_stage.yaml": "29d144eaa3c9b162d7d1baa96e8c24110fe31f40379fb8ca8302b05539a97943",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/navtrain.yaml": "cb583c3a37f84dcd4539b46668943e1b3be9dc5abbf18f6b205630ab7417ae5e",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/private_test_hard_two_stage.yaml": "411458d2e756ffd5a38c97b623be0a19884ae006eeb7461c982d1747f182eade",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/warmup_navsafe_two_stage_extended.yaml": "e2077c628e39188d257c99f32613e8ac63c9fd5f0325a4160be11ef6a174c99f",
+      "navsim/planning/script/config/common/train_test_split/scene_filter/warmup_two_stage.yaml": "bb99a0fba4839a36974a02415aab5bd06f0f571344f68e61f59c64f7306d89f8"
+    },
+    "navtrain_tokens": 103288,
+    "guarded_logs": 1349,
+    "guarded_tokens": 12539
+  },
+  "input": {
+    "kind": "tgz",
+    "name": "openscene_metadata_trainval.tgz",
+    "bytes": 7052210642,
+    "max_logs": null,
+    "logs_read": 1310
+  },
+  "parameters": {
+    "dt_s": 0.5,
+    "dt_tolerance_s": 0.05,
+    "history_required_s": 1.5,
+    "future_required_s": 4.0,
+    "path_offsets_s": [
+      -4.0,
+      -3.5,
+      -3.0,
+      -2.5,
+      -2.0,
+      -1.5,
+      -1.0,
+      -0.5,
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0,
+      3.5,
+      4.0,
+      4.5,
+      5.0,
+      5.5,
+      6.0
+    ],
+    "max_step_m": 25.0,
+    "max_turn_rad": 0.5,
+    "speed_tolerance_mps": 1.0,
+    "standstill_speed_mps": 0.3,
+    "standstill_move_m": 0.5,
+    "decision_rules_version": "0.1.0",
+    "path_frame": "ego rear axle at the anchor frame: x forward, y left; metres, radians"
+  },
+  "counts": {
+    "logs": 1310,
+    "frames": 723019,
+    "candidates": 701570
+  },
+  "outputs": {
+    "candidates.parquet": {
+      "rows": 701570,
+      "sha256": "7483a39c6003e5c5b5a3f28d615e85caa8aa415c3e0cb2d16500bd3c820d8349"
+    },
+    "logs.parquet": {
+      "rows": 1310,
+      "sha256": "940212fa856a17fefd0b649e407862cb46093cce074556ffc0293c0f787a201c"
+    }
+  },
+  "runtime_s": 98.3
+}
