@@ -31,6 +31,7 @@ Everything else below is a default, marked [proposed]; change any of it. Backgro
 
 Notes:
 - **Estimates (D):** the log and archive counts assume 1,310 trainval logs across 200 camera archives, i.e. ~6.5 logs per archive, and ~160 KB per CAM_F0 JPEG. Step 2 measures the real values.
+  - **Measured 2026-10-31 (V):** 1,310 logs (step 2). CAM_F0 JPEGs average **211 KB** (140–283 KB, 1,244 images from archive 70), so the image sizes in this table are ~30% low.
 - **Pruning [proposed]:**
   - while building, keep every CAM_F0 frame of the streamed logs, so samples can be re-selected after Gate 1 without downloading again;
   - after Gate 2, delete the unselected frames' images.
@@ -39,9 +40,12 @@ Notes:
 - **Metadata:** `openscene-v1.1/openscene_metadata_trainval.tgz`, 6.6 GB. One pickle per log, holding every 2 Hz frame dict, no images.
   - Either download it with the existing `scripts/anvil/download_navsim_data.sh trainval-logs`,
   - or let the index read it straight from the URL, with nothing stored.
-- **Camera archives:** `openscene-v1.1/openscene_sensor_trainval_camera/openscene_sensor_trainval_camera_{0..199}.tgz`, ~5.5 GB each, all 8 cameras.
+- **Camera archives:** `openscene-v1.1/openscene_sensor_trainval_camera/openscene_sensor_trainval_camera_{0..199}.tgz`, all 8 cameras.
+  - **Sizes (V, Hugging Face API, 2026-10-31):** 1.8–19.3 GB, median 5.3 GB, mean 6.2 GB; 1,242 GB for all 200.
+  - **Which logs each holds is published (V):** `openscene-v1.1/openscene_sensor_trainval_0-199.json` maps every archive to its logs (6–7 each). It lists exactly the 1,310 logs of the step-2 index. So step 3 does not need to discover the map.
   - Each archive streams from the URL straight through the extractor [proposed].
   - Only `CAM_F0` JPEGs are written. The archive itself never touches the disk.
+  - **[proposed] for Gate 0:** pick archives by their contents instead of at random. The audit's selection simulation still draws random logs (`selection.simulate`). With the map, it could simulate real archives, and choose them for eligible anchors per GB, cities and dev logs.
 - **Splits:**
   - NAVSIM's `navtrain.yaml`: 103,288 tokens from 1,192 logs, to tag frames that are in navtrain.
   - `default_train_val_test_log_split.yaml`: navtrain's logs split 978 train / 214 val, with 0 in test.
@@ -160,7 +164,7 @@ All figures are estimates (D).
 |---|---|---|---|
 | **1** | Download the metadata (6.6 GB, once) and NAVSIM's split lists (a few MB). The local script does both | — | ~15 min |
 | **2** | Metadata index and audit, no images (`openscene_index.py`, `audit.py`):<br>• every valid window<br>• distributions of speed, acceleration, curvature, command, decision classes and city<br>• flag rates and dev-split counts<br>• command vs path, and calibration<br>• a selection simulation for 8 and 60 archives | **Gate 0:**<br>• the population statistics<br>• the thresholds<br>• the decision-class cap<br>• the archive counts | CPU only. ~6 min here for synthetic logs of real length; real logs carry more annotations, so expect longer |
-| **3** | Stream 8 camera archives; record which logs are in each; keep their CAM_F0 JPEGs | The archive → log map | ~44 GB downloaded, ~4.5 GB kept, ~1 h |
+| **3** | Stream 8 camera archives; check their logs against OpenScene's published archive → log map (§2); keep their CAM_F0 JPEGs | The archive → log map | ~44 GB downloaded, ~4.5 GB kept, ~1 h |
 | **4** | Build the smoke set (10k + 1k dev), then the QA report: **future path projected onto CAM_F0** for 50 random samples, BEV path plots, timing histogram, flag rates | **Gate 1:** look at the 50 renders; agree the conventions and the record | ~15 min |
 | **5** | Stream 52 more archives, then sample the v1-pilot set (50k + 2k dev) | QA report again | ~290 GB downloaded, ~30 GB kept, ~6.5 h |
 | **6** | Freeze the v1.0-pilot release: manifest, checksums, data card | **Gate 2:** sign off the release | Minutes |
@@ -213,6 +217,21 @@ ALLOW_FULL_RUN=1 sbatch scripts/anvil/data_pipeline/pretrain_v1_index.sbatch   #
 - **Restricted loading:** log pickles are loaded with a restricted unpickler that accepts only numpy arrays and plain containers. Anything else stops the run, and the error names the refused type.
 - **Evaluation logs excluded:** a log is excluded if it is in nuPlan's test list or in any NAVSIM evaluation split (navtest, navhard, warmup, navsafe, private tests). Tokens those splits list are excluded too. The audit counts both; 0 is expected.
 
+### Viewing the index, with images (local)
+A page for browsing the index: the front image with the future path drawn on it, a bird's-eye plot, the inputs, the 8 target poses, the label and the reasons for it. It also has the Gate 0 summary as charts. From the repo root:
+```bash
+python -m data_pipeline.v1.viewer fetch --out data/pretrain/v1.0-pilot   # stream camera archive 70 (3.2 GB, ~15 min); keeps ~1.8k CAM_F0 JPEGs (~0.4 GB)
+python -m data_pipeline.v1.viewer build --out data/pretrain/v1.0-pilot   # then open data/pretrain/v1.0-pilot/viewer/index.html
+```
+- **What it shows:**
+  - every frame of the logs whose images were fetched. Archive 70 holds 7 logs from all four cities, in both train and dev;
+  - plus a seeded random 3,000 eligible frames from the other logs, without images.
+- **More images:** run `fetch --archive N` for more archives, then `build` again.
+- **Not step 3:** these images are for looking only. Like everything under `data/pretrain/`, they stay local (`.gitignore`, §5).
+- **Path on the image:** projected with each log's calibration, onto flat ground (`data_pipeline/v1/projection.py`). The conventions are assumed: camera-to-LiDAR extrinsics, LiDAR = ego, the ego origin on the ground, OpenCV distortion.
+  - Checked by eye on 5 frames of one log (2026-10-31): the path lies on the road and follows the lane through a straight, a left turn and a right turn.
+  - That supports the conventions, but it is not the step-4 check.
+
 ## 7. Code
 Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs without an explicit opt-in: `--full` for the local script, `ALLOW_FULL_RUN=1` for the Anvil jobs.
 
@@ -222,6 +241,7 @@ Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs wi
 | Metadata index + candidate windows (steps 1–2) | `data_pipeline/v1/openscene_index.py`; runners `scripts/local/pretrain_v1_index.sh` and `scripts/anvil/data_pipeline/pretrain_v1_index.sbatch` | **Written**, tested on synthetic logs. Reuses `navsim_tools/raw_frames.py` and the v0.1 rules in `data_pipeline/labels.py` |
 | Selection (rules 2–8) | `data_pipeline/v1/selection.py` | **Written**, tested |
 | Gate 0 audit | `data_pipeline/v1/audit.py` | **Written**, tested |
+| Local viewer: fetch one camera archive's CAM_F0 images; page with images, projected path and Gate 0 charts | `data_pipeline/v1/viewer.py`, `viewer_template.html`, `projection.py` | **Written 2026-10-31**, tested. Not part of the build |
 | Archive streaming + CAM_F0 extraction (step 3) | `data_pipeline/v1/openscene_images.py`, `scripts/anvil/data_pipeline/pretrain_v1_images.sbatch` | After Gate 0 |
 | Canonical rows + validation (step 4) | `data_pipeline/v1/canonical.py` | After Gate 0. First fix the velocity-frame assumption in `navsim_tools/raw_frames.py` (`README.md` L4). The index does not use agent velocities, so it is unaffected |
 | QA report (path projection, plots) | `data_pipeline/v1/qa_report.py` | After Gate 0 |

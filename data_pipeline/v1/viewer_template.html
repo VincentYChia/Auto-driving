@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pretraining index viewer</title>
+<!-- Written by data_pipeline/v1/viewer.py build. Data: data.js (per-frame rows and images, so it stays local). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&family=Overpass+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #f3f4f5; --surface: #ffffff; --sunken: #eceef0; --fg: #1b1f24; --muted: #5d6671; --line: #d6dadf;
+  --target: #2052b8; --history: #8b939d; --flag: #a4321f; --ok: #1d6b3a; --accent: #2052b8;
+  --series-1: #2a78d6; --series-2: #eb6834;
+  --display: "Overpass", "Helvetica Neue", Arial, sans-serif;
+  --body: "Overpass", "Helvetica Neue", Arial, sans-serif;
+  --mono: "Overpass Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121417; --surface: #1a1d21; --sunken: #15181b; --fg: #e5e7ea; --muted: #9aa3ad; --line: #2d3238;
+  --target: #79a3ff; --history: #6e7781; --flag: #ef8a74; --ok: #6fcf97; --accent: #79a3ff;
+  --series-1: #3987e5; --series-2: #d95926; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121417; --surface: #1a1d21; --sunken: #15181b; --fg: #e5e7ea; --muted: #9aa3ad; --line: #2d3238;
+  --target: #79a3ff; --history: #6e7781; --flag: #ef8a74; --ok: #6fcf97; --accent: #79a3ff;
+  --series-1: #3987e5; --series-2: #d95926; color-scheme: dark }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+[hidden] { display: none !important; }
+main { max-width: 1480px; margin: 0 auto; padding-block: 22px 56px; display: grid; gap: 18px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.2; text-wrap: balance; }
+h1 { font-size: 1.6rem; font-weight: 800; }
+h2 { font-size: 1.2rem; font-weight: 700; }
+h3 { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+p { margin: 0; }
+.note { color: var(--muted); font-size: 0.88rem; }
+.mono { font-family: var(--mono); font-size: 0.82rem; }
+.sep { font-style: normal; margin-inline: 0.4em; opacity: 0.7; }
+.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; }
+.top .titles { display: grid; gap: 4px; }
+.tabs { display: flex; gap: 4px; background: var(--sunken); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.tabs button { border: 0; background: none; color: var(--muted); font: 600 0.9rem var(--body); padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+
+/* filters */
+.filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+.filters label { display: grid; gap: 2px; font-size: 0.75rem; color: var(--muted); font-weight: 600; }
+.filters select, .filters input[type=search] { font: 0.88rem var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; min-width: 0; max-width: 220px; }
+.filters .check { display: flex; align-items: center; gap: 6px; font-size: 0.88rem; color: var(--fg); font-weight: 400; padding-bottom: 5px; }
+button.btn { font: 600 0.85rem var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 5px 11px; cursor: pointer; }
+button.btn:hover:not(:disabled) { border-color: var(--muted); }
+button.btn:disabled { opacity: 0.45; cursor: default; }
+button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.count { margin-left: auto; color: var(--muted); font-size: 0.85rem; padding-bottom: 5px; }
+
+/* samples layout */
+.samples { display: grid; grid-template-columns: minmax(0, 290px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .samples { grid-template-columns: minmax(0, 1fr); } .list { max-height: 260px !important; } }
+.list { list-style: none; margin: 0; padding: 0; max-height: calc(100vh - 210px); overflow-y: auto; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--surface); position: sticky; top: max(12px, env(safe-area-inset-top, 0px)); }
+.list li { padding: 7px 10px; border-bottom: 1px solid var(--line); cursor: pointer; display: grid; gap: 1px; }
+.list li:hover { background: var(--sunken); }
+.list li[aria-selected="true"] { background: var(--sunken); box-shadow: inset 3px 0 0 var(--accent); }
+.list .l1 { display: flex; justify-content: space-between; gap: 8px; font-size: 0.85rem; font-weight: 600; }
+.list .l2 { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .more { color: var(--muted); font-size: 0.8rem; cursor: default; }
+.cam { font-size: 0.7rem; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-weight: 600; }
+
+.detail { display: grid; gap: 14px; min-width: 0; }
+.dhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 10px; }
+.dhead .id { font-family: var(--mono); font-size: 0.76rem; color: var(--muted); overflow-wrap: anywhere; }
+.controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.controls select { font: 0.85rem var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.controls .check { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; margin-left: 6px; }
+.views { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .views { grid-template-columns: minmax(0, 1fr); } }
+.frame { position: relative; border-radius: 6px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; }
+.frame img, .frame svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.frame img { object-fit: fill; }
+.frame .noimg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: #c8ccd1; padding: 24px; font-size: 0.9rem; background: var(--sunken); }
+.frame .noimg p { color: var(--muted); max-width: 46ch; }
+.overlay .halo { stroke: rgb(255 255 255 / 0.9); stroke-width: 13; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.overlay .target { stroke: #2f6bff; stroke-width: 7; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.overlay .beyond { stroke: #2f6bff; stroke-width: 5; fill: none; stroke-dasharray: 14 12; opacity: 0.85; stroke-linecap: round; }
+.overlay .dot { fill: #2f6bff; stroke: #fff; stroke-width: 3.5; }
+.overlay .tag { font: 700 26px var(--mono); fill: #fff; paint-order: stroke; stroke: rgb(0 0 0 / 0.7); stroke-width: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.78rem; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--c); }
+.legend span.dash::before { background: repeating-linear-gradient(90deg, var(--c) 0 4px, transparent 4px 7px); }
+.bev, .camcol { display: grid; gap: 6px; }
+.bev svg { width: 100%; height: auto; display: block; background: var(--sunken); border-radius: 6px; }
+.bev .grid { stroke: var(--line); stroke-width: 1; fill: none; }
+.bev .tick { fill: var(--muted); font: 10px var(--mono); }
+.bev .history { stroke: var(--history); stroke-width: 2.5; fill: none; }
+.bev .target { stroke: var(--target); stroke-width: 3; fill: none; }
+.bev .beyond { stroke: var(--target); stroke-width: 2; fill: none; stroke-dasharray: 4 4; opacity: 0.6; }
+.bev .dot { fill: var(--target); }
+.bev .ego { fill: var(--surface); stroke: var(--fg); stroke-width: 1.5; }
+.info { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.info .panel { display: grid; gap: 8px; align-content: start; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 14px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.why { color: var(--muted); font-size: 0.88rem; }
+.label-out { font-family: var(--display); font-size: 1.1rem; font-weight: 700; }
+.flag { color: var(--flag); font-size: 0.88rem; }
+.okv { color: var(--ok); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font-family: var(--mono); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 3px 12px 3px 0; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); }
+kbd { font: 0.72rem var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+
+/* overview */
+.overview { display: grid; gap: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 2px; }
+.tile .v { font: 800 1.5rem var(--display); font-variant-numeric: tabular-nums; }
+.tile .k { font-size: 0.8rem; color: var(--muted); }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.chart { display: grid; gap: 10px; align-content: start; }
+.chart.wide { grid-column: span 2; }
+@media (max-width: 760px) { .chart.wide { grid-column: auto; } }
+.checks td:first-child { white-space: normal; text-align: left; }
+.chart .sub { font-size: 0.8rem; color: var(--muted); }
+.bars { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+.bars .cat { font: 0.76rem var(--mono); color: var(--muted); text-align: right; white-space: nowrap; }
+.pair { display: grid; gap: 2px; position: relative; padding-block: 1px; }
+.bar { height: 8px; border-radius: 0 4px 4px 0; min-width: 1px; }
+.bar.s1 { background: var(--series-1); } .bar.s2 { background: var(--series-2); }
+.pair:hover .bar { filter: brightness(1.12); }
+.tip { position: fixed; pointer-events: none; z-index: 10; background: var(--fg); color: var(--bg); border-radius: 6px; padding: 6px 9px;
+  font: 0.78rem var(--mono); line-height: 1.45; box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); white-space: nowrap; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: baseline; }
+details summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); }
+.funnel { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; gap: 6px 12px; align-items: center; }
+.funnel .bar { height: 12px; background: var(--series-1); }
+.funnel .n { font: 0.8rem var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.funnel .k { font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div class="titles">
+      <h1>Pretraining index viewer</h1>
+      <p class="note" id="subtitle"></p>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-samples" aria-selected="true">Samples</button>
+      <button role="tab" id="tab-overview" aria-selected="false">Overview</button>
+    </div>
+  </div>
+
+  <section id="samples-view" class="detail">
+    <div class="panel filters" id="filters">
+      <label>Split<select data-key="split"></select></label>
+      <label>City<select data-key="city"></select></label>
+      <label>Command<select data-key="cmd"></select></label>
+      <label>Speed label<select data-key="lon"></select></label>
+      <label>Direction label<select data-key="lat"></select></label>
+      <label>Search<input type="search" id="search" placeholder="log or token"></label>
+      <label class="check"><input type="checkbox" id="only-img" checked> With image</label>
+      <label class="check"><input type="checkbox" id="only-kept"> Kept after thinning</label>
+      <button class="btn" id="random" title="Random frame from the list (R)">Random</button>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="samples">
+      <ul class="list" id="list" aria-label="Frames"></ul>
+      <div class="detail" id="detail"></div>
+    </div>
+  </section>
+
+  <section id="overview-view" class="overview" hidden></section>
+</main>
+<div class="tip" id="tip" hidden></div>
+<script src="data.js"></script>
+<script>
+"use strict";
+const D = window.VIEWER_DATA;
+const ROWS = D.rows, META = D.meta, S = D.summary, A = META.anchor, OFF = META.offsets_s;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (n) => Number(n).toLocaleString("en-US");
+const pct = (x) => (x * 100).toFixed(1) + "%";
+const nice = (s) => String(s).replace(/_/g, " ");
+const signed = (v, d) => { const r = Number(v.toFixed(d)) + 0; return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r).toFixed(d); };
+const shortLog = (l) => l.replace(/^(\d{4})\.(\d\d)\.(\d\d)\.(\d\d)\.(\d\d)\.\d\d_/, "$2-$3 $4:$5 ");
+
+// --- rows by log, in time order ----------------------------------------------------------------
+const byLog = new Map();
+ROWS.forEach((r, i) => { r.i = i; if (!byLog.has(r.log)) byLog.set(r.log, []); byLog.get(r.log).push(i); });
+ROWS.forEach((r) => { const list = byLog.get(r.log); r.pos = list.indexOf(r.i); });
+
+$("#subtitle").innerHTML =
+  `${fmt(META.index_rows)} candidate frames in <span class="mono">${esc(META.out_dir)}</span>. ` +
+  `Shown: all ${fmt(META.rows_with_image)} frames of the ${META.image_logs.length} logs with images, and a random ${fmt(META.rows_sampled)} eligible frames from the other logs (no image). Local only.`;
+
+// --- filters -------------------------------------------------------------------------------------
+const KEYS = ["split", "city", "cmd", "lon", "lat"];
+const state = { split: "", city: "", cmd: "", lon: "", lat: "", q: "", img: true, kept: false };
+function fillSelects() {
+  const base = ROWS.filter((r) => (!state.img || r.img) && (!state.kept || r.kept));
+  for (const key of KEYS) {
+    const sel = document.querySelector(`select[data-key="${key}"]`);
+    const counts = new Map();
+    base.forEach((r) => counts.set(r[key], (counts.get(r[key]) || 0) + 1));
+    const opts = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    sel.innerHTML = `<option value="">All</option>` + opts.map(([v, n]) => `<option value="${esc(v)}">${esc(nice(v))} (${fmt(n)})</option>`).join("");
+    if (state[key] && counts.has(state[key])) sel.value = state[key]; else state[key] = "";
+  }
+}
+function matches(r) {
+  if (state.img && !r.img) return false;
+  if (state.kept && !r.kept) return false;
+  for (const k of KEYS) if (state[k] && r[k] !== state[k]) return false;
+  if (state.q && !r.id.toLowerCase().includes(state.q)) return false;
+  return true;
+}
+let filtered = [];
+let current = null;
+const LIST_MAX = 400;
+function applyFilters(keepCurrent = true) {
+  filtered = ROWS.filter(matches);
+  $("#count").textContent = `${fmt(filtered.length)} of ${fmt(ROWS.length)} frames`;
+  const ul = $("#list");
+  const shown = filtered.slice(0, LIST_MAX);
+  ul.innerHTML = shown.map((r) => `<li data-i="${r.i}" aria-selected="${current && current.i === r.i}">
+      <div class="l1"><span>${esc(nice(r.lon))}<i class="sep">·</i>${esc(nice(r.lat))}</span>${r.img ? '<span class="cam">CAM</span>' : ""}</div>
+      <div class="l2">t=${r.t.toFixed(1)} s<i class="sep">·</i>${esc(r.cmd)}<i class="sep">·</i>${esc(shortLog(r.log))}</div></li>`).join("") +
+    (filtered.length > LIST_MAX ? `<li class="more">First ${LIST_MAX} shown; narrow the filters or use Random.</li>` : "") +
+    (filtered.length === 0 ? `<li class="more">No frame matches these filters.</li>` : "");
+  if (!(keepCurrent && current && matches(current)) && filtered.length) select(filtered[0].i);
+}
+for (const sel of document.querySelectorAll("#filters select")) {
+  sel.addEventListener("change", () => { state[sel.dataset.key] = sel.value; applyFilters(); });
+}
+$("#search").addEventListener("input", (e) => { state.q = e.target.value.trim().toLowerCase(); applyFilters(); });
+$("#only-img").addEventListener("change", (e) => { state.img = e.target.checked; fillSelects(); applyFilters(); });
+$("#only-kept").addEventListener("change", (e) => { state.kept = e.target.checked; fillSelects(); applyFilters(); });
+$("#random").addEventListener("click", randomFrame);
+$("#list").addEventListener("click", (e) => { const li = e.target.closest("li[data-i]"); if (li) select(+li.dataset.i); });
+function randomFrame() { if (filtered.length) select(filtered[Math.floor(Math.random() * filtered.length)].i); }
+
+// --- one frame -------------------------------------------------------------------------------
+let overlayOn = true, playing = null, speed = 1;
+function select(i, { scroll = true } = {}) {
+  current = ROWS[i];
+  for (const li of document.querySelectorAll("#list li[data-i]")) {
+    const on = +li.dataset.i === i;
+    li.setAttribute("aria-selected", on);
+    if (on && scroll) li.scrollIntoView({ block: "nearest" });
+  }
+  history.replaceState(null, "", "#" + encodeURIComponent(current.id));
+  renderDetail(current);
+  const next = neighbour(current, 1);
+  if (next && next.img) new Image().src = "sensor_blobs/" + next.img;  // preload for stepping and playback
+}
+function neighbour(r, step) {
+  const list = byLog.get(r.log), j = r.pos + step;
+  return j >= 0 && j < list.length ? ROWS[list[j]] : null;
+}
+
+function overlaySvg(r) {
+  if (!r.px) return "";
+  const [w, h] = META.image_size;
+  const seg = (from, to) => {
+    const runs = []; let run = [];
+    for (let k = from; k <= to; k++) { const p = r.px[k]; if (p) run.push(p); else { if (run.length > 1) runs.push(run); run = []; } }
+    if (run.length > 1) runs.push(run);
+    return runs.map((pts) => pts.map((p) => p.join(",")).join(" "));
+  };
+  const target = seg(A, A + 8), beyond = seg(A + 8, OFF.length - 1);
+  let out = `<svg class="overlay" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">`;
+  for (const pts of [...beyond, ...target]) out += `<polyline class="halo" points="${pts}"/>`;
+  for (const pts of beyond) out += `<polyline class="beyond" points="${pts}"/>`;
+  for (const pts of target) out += `<polyline class="target" points="${pts}"/>`;
+  for (let k = A + 1; k <= A + 8; k++) {
+    const p = r.px[k]; if (!p) continue;
+    out += `<circle class="dot" cx="${p[0]}" cy="${p[1]}" r="${k % 2 === 0 ? 9 : 6}"/>`;
+    if ((k - A) % 2 === 0) out += `<text class="tag" x="${p[0] + 16}" y="${p[1] + 9}">+${(k - A) / 2} s</text>`;
+  }
+  return out + "</svg>";
+}
+
+function bevSvg(r) {
+  const P = r.path, size = 300, pad = 22;
+  const pts = P.filter(Boolean).map((p) => [p[0], p[1]]).concat([[-1, 0], [4, 0]]);
+  const u = pts.map((p) => -p[1]), v = pts.map((p) => -p[0]);
+  const span = Math.max(Math.max(...u) - Math.min(...u), Math.max(...v) - Math.min(...v), 20) + 8;
+  const cu = (Math.max(...u) + Math.min(...u)) / 2, cv = (Math.max(...v) + Math.min(...v)) / 2;
+  const sc = (size - 2 * pad) / span;
+  const X = (x, y) => pad + (-y - cu + span / 2) * sc, Y = (x, y) => pad + (-x - cv + span / 2) * sc;
+  const xy = (p) => `${X(p[0], p[1]).toFixed(1)},${Y(p[0], p[1]).toFixed(1)}`;
+  const step = span <= 40 ? 5 : span <= 90 ? 10 : 20;
+  let out = `<svg viewBox="0 0 ${size} ${size}" role="img" aria-label="Bird's-eye view of the path, forward is up">`;
+  const loX = -(cv + span / 2), hiX = -(cv - span / 2), loY = -(cu + span / 2), hiY = -(cu - span / 2);
+  for (let g = Math.ceil(loX / step) * step; g < hiX; g += step) {
+    out += `<line class="grid" x1="${X(g, hiY)}" y1="${Y(g, hiY)}" x2="${X(g, loY)}" y2="${Y(g, loY)}"/>`;
+    out += `<text class="tick" x="${X(g, loY) - 2}" y="${Y(g, loY) - 3}" text-anchor="end">${signed(g, 0)} m</text>`;
+  }
+  for (let g = Math.ceil(loY / step) * step; g < hiY; g += step) {
+    out += `<line class="grid" x1="${X(hiX, g)}" y1="${Y(hiX, g)}" x2="${X(loX, g)}" y2="${Y(loX, g)}"/>`;
+    out += `<text class="tick" x="${X(loX, g)}" y="${Y(loX, g) + 13}" text-anchor="middle">${signed(g, 0)}</text>`;
+  }
+  const line = (cls, a, b) => { const s = P.slice(a, b).filter(Boolean); return s.length > 1 ? `<polyline class="${cls}" points="${s.map(xy).join(" ")}"/>` : ""; };
+  out += line("history", 0, A + 1) + line("beyond", A + 8, P.length) + line("target", A, A + 9);
+  for (let k = A + 1; k <= A + 8; k++) if (P[k]) { const [cx, cy] = xy(P[k]).split(","); out += `<circle class="dot" cx="${cx}" cy="${cy}" r="3"/>`; }
+  const car = [[-1, -0.95], [3.9, -0.95], [3.9, 0.95], [-1, 0.95]];
+  out += `<polygon class="ego" points="${car.map(xy).join(" ")}"/>`;
+  return out + "</svg>";
+}
+
+function renderDetail(r) {
+  const prev = neighbour(r, -1), next = neighbour(r, 1);
+  const deg = (rad) => signed(rad * 180 / Math.PI, 1) + "°";
+  const fut = [];
+  for (let k = A + 1; k <= A + 8; k++) {
+    const p = r.path[k];
+    fut.push(`<tr><td>+${OFF[k].toFixed(1)} s</td><td>${p ? p[0].toFixed(2) : "–"}</td><td>${p ? signed(p[1], 2) : "–"}</td><td>${p ? deg(p[2]) : "–"}</td></tr>`);
+  }
+  const hist = [A - 3, A - 2, A - 1].map((k) => r.path[k] ? `(${r.path[k][0].toFixed(1)}, ${r.path[k][1].toFixed(1)})` : "–").join(" ");
+  const status = !r.eligible ? `<p class="flag">Not eligible (rules 2, 3 or 5).</p>`
+    : r.kept ? `<p class="okv">Eligible, and kept by standstill thinning (rule 6).</p>`
+    : `<p class="flag">Eligible, but dropped by standstill thinning (rule 6: 1 standstill anchor per 5 s).</p>`;
+  const image = r.img
+    ? `<img src="sensor_blobs/${esc(r.img)}" alt="Front camera at t=${r.t.toFixed(1)} s">${overlayOn ? overlaySvg(r) : ""}`
+    : `<div class="noimg"><div><strong>No image for this frame</strong><p>Its log is not in a fetched camera archive. Fetch more with <span class="mono">python -m data_pipeline.v1.viewer fetch --archive N</span>, then rebuild.</p></div></div>`;
+  $("#detail").innerHTML = `
+    <div class="panel dhead">
+      <div><h2>${esc(nice(r.lon))} + ${esc(nice(r.lat))}</h2>
+        <div class="id">${esc(r.id)}</div>
+        <div class="note">${esc(r.city)}<i class="sep">·</i>split: ${esc(r.split)}<i class="sep">·</i>t = ${r.t.toFixed(1)} s into the log<i class="sep">·</i>frame ${r.pos + 1} of ${byLog.get(r.log).length} shown</div></div>
+      <div class="controls">
+        <button class="btn" id="prev" ${prev ? "" : "disabled"} title="Previous frame in this log (←)">◀ ${prev ? signed(prev.t - r.t, 1) + " s" : ""}</button>
+        <button class="btn primary" id="play" ${next ? "" : "disabled"} title="Play through the log (space)">${playing ? "Pause" : "Play"}</button>
+        <button class="btn" id="next" ${next ? "" : "disabled"} title="Next frame in this log (→)">${next ? signed(next.t - r.t, 1) + " s" : ""} ▶</button>
+        <select id="speed" aria-label="Playback speed">${[1, 2, 4].map((s) => `<option value="${s}" ${s === speed ? "selected" : ""}>${s}×</option>`).join("")}</select>
+        <label class="check"><input type="checkbox" id="ov" ${overlayOn ? "checked" : ""} ${r.px ? "" : "disabled"}> Path on image</label>
+      </div>
+    </div>
+    <div class="views">
+      <div class="camcol"><div class="frame">${image}</div>
+        <div class="legend"><span style="--c:#2f6bff">target path, next 4 s (dots every 0.5 s)</span><span class="dash" style="--c:#2f6bff">+4 to +6 s</span>
+        <span>Projected with each log's calibration on flat ground; conventions assumed (projection.py). If the path sits on the lane, they hold.</span></div></div>
+      <div class="bev">${bevSvg(r)}
+        <div class="legend"><span style="--c:var(--history)">past 4 s</span><span style="--c:var(--target)">target: next 4 s</span><span class="dash" style="--c:var(--target)">+4 to +6 s</span></div></div>
+    </div>
+    <div class="info">
+      <div class="panel"><h3>Input at time t</h3>
+        <dl class="kv">
+          <dt>Speed</dt><dd>${r.v.toFixed(1)} m/s (${(r.v * 3.6).toFixed(0)} km/h)</dd>
+          <dt>Acceleration</dt><dd>${signed(r.al, 2)} m/s² forward, ${signed(r.at, 2)} m/s² left</dd>
+          <dt>Yaw rate</dt><dd>${signed(r.yr, 3)} rad/s</dd>
+          <dt>Command</dt><dd><strong>${esc(r.cmd)}</strong>${r.route ? "" : " (no route)"}</dd>
+          <dt>Past positions</dt><dd class="mono">${hist} m at −1.5, −1.0, −0.5 s</dd>
+        </dl>
+        <p class="why">${esc(r.why[0])}</p></div>
+      <div class="panel"><h3>Output: 8 poses and the label</h3>
+        <div class="scroll"><table><thead><tr><th>time</th><th>ahead (m)</th><th>left (m)</th><th>heading</th></tr></thead><tbody>${fut.join("")}</tbody></table></div>
+        <p class="label-out">${esc(nice(r.lon))} + ${esc(nice(r.lat))}</p>
+        <p class="why">${esc(r.why[1])}</p><p class="why">${esc(r.why[2])}</p></div>
+      <div class="panel"><h3>Rules and flags</h3>
+        ${status}
+        ${r.flags.length ? r.flags.map((f) => `<p class="flag">Flag: ${esc(f)}</p>`).join("") : `<p class="note">No flags.</p>`}
+        <p class="note">Keys: <kbd>←</kbd> <kbd>→</kbd> step through the log · <kbd>↑</kbd> <kbd>↓</kbd> move in the list · <kbd>space</kbd> play · <kbd>R</kbd> random · <kbd>O</kbd> path on image</p></div>
+    </div>`;
+  $("#prev").onclick = () => step(-1);
+  $("#next").onclick = () => step(1);
+  $("#play").onclick = togglePlay;
+  $("#speed").onchange = (e) => { speed = +e.target.value; if (playing) { stopPlay(); togglePlay(); } };
+  $("#ov").onchange = (e) => { overlayOn = e.target.checked; renderDetail(current); };
+}
+function step(d) { const n = current && neighbour(current, d); if (n) select(n.i); else stopPlay(); }
+function stopPlay() { if (playing) { clearInterval(playing); playing = null; if (current) renderDetail(current); } }
+function togglePlay() {
+  if (playing) return stopPlay();
+  playing = setInterval(() => step(1), 500 / speed);  // frames are 0.5 s apart: 1× is real time
+  renderDetail(current);
+}
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input[type=search], select") || $("#samples-view").hidden || !current) return;
+  const listPos = filtered.indexOf(current);
+  if (e.key === "ArrowRight") step(1);
+  else if (e.key === "ArrowLeft") step(-1);
+  else if (e.key === "ArrowDown" && listPos < filtered.length - 1) select(filtered[listPos + 1].i);
+  else if (e.key === "ArrowUp" && listPos > 0) select(filtered[listPos - 1].i);
+  else if (e.key === " ") togglePlay();
+  else if (e.key === "r" || e.key === "R") randomFrame();
+  else if ((e.key === "o" || e.key === "O") && current.px) { overlayOn = !overlayOn; renderDetail(current); }
+  else return;
+  e.preventDefault();
+});
+
+// --- overview: the Gate 0 summary as charts ----------------------------------------------------
+const tip = $("#tip");
+function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; moveTip(e); }
+function moveTip(e) {
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - r.width - 8) + "px";
+  tip.style.top = Math.min(e.clientY + 14, innerHeight - r.height - 8) + "px";
+}
+const binLabels = (edges) => edges.slice(0, -1).map((a, k) => {
+  const f = (x) => x === "inf" ? "∞" : x === "-inf" ? "−∞" : String(x);
+  return `[${f(a)}, ${f(edges[k + 1])})`;
+});
+function chart(title, sub, cats, train, dev) {
+  const tn = train.reduce((a, b) => a + b, 0) || 1, dn = dev.reduce((a, b) => a + b, 0) || 1;
+  const max = Math.max(...train.map((c) => c / tn), ...dev.map((c) => c / dn), 1e-9);
+  const legend = `<div class="legend"><span style="--c:var(--series-1)">train</span><span style="--c:var(--series-2)">dev</span></div>`;
+  const rows = cats.map((c, k) => `<div class="cat">${esc(nice(c))}</div>
+    <div class="pair" data-tip="${esc(`<strong>${esc(nice(c))}</strong><br><span class='sw' style='background:var(--series-1)'></span>train ${fmt(train[k])} (${pct(train[k] / tn)})<br><span class='sw' style='background:var(--series-2)'></span>dev ${fmt(dev[k])} (${pct(dev[k] / dn)})`)}">
+      <div class="bar s1" style="width:${(train[k] / tn / max * 100).toFixed(2)}%"></div>
+      <div class="bar s2" style="width:${(dev[k] / dn / max * 100).toFixed(2)}%"></div></div>`).join("");
+  const table = `<details><summary>Numbers</summary><div class="scroll"><table><thead><tr><th>${esc(title)}</th><th>train</th><th>%</th><th>dev</th><th>%</th></tr></thead><tbody>${
+    cats.map((c, k) => `<tr><td>${esc(nice(c))}</td><td>${fmt(train[k])}</td><td>${pct(train[k] / tn)}</td><td>${fmt(dev[k])}</td><td>${pct(dev[k] / dn)}</td></tr>`).join("")}</tbody></table></div></details>`;
+  return `<div class="panel chart"><div><h2>${esc(title)}</h2><p class="sub">${esc(sub)}</p></div>${legend}<div class="bars">${rows}</div>${table}</div>`;
+}
+function renderOverview() {
+  const L = S.logs, F = S.frames, R = S.rules, T = S.distributions.train, V = S.distributions.dev;
+  const tiles = [
+    [fmt(L.total), "logs"], [L.hours.toFixed(1), "hours"], [fmt(F.total), "frames (2 Hz)"],
+    [fmt(F["valid_windows (rule 1)"]), "valid windows"], [`${fmt(L.by_our_split.train)} / ${fmt(L.by_our_split.dev)}`, "train / dev logs"],
+    [fmt(R["6 after standstill thinning"]), "after standstill thinning"],
+  ].map(([v, k]) => `<div class="tile"><span class="v">${v}</span><span class="k">${k}</span></div>`).join("");
+  const steps = [
+    ["Frames", F.total], ["Valid window (rule 1)", R["1 valid window"]], ["CAM_F0 path (rule 2)", R["2 CAM_F0 path present"]],
+    ["Pose sane (rule 3)", R["3 pose sane"]], ["Not guarded (rule 5)", R["5 not guarded"]], ["After standstill thinning (rule 6)", R["6 after standstill thinning"]],
+  ];
+  const funnel = `<div class="panel chart wide"><div><h2>What each rule keeps</h2><p class="sub">Frames left after each rule, train and dev together. Rules 7–8 (spacing, cruise cap) apply when the sample is drawn.</p></div>
+    <div class="funnel">${steps.map(([k, n]) => `<span class="k">${esc(k)}</span><div class="bar" style="width:${(n / F.total * 100).toFixed(2)}%"></div><span class="n">${fmt(n)}</span>`).join("")}</div></div>`;
+  const hist = (key, title, sub) => chart(title, sub, binLabels(T[key].hist.edges), T[key].hist.counts, V[key].hist.counts);
+  const cat = (key, title, sub) => {
+    const cats = [...new Set([...Object.keys(T[key]), ...Object.keys(V[key])])].sort((a, b) => (T[key][b] || 0) - (T[key][a] || 0));
+    return chart(title, sub, cats, cats.map((c) => T[key][c] || 0), cats.map((c) => V[key][c] || 0));
+  };
+  const sub = `Share of eligible anchors (rules 1–5): train ${fmt(T.rows)}, dev ${fmt(V.rows)}.`;
+  const checks = `<div class="panel chart wide checks"><h2>Checks</h2><div class="scroll"><table><thead><tr><th>Check</th><th>OK</th><th>Detail</th></tr></thead><tbody>${
+    S.checks.map((c) => `<tr><td>${esc(c.check)}</td><td class="${c.ok ? "okv" : "flag"}">${c.ok ? "yes" : "no"}</td><td>${esc(c.detail)}</td></tr>`).join("")}</tbody></table></div></div>`;
+  $("#overview-view").innerHTML = `<div class="tiles">${tiles}</div>
+    <div class="charts">${funnel}${checks}
+    ${cat("command", "Route command (input)", sub)}
+    ${cat("city", "City", sub)}
+    ${cat("decision_lon", "Speed label (rules v0.1)", sub)}
+    ${cat("decision_lat", "Direction label (rules v0.1)", sub)}
+    ${hist("speed_mps", "Speed (m/s)", sub)}
+    ${hist("heading_change_4s_deg", "Heading change at +4 s (deg)", sub)}
+    ${hist("lateral_offset_4s_m", "Lateral offset at +4 s (m)", sub)}
+    ${hist("accel_lon_mps2", "Longitudinal acceleration (m/s²)", sub)}</div>
+    <p class="note">From <span class="mono">audit/summary.json</span>; the full tables are in <span class="mono">audit/report.md</span>.</p>`;
+  for (const el of document.querySelectorAll("[data-tip]")) {
+    el.addEventListener("mouseenter", (e) => showTip(e, el.dataset.tip));
+    el.addEventListener("mousemove", moveTip);
+    el.addEventListener("mouseleave", () => { tip.hidden = true; });
+  }
+}
+
+// --- tabs and start-up -----------------------------------------------------------------------
+let overviewDrawn = false;
+function showTab(name) {
+  $("#tab-samples").setAttribute("aria-selected", name === "samples");
+  $("#tab-overview").setAttribute("aria-selected", name === "overview");
+  $("#samples-view").hidden = name !== "samples";
+  $("#overview-view").hidden = name !== "overview";
+  if (name === "overview") { stopPlay(); if (!overviewDrawn) { renderOverview(); overviewDrawn = true; } }
+}
+$("#tab-samples").onclick = () => showTab("samples");
+$("#tab-overview").onclick = () => showTab("overview");
+
+if (!ROWS.some((r) => r.img)) { state.img = false; $("#only-img").checked = false; }
+fillSelects();
+const fromHash = decodeURIComponent(location.hash.slice(1));
+const start = ROWS.find((r) => r.id === fromHash);
+if (start && !matches(start)) { state.img = false; $("#only-img").checked = false; fillSelects(); }
+applyFilters(false);
+if (start) select(start.i);
+</script>
+</body>
+</html>
