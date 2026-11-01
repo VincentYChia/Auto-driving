@@ -273,7 +273,7 @@ def _wanted(out_dir: str, manifest: Dict[str, Any]) -> Dict[str, Dict[str, str]]
             with open(os.path.join(out_dir, "splits", f"{name}_tokens_{split}.txt"), encoding="utf-8") as f:
                 tokens.update(line.strip() for line in f if line.strip())
     cands = tables.read(os.path.join(out_dir, "index", "candidates.parquet"), ["token", "log_name", "cam_f0_path"])
-    keep = np.isin(cands["token"], list(tokens))
+    keep = np.array([t in tokens for t in cands["token"]], dtype=bool)  # np.isin on strings takes minutes
     return {str(p): {"token": str(t), "log": str(log)}
             for t, log, p in zip(cands["token"][keep], cands["log_name"][keep], cands["cam_f0_path"][keep])}
 

@@ -1,0 +1,7 @@
+# The pilot's fine-tuning environment (pilot_sft/). Qwen3.5 needs transformers 5 (Unsloth's docs, V).
+# Install torch for your CUDA first, e.g.: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+transformers>=5.2
+peft
+accelerate
+pillow
+numpy

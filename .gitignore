@@ -34,6 +34,8 @@ data/pretrain/**
 !data/pretrain/**/DATA_CARD.md
 !data/pretrain/**/audit/summary.json
 !data/pretrain/**/audit/report.md
+!data/pretrain/**/canonical.json
+!data/pretrain/**/qa/summary.json
 !data/pretrain/**/splits/*.txt
 data/pretrain/smoke/**
 data/pretrain/downloads/

@@ -1,0 +1,91 @@
+{
+ "step": "4: Gate 1 QA (docs/training_data/PRETRAIN_V1_PLAN.md \u00a76)",
+ "created_utc": "2026-11-01T22:55:27Z",
+ "set": "smoke",
+ "frames": 11000,
+ "renders": {
+  "n": 50,
+  "seed": 0
+ },
+ "horizon_check_all_frames": {
+  "frames_checked": 8406,
+  "points": 52080,
+  "below_horizon": 0.9909,
+  "points_off_image": 6762
+ },
+ "horizon_check_renders": {
+  "frames_checked": 41,
+  "points": 262,
+  "below_horizon": 0.9924,
+  "points_off_image": 25
+ },
+ "time_error_s": {
+  "per_pose": {
+   "p1": 0.0,
+   "p5": 0.0,
+   "p50": 0.0002,
+   "p95": 0.001,
+   "p99": 0.0034
+  },
+  "histogram": {
+   "0\u20130.001 s": 124904,
+   "0.001\u20130.005 s": 6293,
+   "0.005\u20130.01 s": 585,
+   "0.01\u20130.02 s": 218,
+   "0.02\u20130.05 s": 0,
+   "\u2265 0.05 s": 0
+  }
+ },
+ "speed_mps": {
+  "0\u20130.3 m/s": 1448,
+  "0.3\u20132 m/s": 1146,
+  "2\u20135 m/s": 2365,
+  "5\u201310 m/s": 4426,
+  "10\u201315 m/s": 1606,
+  "15\u201320 m/s": 9,
+  "20\u201325 m/s": 0,
+  "\u2265 25 m/s": 0
+ },
+ "split": {
+  "train": 10000,
+  "dev": 1000
+ },
+ "city": {
+  "us-nv-las-vegas-strip": 3711,
+  "us-ma-boston": 2825,
+  "us-pa-pittsburgh-hazelwood": 2420,
+  "sg-one-north": 2044
+ },
+ "command": {
+  "straight": 7035,
+  "unknown": 1725,
+  "left": 1398,
+  "right": 842
+ },
+ "flags": {
+  "has_route": 0.9509,
+  "crosses_scene_boundary": 0.2745,
+  "flag_speed_consistent": 1.0,
+  "flag_standstill": 0.0627,
+  "in_navtrain": 0.2081
+ },
+ "canonical_checks_failed": [],
+ "decision_lon": {
+  "keep_speed": 6033,
+  "decelerate": 1603,
+  "accelerate": 1437,
+  "stopped": 962,
+  "start": 486,
+  "stop": 479
+ },
+ "decision_lat": {
+  "straight": 6542,
+  "stationary": 1450,
+  "turn_left": 932,
+  "curve_left": 738,
+  "turn_right": 566,
+  "curve_right": 482,
+  "lane_change_left": 160,
+  "lane_change_right": 130
+ }
+}

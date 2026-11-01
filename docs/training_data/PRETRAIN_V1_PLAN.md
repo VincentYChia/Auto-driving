@@ -3,8 +3,11 @@
 **Status:**
 - **Plan:** [proposed]; its defaults were confirmed 2026-10-27 (§9).
 - **Steps 1–2:** ran on all 1,310 logs (2026-10-31); Gate 0 report in `data/pretrain/v1.0-pilot/audit/report.md`.
-- **Gate 0:** decided 2026-10-31 (below). **Step 3:** coded; the smoke run comes first. How to run it: §6.
-- **Later steps:** each one waits for its gate (§6).
+- **Gate 0:** decided 2026-10-31 (below). **Step 3:** the smoke run finished 2026-11-01 (20 archives, 0 missing or undecodable images).
+- **2026-11-01, researcher: "keep going until we are completely ready to train"** (a test model on Together.ai, Ollama or Anvil, plus a cost estimate). So:
+  - **Step 4 ran on the smoke set:** 11,000 frames, every check passed; the Gate 1 report is in `qa/report.html`, and Claude looked at its renders (the path lies on the road and follows the lane). **Gate 1 still needs your look** at the 50 renders.
+  - **Step 5 started before that look:** the full fetch is running. The selection was fixed at Gate 0, and Gate 1 changes the record, not which images are kept.
+  - **Steps 6 and 7 are coded**; step 7 ran on the smoke set. The fine-tuning code is in `pilot_sft/` (its README has the platforms and costs). Step 6b is not needed for the first test model, which writes its path as text.
 
 **Researcher decisions, 2026-10-27 [agreed]:**
 - **Source:** OpenScene trainval only for the first build. Other sources come later, once access is confirmed.
@@ -153,9 +156,12 @@ data/pretrain/v1.0-pilot/
 ├── splits/manifest.json                    # (git) step 3: selection reports and archive order
 ├── images/archives.json, archives/<n>.json # step 3: archive map + checksums; one record per fetched archive
 ├── frames.parquet, privileged.parquet, labels/decision_rules_v0.1.parquet   # step 4
+├── canonical.json                          # (git) step 4: counts, checks, table checksums
 ├── images/CAM_F0/<log>/<token>.jpg         # steps 3–4: native JPEGs
 ├── qa/report.html                          # step 4: renders real images, so it stays local
-└── manifest.json, DATA_CARD.md             # (git) step 6: release manifest and data card
+├── qa/summary.json                         # (git) step 4: the report's aggregate numbers
+├── views/pilot_v1/<set>/                   # step 7: {train,dev}.jsonl, images/ at 640 px, view.json, chat_*.jsonl
+└── manifest.json, DATA_CARD.md             # (git) step 6: release manifest and data card; images/SHA256SUMS stays local
 data/pretrain/smoke/                        # smoke tests (first 20 logs); never committed
 data/pretrain/downloads/                    # metadata archive (6.6 GB) and NAVSIM's split lists; never committed
 ```
@@ -179,11 +185,11 @@ All figures are estimates (D), revised 2026-10-31.
 | **1** | Download the metadata (6.6 GB, once) and NAVSIM's split lists (a few MB). The local script does both | — | ~15 min |
 | **2** | Metadata index and audit, no images (`openscene_index.py`, `audit.py`):<br>• every valid window<br>• distributions of speed, acceleration, curvature, command, decision classes and city<br>• flag rates and dev-split counts<br>• command vs path, and calibration<br>• a selection simulation for 8 and 60 archives | **Gate 0:**<br>• the population statistics<br>• the thresholds<br>• the decision-class cap<br>• the archive counts | CPU only. ~6 min here for synthetic logs of real length; real logs carry more annotations, so expect longer |
 | **3** | `openscene_images.py plan`: select v1-pilot and the smoke set; order the archives. Then `fetch` the first 20 archives: check their logs against OpenScene's archive → log map (§2), and keep the selected CAM_F0 JPEGs | The archive → log map; missing and undecodable JPEGs | 83.5 GB downloaded, ~2.3 GB kept for the smoke set, ~2–15 h |
-| **4** | Build the smoke set (10k + 1k dev), then the QA report: **future path projected onto CAM_F0** for 50 random samples, BEV path plots, timing histogram, flag rates | **Gate 1:** look at the 50 renders; agree the conventions and the record | ~15 min |
+| **4** | Build the smoke set (10k + 1k dev), then the QA report: **future path projected onto CAM_F0** for 50 random samples, BEV path plots, timing histogram, flag rates | **Gate 1:** look at the 50 renders; agree the conventions and the record | **Measured 2026-11-01 (V):** 92 s for the canonical build, 2 s for the report |
 | **5** | `fetch --full`: the other 180 archives, then build the v1-pilot set (45k + 2k dev) | QA report again | ~1,160 GB downloaded, ~9.9 GB kept, ~12 h at the smoke run's speed (up to ~2–4 days) |
 | **6** | Freeze the v1.0-pilot release: manifest, checksums, data card | **Gate 2:** sign off the release | Minutes |
 | **6b** | Fit tokenizers on the train split: MVLAD-AD's shipped 256 for reference, plus refits at 256 / 1,024 / 2,048 and coarse + fine. Run the ceiling test on the dev split, and record rounding error per horizon | One table: tokenizer × rounding error × NAVSIM ceiling | CPU, ~1–2 h |
-| **7** | Write the pilot view: image path + prompt + 8 **continuous** target poses (JSONL). Tokenisation happens in the data loader (§4b) | Ready for the first pretraining run | Minutes |
+| **7** | Write the pilot view: image path + prompt + 8 **continuous** target poses (JSONL). Tokenisation happens in the data loader (§4b) | Ready for the first pretraining run | **Measured (V):** 32 s for the smoke set, images downscaled to 640 × 360 (51 KB each) |
 
 All resource figures in the table are estimates (D). Download times use the speeds measured on 2026-10-31: 1.6–16 MB/s (§2).
 
@@ -242,6 +248,22 @@ python -m data_pipeline.v1.openscene_images fetch  --out data/pretrain/v1.0-pilo
 - **Resuming:** a finished archive leaves `images/archives/<n>.json` and is skipped next time; an unfinished download resumes from its `.part` file. After an interruption, run the same command again.
 - **One bad archive doesn't stop the run:** it is reported at the end, and the command exits with an error. Run it again to retry.
 - **Commit after `plan`:** `splits/*_tokens_*.txt` and `splits/manifest.json`.
+- **Lookup fix (2026-11-01):** working out which images to keep took over 5 minutes (`np.isin` on strings); it now takes under a second.
+
+### How to run steps 4–7
+From the repo root. Use `--sets smoke` until the full fetch is done, then `--sets smoke v1-pilot` (a frame in both is stored once).
+```bash
+python -m data_pipeline.v1.canonical  --out data/pretrain/v1.0-pilot --sets smoke            # step 4: frames, privileged, labels, canonical.json
+python -m data_pipeline.v1.qa_report  --out data/pretrain/v1.0-pilot --set smoke             # Gate 1: open qa/report.html
+python -m data_pipeline.v1.pilot_view build  --out data/pretrain/v1.0-pilot --set smoke      # step 7: views/pilot_v1/smoke/
+python -m data_pipeline.v1.pilot_view export --out data/pretrain/v1.0-pilot --set smoke      # chat_*.jsonl for Together.ai
+python -m data_pipeline.v1.release    --out data/pretrain/v1.0-pilot --set v1-pilot          # step 6, after step 5; Gate 2
+```
+- **Canonical checks:** unique frames; no evaluation log or token; train and dev logs disjoint, dev = nuPlan val; the core path valid and zero at the anchor; path times on the grid; the metadata's CAM_F0 path equals the index's; every other camera listed; one image size; finite calibration; lidar2ego the identity; every JPEG matches its step-3 SHA-256. A failed check makes the command exit with an error.
+- **Smoke set, 2026-11-01 (V):** all checks pass. Pose times are within 1 ms of the grid at p95 (3.4 ms at p99). Of the projected 1–4 s path points of moving frames, **99.1% lie below the horizon** (52,080 points, 8,406 frames). The path is (0, 0, 0) at the anchor in every frame. Camera horizontal field of view: 63.7° pinhole, **72.2° through the lens model**.
+- **Gate 1 renders, checked by Claude on 12 of the 50 (2026-11-01):** the path lies on the road and follows the lane through straights, curves and a right turn; a stationary frame shows no path. Your look at all 50 is what Gate 1 asks for.
+- **`privileged.parquet`** holds the boxes as OpenScene stores them, in the LiDAR frame, which is the ego frame here (lidar2ego is the identity in every frame, checked). Object velocities are stored raw and rotated into the ego frame (L4). Traffic lights use NAVSIM's reading: `True` = red (V, `navsim_scenario.py`). It is 62 MB for the smoke set, mostly boxes (median 36 per frame, p99 314).
+- **The pilot view [proposed]:** 640 × 360 images, 220 visual tokens for Qwen3.5 (D, from its image processor's 32 px steps; native would be 2,040). The prompt holds only test-time inputs: speed, acceleration, yaw rate, 1.5 s of past positions and the route command. The answer is 8 "(x, y)" pairs at 1 decimal. **Bar to beat (V, constant velocity along the current heading):** ADE 2.09 m, FDE 4.97 m on the smoke dev split (1.73 / 4.08 m on train).
 
 ### Viewing the index, with images (local)
 A page for browsing the index: the front image with the future path drawn on it, a bird's-eye plot, the inputs, the 8 target poses, the label and the reasons for it. It also has the Gate 0 summary as charts. From the repo root:
@@ -269,10 +291,12 @@ Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs wi
 | Gate 0 audit | `data_pipeline/v1/audit.py` | **Written**, tested |
 | Local viewer: fetch one camera archive's CAM_F0 images; page with images, projected path and Gate 0 charts | `data_pipeline/v1/viewer.py`, `viewer_template.html`, `projection.py` | **Written 2026-10-31**, tested. Not part of the build |
 | Selection, archive order, CAM_F0 extraction (step 3) | `data_pipeline/v1/openscene_images.py` | **Written 2026-10-31**, tested on synthetic archives: resume, checksum, missing and undecodable JPEGs. No Anvil job yet |
-| Canonical rows + validation (step 4) | `data_pipeline/v1/canonical.py` | After Gate 0. First fix the velocity-frame assumption in `navsim_tools/raw_frames.py` (`README.md` L4). The index does not use agent velocities, so it is unaffected |
-| QA report (path projection, plots) | `data_pipeline/v1/qa_report.py` | After Gate 0 |
-| Release (manifest, checksums, card) | `data_pipeline/v1/release.py` | Step 6 |
-| Tests | `tests/data/test_v1_index.py`, `tests/data/test_v1_select_audit.py` | Pass on Python 3.9 + numpy 1.23.4 (NAVSIM's pins) + pyarrow 16, and on Python 3.13 + numpy 2 |
+| Canonical rows + validation (step 4) | `data_pipeline/v1/canonical.py` | **Written 2026-11-01**, tested; ran on the smoke set. Object velocities are stored raw (LiDAR frame) and rotated into the ego frame, so the L4 assumption in `navsim_tools/raw_frames.py` is not used. That file is shared with workstream A and is unchanged |
+| QA report (path projection, plots) | `data_pipeline/v1/qa_report.py` | **Written 2026-11-01**, tested; ran on the smoke set |
+| Release (manifest, checksums, card) | `data_pipeline/v1/release.py` | **Written 2026-11-01**, tested on synthetic data. Runs after step 5; refuses while a check fails or images are missing |
+| Pilot view + chat export (step 7) | `data_pipeline/v1/pilot_view.py` | **Written 2026-11-01**, tested; ran on the smoke set |
+| Fine-tuning and evaluation of the pilot | `pilot_sft/` (reads only the view), `scripts/anvil/pilot_sft/train_lora.sbatch` | **Written 2026-11-01**. See `pilot_sft/README.md` |
+| Tests | `tests/data/test_v1_index.py`, `tests/data/test_v1_select_audit.py`, `test_v1_images.py`, `test_v1_canonical.py` | Pass on Python 3.9 + numpy 1.23.4 (NAVSIM's pins) + pyarrow 16, and on Python 3.13 + numpy 2 |
 
 **Facts checked while writing the code (V):**
 - **Silent gaps:** OpenScene's generator drops every frame whose LiDAR file or any camera image is missing (`create_openscene_metadata.py`), so a log can have silent gaps.

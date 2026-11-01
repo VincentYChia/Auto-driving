@@ -1,0 +1,140 @@
+"""Step 6 of ``docs/training_data/PRETRAIN_V1_PLAN.md``: freeze a release of the canonical record.
+
+    python -m data_pipeline.v1.release --out data/pretrain/v1.0-pilot --set v1-pilot
+
+Writes, in ``<out>/``:
+* ``images/SHA256SUMS``: one line per image of the release, ``<sha256>  <path>`` (local: per frame);
+* ``manifest.json``: the version, code commit, the checksums of every table, the step manifests it
+  was built from, and one SHA-256 over ``SHA256SUMS`` that pins every image (committed);
+* ``DATA_CARD.md``: what the release holds, how it was made, its licence and known limits, from
+  aggregate counts only (committed).
+
+It refuses to run while a canonical check fails, or while a selected frame has no image. Gate 2 is
+the researcher's sign-off on these files; a changed release gets a new version (README.md §2.6).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from typing import Any, Dict, Optional, Sequence
+
+import numpy as np
+
+from data_pipeline.v1 import canonical, provenance, stats, tables
+from data_pipeline.v1.openscene_index import DATASET_VERSION
+
+STEP_MANIFESTS = ("index/manifest.json", "splits/manifest.json", "canonical.json", "qa/summary.json")
+
+
+def build(out_dir: str, set_name: str = "v1-pilot") -> Dict[str, Any]:
+    with open(os.path.join(out_dir, "canonical.json"), encoding="utf-8") as f:
+        report = json.load(f)
+    failed = [c["check"] for c in report["checks"] if not c["ok"]]
+    if failed:
+        raise SystemExit(f"canonical checks fail: {failed}; fix them before a release")
+    if set_name not in report["sets"] or report["sets"][set_name]["missing_image"]:
+        raise SystemExit(f"{set_name}: not in canonical.json, or frames still lack images; finish steps 3–5 first")
+    member = f"in_{set_name.replace('-', '_')}"
+    frames = tables.read(os.path.join(out_dir, "frames.parquet"),
+                         ["image_path", "image_sha256", "image_bytes", "our_split", "city", "command", "log_name",
+                          "speed", "in_navtrain", "has_route", member])
+    rows = np.flatnonzero(frames[member])
+    decisions = tables.read(os.path.join(out_dir, "labels", canonical.LABELS_FILE))
+
+    sums = os.path.join(out_dir, "images", "SHA256SUMS")
+    with open(sums, "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(f"{frames['image_sha256'][k]}  {frames['image_path'][k]}\n"
+                     for k in sorted(rows, key=lambda k: frames["image_path"][k]))
+    steps = {}
+    for name in STEP_MANIFESTS:
+        path = os.path.join(out_dir, *name.split("/"))
+        if os.path.exists(path):
+            steps[name] = provenance.sha256_file(path)
+    split = frames["our_split"][rows]
+    counts = {
+        "samples": stats.value_counts(split),
+        "logs": {s: int(len(set(frames["log_name"][rows][split == s].tolist()))) for s in ("train", "dev")},
+        "city": {s: stats.value_counts(frames["city"][rows][split == s]) for s in ("train", "dev")},
+        "command": {s: stats.value_counts(frames["command"][rows][split == s]) for s in ("train", "dev")},
+        "decision_lon": stats.value_counts(decisions["decision_lon"][rows]),
+        "decision_lat": stats.value_counts(decisions["decision_lat"][rows]),
+        "image_gb": round(float(frames["image_bytes"][rows].sum()) / 1e9, 2),
+        "in_navtrain": round(float(frames["in_navtrain"][rows].mean()), 4),
+        "has_route": round(float(frames["has_route"][rows].mean()), 4),
+        "speed_mps": stats.percentiles(frames["speed"][rows]),
+    }
+    manifest = {
+        "dataset": f"pretrain {DATASET_VERSION}",
+        "set": set_name,
+        "created_utc": provenance.utc_now(),
+        "repo_commit": provenance.git_commit(provenance.REPO_ROOT),
+        "repo_dirty": provenance.git_dirty(provenance.REPO_ROOT),
+        "licence": canonical.LICENCE,
+        "tables": report["outputs"],
+        "images": {"count": int(len(rows)), "sha256sums_sha256": provenance.sha256_file(sums)},
+        "built_from": steps,
+        "counts": counts,
+        "gate_2": "pending: the researcher signs off DATA_CARD.md and this manifest",
+    }
+    with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=1, ensure_ascii=False)
+        f.write("\n")
+    with open(os.path.join(out_dir, "DATA_CARD.md"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(data_card(manifest))
+    return manifest
+
+
+def _table(counts: Dict[str, Dict[str, int]]) -> str:
+    keys = list(dict.fromkeys(k for c in counts.values() for k in c))
+    head = "| | " + " | ".join(counts) + " |\n|---|" + "---|" * len(counts) + "\n"
+    return head + "".join(f"| {k} | " + " | ".join(f"{counts[s].get(k, 0):,}" for s in counts) + " |\n" for k in keys)
+
+
+def data_card(m: Dict[str, Any]) -> str:
+    c = m["counts"]
+    return f"""# Data card: {m['dataset']} ({m['set']})
+
+Generated by `data_pipeline/v1/release.py` from aggregate counts (`manifest.json`). Plan and rules:
+`docs/training_data/PRETRAIN_V1_PLAN.md`. Gate 2 (sign-off): {m['gate_2']}.
+
+## What it is
+- **Samples:** {c['samples'].get('train', 0):,} train + {c['samples'].get('dev', 0):,} dev anchor frames from {c['logs']['train']:,} + {c['logs']['dev']:,} logs of OpenScene trainval (nuPlan, 2 Hz).
+- **Per sample:** the native front-camera JPEG (CAM_F0, 1920 × 1080, distorted, not rectified; {c['image_gb']} GB in all), its calibration, ego speed / acceleration / yaw rate, the route command, and the ego path from −4 to +6 s at 0.5 s in the rear-axle frame at the anchor (x forward, y left). Training-only data (object boxes, traffic lights, route) is in a separate table.
+- **Splits:** by log. Dev = NAVSIM's official val logs; train = its train logs. No log or token of navtest, navhard, warmup or any other NAVSIM evaluation split (checked by the canonical build, `canonical.json`).
+- **Selection:** valid 5.5 s window, sane poses, standstills thinned, anchors ≥ 2 s apart, "keep speed + straight" capped at 40%, train drawn balanced over city × lateral manoeuvre (rule 8).
+
+## Composition
+{_table(c['city'])}
+{_table(c['command'])}
+Rule-based decisions (v0.1, **uncalibrated**): longitudinal {json.dumps(c['decision_lon'])}; lateral {json.dumps(c['decision_lat'])}.
+
+Speed at the anchor (m/s): {json.dumps(c['speed_mps'])}. Share of frames in navtrain: {c['in_navtrain']:.1%}. With a route: {c['has_route']:.1%}.
+
+## Known limits
+- One camera, one rig (nuPlan), four cities; Las Vegas still dominates train despite the balanced draw.
+- Commands come from the route 20 m ahead; "unknown" where there is no route.
+- Decision labels are uncalibrated rules, not human labels. No text labels yet.
+- Image–pose skew of up to 50 ms is not recorded by OpenScene.
+
+## Licence and sharing
+{m['licence']}. Non-commercial; ShareAlike probably extends to derived data. Only ID lists, manifests and aggregate statistics are committed to the repo; images and per-frame tables stay local until nuPlan's terms on sharing derived data are checked (D10).
+
+## Integrity
+Tables (SHA-256): {', '.join(f"`{k}` {v['sha256'][:12]}…" for k, v in m['tables'].items())}. Images: {m['images']['count']:,}, pinned by `images/SHA256SUMS` (SHA-256 {m['images']['sha256sums_sha256'][:12]}…). Code commit: `{m['repo_commit']}`{' (with uncommitted changes)' if m['repo_dirty'] else ''}.
+"""
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description="Step 6: freeze a release (manifest, checksums, data card).")
+    parser.add_argument("--out", required=True, help="dataset directory, e.g. data/pretrain/v1.0-pilot")
+    parser.add_argument("--set", default="v1-pilot", choices=("smoke", "v1-pilot"))
+    args = parser.parse_args(argv)
+    manifest = build(args.out, args.set)
+    print(json.dumps({k: manifest[k] for k in ("set", "images", "gate_2")}, indent=1), file=sys.stdout)
+
+
+if __name__ == "__main__":
+    main()
