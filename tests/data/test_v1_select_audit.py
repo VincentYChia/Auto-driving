@@ -99,6 +99,21 @@ def test_standstill_thinning_keeps_one_anchor_per_period():
     assert np.flatnonzero(keep).tolist() == [0, 10] + list(range(20, 40))
 
 
+def test_balanced_draw_favours_rare_city_and_manoeuvre_cells_in_train_only():
+    cands = fake(400, ["train"] * 10 + ["dev"] * 10)
+    cands["city"] = np.where(np.isin(cands["log_name"], ["log0", "log10"]), "sg-one-north", "us-nv-las-vegas-strip").astype(object)
+    natural = SelectionConfig("t", n_train=200, n_dev=200, cruise_cap=1.0)
+    balanced = SelectionConfig("t", n_train=200, n_dev=200, cruise_cap=1.0, balance_alpha=1.0)
+    _, plain = selection.select(cands, natural)
+    _, weighted = selection.select(cands, balanced)
+    share = {name: r["splits"]["train"]["city"].get("sg-one-north", 0) / 200 for name, r in (("plain", plain), ("weighted", weighted))}
+    # 1 log in 10, weighted 9x per anchor; its 200 s fit ~75 anchors 2 s apart, so the spacing caps it
+    assert share["plain"] < 0.15 and share["weighted"] > 0.25
+    assert weighted["splits"]["dev"] == plain["splits"]["dev"]  # dev keeps the natural mix
+    again, _ = selection.select(cands, balanced)
+    assert again.tolist() == selection.select(cands, balanced)[0].tolist()
+
+
 def test_simulate_uses_an_archive_sized_share_of_logs():
     cands = fake(50, ["train"] * 19 + ["dev"])
     report = selection.simulate(cands, SelectionConfig("t", 10, 2), sorted(set(cands["log_name"])), n_archives=20)

@@ -35,7 +35,7 @@ SPEED_DIFF_EDGES = (-INF, -2, -1, -0.5, -0.2, 0.2, 0.5, 1, 2, INF)
 STEP_EDGES_M = (0, 5, 10, 15, 20, 25, 50, INF)
 TURN_EDGES_RAD = (0, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0, INF)
 TIME_ERR_EDGES_S = (0, 0.001, 0.005, 0.01, 0.02, 0.05, 0.1, INF)
-SIMULATIONS = (("smoke, 8 archives", selection.SMOKE, 8), ("v1-pilot, 60 archives", selection.PILOT, 60))
+SIMULATIONS = (("smoke, 8 archives", selection.SMOKE, 8), ("v1-pilot, 200 archives", selection.PILOT, 200))
 
 
 def _share(mask) -> Optional[float]:

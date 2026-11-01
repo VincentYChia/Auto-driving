@@ -16,6 +16,12 @@ Order:
    exceeded. Random order packs anchors ~25% below what the spacing allows, so if the target is
    still not met, a last pass fills the remaining gaps log by log in time order. Together they reach
    ~83% of the maximum on an unbroken log (D, measured on synthetic logs in the tests).
+
+With ``balance_alpha`` > 0 the train split is drawn in a weighted random order instead: an anchor's
+weight is ``n ** -balance_alpha``, where n counts the split's pool anchors with its city and lateral
+decision. Rare combinations (a Singapore lane change) come up earlier than common ones (a Las Vegas
+straight), so they make up more of the sample when the pool is larger than the target. Dev keeps
+the natural mix, like NAVSIM's test splits. Agreed 2026-10-31 for v1-pilot (plan §3, rule 8).
 """
 
 from __future__ import annotations
@@ -41,11 +47,13 @@ class SelectionConfig:
     spacing_s: float = 2.0  # rule 7
     standstill_period_s: float = 5.0  # rule 6
     cruise_cap: float = 0.40  # rule 8
+    balance_alpha: float = 0.0  # rule 8, train only; 0 = random order
     seed: int = 20261027
 
 
-SMOKE = SelectionConfig("smoke", n_train=10_000, n_dev=1_000, spacing_s=1.0)
-PILOT = SelectionConfig("v1-pilot", n_train=50_000, n_dev=2_000)
+# ~10 GB of CAM_F0 JPEGs at 211 KB each (V, archive 70), drawn from every log [agreed 2026-10-31].
+SMOKE = SelectionConfig("smoke", n_train=10_000, n_dev=1_000, spacing_s=1.0, balance_alpha=0.5)
+PILOT = SelectionConfig("v1-pilot", n_train=45_000, n_dev=2_000, balance_alpha=0.5)
 
 
 def log_codes(cands: tables.Columns) -> np.ndarray:
@@ -81,6 +89,23 @@ def thin_standstill(
         else:
             last_code, last_t = codes[r], cands["t_us"][r]
     return keep
+
+
+def _draw_order(rng: np.random.Generator, rows: np.ndarray, weights: Optional[np.ndarray]) -> np.ndarray:
+    """A random order of ``rows``; with ``weights``, a weighted one (Efraimidis–Spirakis keys)."""
+    if weights is None:
+        return rng.permutation(rows)
+    keys = np.log(rng.random(len(rows))) / weights  # log of u ** (1 / w): same order, no underflow
+    return rows[np.argsort(-keys, kind="stable")]
+
+
+def balance_weights(cands: tables.Columns, rows: np.ndarray, alpha: float) -> np.ndarray:
+    """``n ** -alpha`` per row, n = how many of ``rows`` share its city and lateral decision."""
+    if len(rows) == 0:
+        return np.zeros(0)
+    cell = [f"{c}|{d}" for c, d in zip(cands["city"][rows], cands["decision_lat"][rows])]
+    _, inverse, counts = np.unique(cell, return_inverse=True, return_counts=True)
+    return counts[inverse.reshape(-1)].astype(np.float64) ** -alpha
 
 
 class _SpacedPicker:
@@ -126,8 +151,15 @@ def select(
     for split_id, (split, target) in enumerate((("train", config.n_train), ("dev", config.n_dev))):
         in_split = cands["our_split"] == split
         rng = np.random.default_rng([config.seed, split_id])
-        others = iter(rng.permutation(np.flatnonzero(pool & in_split & ~cruise)))
-        cruisers = iter(rng.permutation(np.flatnonzero(pool & in_split & cruise)))
+        weights = None
+        if split == "train" and config.balance_alpha > 0:
+            in_pool = np.flatnonzero(pool & in_split)
+            weights = np.zeros(len(codes))
+            weights[in_pool] = balance_weights(cands, in_pool, config.balance_alpha)
+        rows_other = np.flatnonzero(pool & in_split & ~cruise)
+        rows_cruise = np.flatnonzero(pool & in_split & cruise)
+        others = iter(_draw_order(rng, rows_other, None if weights is None else weights[rows_other]))
+        cruisers = iter(_draw_order(rng, rows_cruise, None if weights is None else weights[rows_cruise]))
         cruise_quota = int(np.floor(config.cruise_cap * target))
         picked = picker.take(others, target - cruise_quota)
         picked += picker.take(cruisers, target - len(picked))
@@ -153,6 +185,7 @@ def select(
             "cruise_share": round(n_cruise / len(rows), 4) if len(rows) else None,
             "cruise_cap_exceeded": n_cruise > cruise_quota,
             "logs": len(set(codes[rows].tolist())),
+            "city": stats.value_counts(cands["city"][rows]) if "city" in cands else None,
             "decision_lon": stats.value_counts(cands["decision_lon"][rows]),
             "decision_lat": stats.value_counts(cands["decision_lat"][rows]),
             "standstill_share": round(float(cands["standstill"][rows].mean()), 4) if len(rows) else None,
