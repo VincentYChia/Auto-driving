@@ -8,6 +8,18 @@ and reuses the same canonical record.
 Evidence marks as in `docs/RESEARCH_DIRECTION.md`: **V** checked against a primary source or measured
 here, **R** reported by others, **D** derived by us. Everything here is [proposed].
 
+## The two data sets
+| | Smoke set | v1-pilot (the full set) |
+|---|---|---|
+| Samples | 10,000 train + 1,000 dev | 45,000 train + 2,000 dev |
+| Logs | 130, from the first 20 camera archives | 1,304, from all 200 archives |
+| Native images kept locally | 2.3 GB | 9.9 GB |
+| Training view (640 × 360) | 0.55 GB, **ready** | ~2.4 GB (D), after the full download |
+| Together.ai upload | 0.75 GB, **ready** | ~3.2 GB (D) |
+
+The smoke set is the small first sample, used to check the data and the training before spending on
+the full set. The two overlap: 1,472 frames are in both (11,000 + 47,000 − 56,528).
+
 ## What goes in and out
 - **Data:** the `pilot_v1` view (`data_pipeline/v1/pilot_view.py`, plan step 7): `train.jsonl`,
   `dev.jsonl`, and the CAM_F0 images downscaled to 640 × 360.
@@ -78,21 +90,38 @@ python pilot_sft/evaluate.py --view data/pretrain/v1.0-pilot/views/pilot_v1/smok
 ```
 `--max-steps 200` makes a timing run.
 
-**Anvil:**
-1. Create a conda env `pilot` with the requirements.
-2. Copy the view: `rsync -a data/pretrain/v1.0-pilot/views/pilot_v1/ anvil:$TRAINING_DATA_ROOT/pilot_v1/`.
-3. Submit the jobs (header of `scripts/anvil/pilot_sft/train_lora.sbatch`):
-   - **Timing first:** `SET=smoke MAX_STEPS=200 sbatch --time=00:30:00 --partition=gpu-debug ...`
-   - **Then the run:** `SET=v1-pilot sbatch ...`
+**Anvil: quick start.** Ready on this computer: `data/pretrain/upload/pilot_v1_smoke.tar` (549 MB:
+images, jsonl, view.json). Rebuild it any time with `bash scripts/local/pack_pilot_view.sh smoke`.
+```bash
+# 1. On this computer: copy the packed view to your Anvil home
+scp data/pretrain/upload/pilot_v1_smoke.tar <user>@anvil.rcac.purdue.edu:
+# 2. On Anvil, once: get the code and the environment (login node, ~15 min)
+git clone -b claude/stoic-darwin-ue0jm6 https://github.com/VincentYChia/Auto-driving.git ~/Auto-driving && cd ~/Auto-driving
+export SBATCH_ACCOUNT=<your GPU allocation>          # see `mybalance`
+bash scripts/anvil/pilot_sft/setup_env.sh
+source scripts/anvil/common.sh && mkdir -p $TRAINING_DATA_ROOT/pilot_v1 && tar -xf ~/pilot_v1_smoke.tar -C $TRAINING_DATA_ROOT/pilot_v1
+# 3. Timing run (30 min, debug partition), then the run; each job scores itself on dev at the end
+SET=smoke MAX_STEPS=200 sbatch --time=00:30:00 --partition=gpu-debug scripts/anvil/pilot_sft/train_lora.sbatch
+SET=smoke EPOCHS=2 sbatch scripts/anvil/pilot_sft/train_lora.sbatch
+```
+- **Output:** `$NAVSIM_EXP_ROOT/pilot_sft/<model>-<set>-<job>/`, holding `run.json` (speed, memory), `log.jsonl` and `eval.json`.
+- **Other models:** `MODEL=Qwen/Qwen3.5-4B` trains the 4B instead.
+- **Where things go:** the defaults in `scripts/anvil/config.sh` put data and runs on `$SCRATCH`, which is purged 30 days after last access.
 
-**Together.ai:**
-1. `python -m data_pipeline.v1.pilot_view export --out data/pretrain/v1.0-pilot --set smoke`
-   writes `chat_train.jsonl` / `chat_dev.jsonl` in the format its vision fine-tuning takes (V):
-   OpenAI `messages`, with the image as a base64 data URL in the user turn.
-2. Upload the file and start a LoRA job on Qwen3.5-4B, with `chat_dev.jsonl` as the validation file.
-   - Use their CLI or the web UI. Check `together models list` for the model's exact name.
-   - Expect the $4 minimum for the smoke set.
-3. Download the adapter, then score it with `evaluate.py --adapter` on a GPU that fits 4B (Anvil).
+**Together.ai: quick start.** Ready on this computer: `chat_train.jsonl` (682 MB) and `chat_dev.jsonl`
+(66 MB) in `data/pretrain/v1.0-pilot/views/pilot_v1/smoke/`. Both pass Together's own file check
+(SDK 3.0.0, V). `pilot_sft/together_finetune.py` holds the whole flow, using the SDK's real parameter names.
+```bash
+# in ../train-venv (has the together SDK) or after `pip install together`
+export TOGETHER_API_KEY=...                               # PowerShell: $env:TOGETHER_API_KEY="..."
+python pilot_sft/together_finetune.py launch --view data/pretrain/v1.0-pilot/views/pilot_v1/smoke         # upload + price estimate, no charge
+python pilot_sft/together_finetune.py launch --view data/pretrain/v1.0-pilot/views/pilot_v1/smoke --yes   # start the job
+python pilot_sft/together_finetune.py status   <job id>
+python pilot_sft/together_finetune.py download <job id> --dest ../runs/together/<job id>
+```
+- **Settings [proposed]:** Qwen/Qwen3.5-4B (V), LoRA rank 32, loss on the answer only, vision encoder frozen, 2 epochs, learning rate 1e-4, 4 evaluations on dev. Batch size is Together's: 8 for this model (V).
+- **Uploads:** the first `launch` uploads ~0.75 GB.
+- **Scoring:** 4B doesn't fit this computer's GPU. Score the downloaded adapter on Anvil or a rented GPU with `evaluate.py --model Qwen/Qwen3.5-4B --adapter ...`, or on a Together dedicated endpoint.
 
 **Ollama (zero-shot, local):**
 ```bash

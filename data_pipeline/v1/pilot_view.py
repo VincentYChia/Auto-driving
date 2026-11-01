@@ -177,7 +177,7 @@ def chat_record(item: Dict[str, Any], image_bytes: bytes) -> Dict[str, Any]:
     """One sample in the OpenAI ``messages`` format, image first, as a base64 data URL."""
     url = "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode()
     return {"messages": [
-        {"role": "system", "content": item["system"]},
+        {"role": "system", "content": [{"type": "text", "text": item["system"]}]},  # Together: a text part, not a string
         {"role": "user", "content": [{"type": "image_url", "image_url": {"url": url}},
                                      {"type": "text", "text": item["prompt"]}]},
         {"role": "assistant", "content": item["target"]},
