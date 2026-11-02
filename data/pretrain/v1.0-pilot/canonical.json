@@ -1,10 +1,10 @@
 {
  "step": "4: canonical record (docs/training_data/PRETRAIN_V1_PLAN.md \u00a74)",
- "created_utc": "2026-11-01T22:53:51Z",
+ "created_utc": "2026-11-02T20:17:58Z",
  "code": {
   "module": "__main__",
-  "repo_commit": "4b65205d8cd43cdc21ae229a31d6e77df3528063",
-  "repo_dirty": true
+  "repo_commit": "92d965461296bab147d8866dff7585aa60c84218",
+  "repo_dirty": false
  },
  "sets": {
   "smoke": {
@@ -15,10 +15,19 @@
     "train": 10000,
     "dev": 1000
    }
+  },
+  "v1-pilot": {
+   "selected": 47000,
+   "with_image": 47000,
+   "missing_image": 0,
+   "by_split": {
+    "train": 45000,
+    "dev": 2000
+   }
   }
  },
- "frames": 11000,
- "logs": 130,
+ "frames": 56528,
+ "logs": 1306,
  "checks": [
   {
    "check": "frame ids are unique",
@@ -57,7 +66,7 @@
     "p5": 0.0,
     "p50": 0.0002,
     "p95": 0.001,
-    "p99": 0.0034
+    "p99": 0.0023
    }
   },
   {
@@ -73,7 +82,7 @@
    "check": "one image size",
    "ok": true,
    "value": {
-    "1920x1080": 11000
+    "1920x1080": 56528
    }
   },
   {
@@ -94,16 +103,16 @@
    "ok": true,
    "value": {
     "speed_consistent": 1.0,
-    "standstill": 0.0627,
-    "has_route": 0.9509,
-    "crosses_scene_boundary": 0.2745,
-    "in_navtrain": 0.2081,
+    "standstill": 0.0673,
+    "has_route": 0.9319,
+    "crosses_scene_boundary": 0.2739,
+    "in_navtrain": 0.1956,
     "boxes_per_frame": {
      "p1": 1.0,
-     "p5": 3.0,
-     "p50": 36.0,
-     "p95": 212.0,
-     "p99": 314.0
+     "p5": 6.0,
+     "p50": 61.0,
+     "p95": 237.0,
+     "p99": 333.73
     }
    }
   },
@@ -115,20 +124,20 @@
  ],
  "outputs": {
   "frames.parquet": {
-   "rows": 11000,
-   "bytes": 8119102,
-   "sha256": "88b0547776df44ef5e5484904c2e197f08558652c496961785462e9cb34b1157"
+   "rows": 56528,
+   "bytes": 39413017,
+   "sha256": "cbae1631d746407af1a74608067c6e93843b3d51a658e946bca63d8237a8e6ab"
   },
   "privileged.parquet": {
-   "rows": 11000,
-   "bytes": 61941499,
-   "sha256": "befe49716cd6acd0be64d2b1f882a20762608165b235c25a13cf3695c2bfe6b8"
+   "rows": 56528,
+   "bytes": 446406437,
+   "sha256": "c872068f8ffb36b959bb9ca1aa911023e57495b595762860caabbcf4b9204c6b"
   },
   "labels/decision_rules_v0.1.parquet": {
-   "rows": 11000,
-   "bytes": 307979,
-   "sha256": "92a27705e7c68f5b7a86a817eba12e0aafc5c4a90f9be96787a24f06630c533a"
+   "rows": 56528,
+   "bytes": 1802439,
+   "sha256": "ceb263809ce51a42d76c59fc7c891e7f0e723eee1abde461fa5b7b80e1973991"
   }
  },
- "runtime_s": 92.4
+ "runtime_s": 323.6
 }
