@@ -3,7 +3,8 @@
 # Copy the view first (plan §6, "Where it runs"): rsync -a data/pretrain/v1.0-pilot/views/pilot_v1/ anvil:$TRAINING_DATA_ROOT/pilot_v1/
 #
 #   # timing run first: 200 optimizer steps on the debug partition
-#   SET=smoke MAX_STEPS=200 sbatch --time=00:30:00 --partition=gpu-debug scripts/anvil/pilot_sft/train_lora.sbatch
+#   SET=v1-pilot MAX_STEPS=200 EVAL_SAMPLES=40 sbatch --time=00:30:00 --partition=gpu-debug scripts/anvil/pilot_sft/train_lora.sbatch
+#   # (gpu-debug stops jobs at 30 min; the small EVAL_SAMPLES keeps the scoring and probes inside it)
 #   # then the run
 #   SET=v1-pilot EPOCHS=2 sbatch scripts/anvil/pilot_sft/train_lora.sbatch
 #   # EGO_DROPOUT=0.5 hides ego state and past positions on half the training samples [proposed]

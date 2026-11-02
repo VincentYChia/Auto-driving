@@ -152,7 +152,7 @@ export SBATCH_ACCOUNT=<your GPU allocation>          # see `mybalance`
 bash scripts/anvil/pilot_sft/setup_env.sh
 source scripts/anvil/common.sh && mkdir -p $TRAINING_DATA_ROOT/pilot_v1 && tar -xf ~/pilot_v1_smoke.tar -C $TRAINING_DATA_ROOT/pilot_v1
 # 3. Timing run (30 min, debug partition), then the run; each job scores itself on dev at the end
-SET=smoke MAX_STEPS=200 sbatch --time=00:30:00 --partition=gpu-debug scripts/anvil/pilot_sft/train_lora.sbatch
+SET=smoke MAX_STEPS=200 EVAL_SAMPLES=40 sbatch --time=00:30:00 --partition=gpu-debug scripts/anvil/pilot_sft/train_lora.sbatch   # gpu-debug: 30 min max
 SET=smoke EPOCHS=2 sbatch scripts/anvil/pilot_sft/train_lora.sbatch
 ```
 - **Output:** `$NAVSIM_EXP_ROOT/pilot_sft/<model>-<set>-<job>/`, holding `run.json` (speed, memory), `log.jsonl` and `eval.json`.
