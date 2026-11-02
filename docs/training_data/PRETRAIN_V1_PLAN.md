@@ -257,6 +257,7 @@ python -m data_pipeline.v1.canonical  --out data/pretrain/v1.0-pilot --sets smok
 python -m data_pipeline.v1.qa_report  --out data/pretrain/v1.0-pilot --set smoke             # Gate 1: open qa/report.html
 python -m data_pipeline.v1.pilot_view build  --out data/pretrain/v1.0-pilot --set smoke      # step 7: views/pilot_v1/smoke/
 python -m data_pipeline.v1.pilot_view export --out data/pretrain/v1.0-pilot --set smoke      # chat_*.jsonl for Together.ai
+bash scripts/local/build_v1_pilot.sh    # after the full fetch: the steps above for v1-pilot (canonical for both sets), Together's file check, Anvil tar
 python -m data_pipeline.v1.release    --out data/pretrain/v1.0-pilot --set v1-pilot          # step 6, after step 5; Gate 2
 ```
 - **Canonical checks:** unique frames; no evaluation log or token; train and dev logs disjoint, dev = nuPlan val; the core path valid and zero at the anchor; path times on the grid; the metadata's CAM_F0 path equals the index's; every other camera listed; one image size; finite calibration; lidar2ego the identity; every JPEG matches its step-3 SHA-256. A failed check makes the command exit with an error.

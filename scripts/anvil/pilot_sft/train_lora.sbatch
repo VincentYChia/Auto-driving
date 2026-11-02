@@ -6,6 +6,7 @@
 #   SET=smoke MAX_STEPS=200 sbatch --time=00:30:00 --partition=gpu-debug scripts/anvil/pilot_sft/train_lora.sbatch
 #   # then the run
 #   SET=v1-pilot EPOCHS=2 sbatch scripts/anvil/pilot_sft/train_lora.sbatch
+#   # EGO_DROPOUT=0.5 hides ego state and past positions on half the training samples [proposed]
 #SBATCH --job-name=pilot-sft
 #SBATCH --partition=gpu
 #SBATCH --gpus-per-node=1
@@ -23,6 +24,11 @@ EXTRA=()
 [ -n "${MAX_STEPS:-}" ] && EXTRA+=(--max-steps "$MAX_STEPS")
 cd "$REPO_ROOT"
 python pilot_sft/train_lora.py --view "$VIEW" --model "$MODEL" --out "$RUN" \
-    --epochs "${EPOCHS:-2}" --batch "${BATCH:-8}" --accum "${ACCUM:-2}" ${EXTRA[@]+"${EXTRA[@]}"}
+    --epochs "${EPOCHS:-2}" --batch "${BATCH:-8}" --accum "${ACCUM:-2}" --ego-dropout "${EGO_DROPOUT:-0}" \
+    ${EXTRA[@]+"${EXTRA[@]}"}
 python pilot_sft/evaluate.py --view "$VIEW" --model "$MODEL" --adapter "$RUN/adapter" \
     --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/eval.json"
+# the bars to beat (no image) and what the model relies on, on the same dev samples
+python pilot_sft/baselines.py --view "$VIEW" --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/baselines.json"
+python pilot_sft/probes.py --view "$VIEW" --model "$MODEL" --adapter "$RUN/adapter" \
+    --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/probes.json"

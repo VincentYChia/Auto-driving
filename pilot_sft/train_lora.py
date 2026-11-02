@@ -58,6 +58,14 @@ def prompt_text(processor, item: Dict[str, Any]) -> str:
         return processor.apply_chat_template(prompt_messages(item), tokenize=False, add_generation_prompt=True)
 
 
+def mask_ego(item: Dict[str, Any]) -> Dict[str, Any]:
+    """The item with its ego-state and past-position lines replaced by "not available"; the command stays."""
+    lines = [("Ego state: not available." if l.startswith("Ego state:") else
+              "Past positions: not available." if l.startswith("Past positions") else l)
+             for l in item["prompt"].split("\n")]
+    return {**item, "prompt": "\n".join(lines)}
+
+
 def answer_end(processor) -> str:
     """The token that closes an assistant turn (``<|im_end|>`` for Qwen)."""
     tok = processor.tokenizer
@@ -65,13 +73,20 @@ def answer_end(processor) -> str:
 
 
 class Batches:
-    """Tokenised batches. The prompt part of ``labels`` is -100, so the loss covers the answer only."""
+    """Tokenised batches. The prompt part of ``labels`` is -100, so the loss covers the answer only.
 
-    def __init__(self, processor, view: str, items: List[Dict[str, Any]]):
+    With ``ego_dropout`` > 0, training batches hide the ego state and past positions of that share of
+    samples (``mask_ego``), so the answer has to come from the image and the command. Dev batches never do.
+    """
+
+    def __init__(self, processor, view: str, items: List[Dict[str, Any]], ego_dropout: float = 0.0, seed: int = 0):
         self.processor, self.view, self.items = processor, view, items
         self.end = answer_end(processor)
+        self.ego_dropout, self.rng = ego_dropout, random.Random(seed + 1)
 
-    def collate(self, items: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+    def collate(self, items: List[Dict[str, Any]], train: bool = False) -> Dict[str, torch.Tensor]:
+        if train and self.ego_dropout > 0:
+            items = [mask_ego(it) if self.rng.random() < self.ego_dropout else it for it in items]
         prompts = [prompt_text(self.processor, it) for it in items]
         texts = [p + it["target"] + self.end for p, it in zip(prompts, items)]
         images = [Image.open(os.path.join(self.view, *it["image"].split("/"))).convert("RGB") for it in items]
@@ -112,6 +127,8 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="use only the first N train samples")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--no-checkpointing", action="store_true", help="faster, needs more memory")
+    parser.add_argument("--ego-dropout", type=float, default=0.0,
+                        help="share of training samples whose ego state and past positions are hidden [proposed]")
     args = parser.parse_args()
 
     from peft import LoraConfig, get_peft_model
@@ -139,7 +156,7 @@ def main() -> None:
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
 
-    batches = Batches(processor, args.view, train)
+    batches = Batches(processor, args.view, train, ego_dropout=args.ego_dropout, seed=args.seed)
     steps_per_epoch = math.ceil(len(train) / (args.batch * args.accum))
     steps = args.max_steps or math.ceil(steps_per_epoch * args.epochs)
     optim = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=args.lr, weight_decay=0.0)
@@ -175,7 +192,7 @@ def main() -> None:
             if len(order) < args.batch:
                 order += random.sample(range(len(train)), len(train))
             idx, order = order[: args.batch], order[args.batch :]
-            batch = {k: v.to(device) for k, v in batches.collate([train[i] for i in idx]).items()}
+            batch = {k: v.to(device) for k, v in batches.collate([train[i] for i in idx], train=True).items()}
             with torch.autocast(device_type=device, dtype=dtype, enabled=dtype != torch.float32):
                 loss = model(**batch).loss / args.accum
             loss.backward()

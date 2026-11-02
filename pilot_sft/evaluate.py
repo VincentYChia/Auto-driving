@@ -57,6 +57,7 @@ class HF:
         import train_lora
 
         self.torch, self.view, self.train_lora = torch, view, train_lora
+        self.blank_image = False  # probes.py: flat grey in place of every camera image
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
         self.processor = AutoProcessor.from_pretrained(adapter or model)
@@ -73,6 +74,8 @@ class HF:
 
         prompts = [self.train_lora.prompt_text(self.processor, it) for it in items]
         images = [Image.open(os.path.join(self.view, *it["image"].split("/"))).convert("RGB") for it in items]
+        if self.blank_image:
+            images = [Image.new("RGB", im.size, (128, 128, 128)) for im in images]
         batch = self.processor(text=prompts, images=images, padding=True, return_tensors="pt").to(self.device)
         with self.torch.no_grad():
             out = self.model.generate(**batch, max_new_tokens=128, do_sample=False)

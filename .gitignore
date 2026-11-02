@@ -9,6 +9,8 @@ data/*.json
 
 # Inference outputs
 results/
+# ...except the pilot's aggregate scores (no per-sample answers; pilot_sft/README.md)
+!pilot_sft/results/
 
 # Training outputs
 exp/

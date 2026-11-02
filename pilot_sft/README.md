@@ -16,6 +16,7 @@ here, **R** reported by others, **D** derived by us. Everything here is [propose
 | Native images kept locally | 2.3 GB | 9.9 GB |
 | Training view (640 × 360) | 0.55 GB, **ready** | ~2.4 GB (D), after the full download |
 | Together.ai upload | 0.75 GB, **ready** | ~3.2 GB (D) |
+| Built by | the commands in `PRETRAIN_V1_PLAN.md`, "How to run steps 4–7" (done) | `bash scripts/local/build_v1_pilot.sh` after the full fetch: canonical, QA page, view, chat export with Together's check, Anvil tar |
 
 The smoke set is the small first sample, used to check the data and the training before spending on
 the full set. The two overlap: 1,472 frames are in both (11,000 + 47,000 − 56,528).
@@ -36,6 +37,23 @@ the full set. The two overlap: 1,472 frames are in both (11,000 + 47,000 − 56,
 | Constant-velocity baseline, smoke dev (1,000) | ADE **2.09 m**, FDE **4.97 m** |
 | Stock `qwen3.5:2b` in Ollama, zero-shot, 50 dev samples | 38 of 50 answers lack 8 positions; the other 12: ADE 7.99 m vs 2.61 m for constant velocity |
 | Qwen3.5-0.8B LoRA, RTX 3050 8 GB, batch 4 | 0.53 samples/s (252 tokens/s), peak 7.8 GB. Dev loss 0.64 → 0.32 in 20 steps |
+
+### First test model: Qwen3.5-0.8B, smoke set, 1 epoch (2026-11-02, V)
+500 dev samples (seed 0). Aggregates in `results/qwen35-0.8b-smoke-e1.json`.
+
+| | ADE (m) | FDE (m) |
+|---|---|---|
+| Constant velocity | 2.20 | 5.23 |
+| Kinematic (constant acceleration + yaw rate), no image | 1.26 | 3.40 |
+| Linear regression on the prompt's numbers, no image | 0.99 | 2.70 |
+| **Fine-tuned Qwen3.5-0.8B** | **0.97** | **2.58** |
+| Same model, camera image blanked | 1.01 | 2.67 |
+| Same model, ego state and past positions hidden | 8.24 | 14.55 |
+| MLP on the prompt's numbers, no image (3-seed ensemble) | **0.82** | **2.24** |
+
+- **The image is almost unused:** blanking it costs only 0.04 m.
+- **The past positions are ignored too:** a fake sideways drift in them carries into the prediction at −0.01 (the no-image MLP: 0.93).
+- **So the model drives from speed, acceleration and yaw rate.** The bar for the next model is the no-image MLP at 0.82 m. Hiding ego state during training (`--ego-dropout`) is the first thing to try [proposed].
 
 On Windows, Qwen3.5's linear-attention layers fall back to slow reference kernels
 (`flash-linear-attention` and `causal_conv1d` are not installed). On Linux GPUs, install them.
@@ -89,6 +107,16 @@ python pilot_sft/evaluate.py --view data/pretrain/v1.0-pilot/views/pilot_v1/smok
     --out ../runs/qwen35-0.8b-smoke/eval.json
 ```
 `--max-steps 200` makes a timing run.
+
+**Is the model reading the road?** Score it against the no-image baselines, then probe it, on the
+same dev samples (same `--samples` and `--seed` as `evaluate.py`):
+```bash
+python pilot_sft/baselines.py --view <view> --out ../runs/baselines-smoke.json      # bars to beat without the image
+python pilot_sft/probes.py --view <view> --model <model> --adapter <run>/adapter --out <run>/probes.json
+```
+- **`probes.py`** reports ADE with the image blanked and with ego state and past positions hidden.
+- **`follow`** is how much of a fake sideways drift in the past positions the model carries forward: 1 = pure extrapolation, 0 = ignores it.
+- **`--ego-dropout 0.5`** in `train_lora.py` hides ego state and past positions on half the training samples, so the answer has to come from the image [proposed]. `EGO_DROPOUT=0.5` passes it on Anvil.
 
 **Anvil: quick start.** Ready on this computer: `data/pretrain/upload/pilot_v1_smoke.tar` (549 MB:
 images, jsonl, view.json). Rebuild it any time with `bash scripts/local/pack_pilot_view.sh smoke`.
