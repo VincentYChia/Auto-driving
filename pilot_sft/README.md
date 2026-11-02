@@ -55,6 +55,26 @@ the full set. The two overlap: 1,472 frames are in both (11,000 + 47,000 − 56,
 - **The past positions are ignored too:** a fake sideways drift in them carries into the prediction at −0.01 (the no-image MLP: 0.93).
 - **So the model drives from speed, acceleration and yaw rate.** The bar for the next model is the no-image MLP at 0.82 m. Hiding ego state during training (`--ego-dropout`) is the first thing to try [proposed].
 
+### Second test model: ego state hidden on half the training samples
+Same settings plus `--ego-dropout 0.5`, same 500 dev samples. Aggregates in `results/qwen35-0.8b-smoke-egodrop50.json`.
+
+| ADE (m) | First model | `--ego-dropout 0.5` |
+|---|---|---|
+| Full input | 0.97 | 1.02 |
+| Camera image blanked | 1.01 (+0.04) | 1.10 (+0.08) |
+| Ego state and past positions hidden | 8.24 | **4.19** |
+| Both hidden | — | 13.69 |
+| No-image bar with ego state hidden: mean training path per route command | 6.31 | 6.31 |
+
+- **The model can now read the image:** with ego state hidden it beats the command-mean bar by 2.1 m,
+  and blanking the image as well takes it to 13.7 m.
+- **It still doesn't use the image when the ego state is there:** blanking it costs 0.08 m, and
+  the past positions are still ignored (drift follow −0.07).
+- **The full-input error is 0.05 m worse**, and both models lose to the no-image MLP (0.82 m).
+- For the v1-pilot run, ego dropout is a trade: a fallback that reads the image, for a small loss
+  on full input. Whether more data makes the model use the image with ego state present is the
+  open question the 45k run answers [proposed].
+
 On Windows, Qwen3.5's linear-attention layers fall back to slow reference kernels
 (`flash-linear-attention` and `causal_conv1d` are not installed). On Linux GPUs, install them.
 
@@ -117,9 +137,9 @@ same dev samples (same `--samples` and `--seed` as `evaluate.py`):
 python pilot_sft/baselines.py --view <view> --out ../runs/baselines-smoke.json      # bars to beat without the image
 python pilot_sft/probes.py --view <view> --model <model> --adapter <run>/adapter --out <run>/probes.json
 ```
-- **`probes.py`** reports ADE with the image blanked and with ego state and past positions hidden.
+- **`probes.py`** reports ADE with the image blanked, with ego state and past positions hidden, and with both. Compare the ego-hidden score with `command_mean` from `baselines.py`.
 - **`follow`** is how much of a fake sideways drift in the past positions the model carries forward: 1 = pure extrapolation, 0 = ignores it.
-- **`--ego-dropout 0.5`** in `train_lora.py` hides ego state and past positions on half the training samples, so the answer has to come from the image [proposed]. `EGO_DROPOUT=0.5` passes it on Anvil.
+- **`--ego-dropout 0.5`** in `train_lora.py` hides ego state and past positions on half the training samples, so the answer has to come from the image. On the smoke set it taught image reading but cost 0.05 m on full input (results above) [proposed]. `EGO_DROPOUT=0.5` passes it on Anvil.
 
 **Anvil: quick start.** Ready on this computer: `data/pretrain/upload/pilot_v1_smoke.tar` (549 MB:
 images, jsonl, view.json). Rebuild it any time with `bash scripts/local/pack_pilot_view.sh smoke`.

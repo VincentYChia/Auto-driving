@@ -9,7 +9,9 @@ the learned ones here is extrapolating the car's own motion, not reading the roa
 - constant velocity: current speed, straight ahead (the baseline ``evaluate.py`` prints);
 - kinematic: constant acceleration and yaw rate, speed floored at 0;
 - linear: ridge regression from the prompt's numbers to the 16 output coordinates;
-- mlp: a 2 x 256 ReLU network on the same numbers, L1 loss, fixed settings, mean over 3 seeds.
+- mlp: a 2 x 256 ReLU network on the same numbers, L1 loss, fixed settings, mean over 3 seeds;
+- command_mean: the mean training path for the route command, no ego state either. The bar for a
+  pilot whose ego state is hidden (``probes.py`` no_ego): beating it means reading the image.
 The learned baselines train on ``train.jsonl`` with settings fixed in advance, not tuned on dev.
 """
 
@@ -105,6 +107,15 @@ def fit_mlp(train: List[Dict[str, Any]], seeds: int = 3, epochs: int = 150) -> P
     return predict
 
 
+def fit_command_mean(train: List[Dict[str, Any]]) -> Callable[[List[Dict[str, Any]]], np.ndarray]:
+    paths: Dict[str, List[Any]] = {}
+    for it in train:
+        paths.setdefault(it["meta"]["command"], []).append(it["target_xy"])
+    mean = {c: np.mean(v, axis=0) for c, v in paths.items()}
+    overall = np.mean([p for v in paths.values() for p in v], axis=0)
+    return lambda items: np.array([mean.get(it["meta"]["command"], overall) for it in items])
+
+
 def errors(pred: np.ndarray, items: List[Dict[str, Any]]) -> np.ndarray:
     """(n, 8) distance in metres to the recorded path."""
     return np.linalg.norm(np.asarray(pred) - np.array([it["target_xy"] for it in items]), axis=-1)
@@ -139,6 +150,7 @@ def main() -> None:
         "kinematic": np.array([kinematic(*prompt_numbers(it)[:3]) for it in items]),
         "linear": fit_linear(train)(items),
         "mlp": fit_mlp(train)(items),
+        "command_mean": fit_command_mean(train)(items),
     }
     result = {"view": args.view, "split": args.split, "samples": len(items), "seed": args.seed,
               "baselines": {name: summary(errors(p, items), items) for name, p in preds.items()}}

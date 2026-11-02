@@ -8,7 +8,9 @@ Same dev samples as ``evaluate.py`` and ``baselines.py`` (same --samples, --seed
 - ``full``: the normal input (reproduces ``evaluate.py``).
 - ``blank_image``: every camera image replaced by flat grey. If ADE barely moves, the image is unused.
 - ``no_ego``: ego state and past positions replaced by "not available" (as ``--ego-dropout`` trains);
-  what the image and the command alone give.
+  what the image and the command alone give. Compare it with ``command_mean`` in ``baselines.py``.
+- ``no_ego_blank_image``: both removed. The gap to ``no_ego`` is what the image carries when nothing
+  else gives the speed (grey is unlike any training image, so this can fall below ``command_mean``).
 - ``drift``: the past positions bent as if the car had been sliding sideways at --drift m/s, both
   directions. ``follow`` is the share of that slide carried into the 4 s prediction: 1 = continues
   it fully (pure extrapolation), 0 = ignores it. The image is not changed, so the inputs disagree:
@@ -85,6 +87,8 @@ def main() -> None:
     result["no_ego"] = scored(answers(backend, [train_lora.mask_ego(it) for it in items], args.batch, "no_ego"), items)
     backend.blank_image = True
     result["blank_image"] = scored(answers(backend, items, args.batch, "blank_image"), items)
+    result["no_ego_blank_image"] = scored(answers(backend, [train_lora.mask_ego(it) for it in items], args.batch,
+                                                  "no_ego_blank_image"), items)
     backend.blank_image = False
     right = answers(backend, [drift(it, args.drift) for it in items], args.batch, "drift right")
     left = answers(backend, [drift(it, -args.drift) for it in items], args.batch, "drift left")
@@ -95,7 +99,7 @@ def main() -> None:
     mr, ml = mlp([drift(it, args.drift) for it in items]).tolist(), mlp([drift(it, -args.drift) for it in items]).tolist()
     result["drift"]["follow_mlp_no_image"] = round((follow(m0, mr, args.drift) + follow(m0, ml, -args.drift)) / 2, 3)
 
-    for key in ("full", "no_ego", "blank_image"):
+    for key in ("full", "no_ego", "blank_image", "no_ego_blank_image"):
         print(f"{key:12s} ADE {result[key]['ade_m']:.3f}  FDE {result[key]['fde_m']:.3f}  "
               f"parse failures {result[key]['parse_failures']}", flush=True)
     print("drift follow:", result["drift"], flush=True)
