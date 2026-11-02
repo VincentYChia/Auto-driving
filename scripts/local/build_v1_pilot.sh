@@ -14,7 +14,7 @@ from data_pipeline.v1.openscene_images import status
 s = status(sys.argv[1], quiet=True)
 print(json.dumps({k: s[k] for k in ("archives_done", "archives_total", "images_kept", "images_to_keep", "missing", "undecodable")}))
 if s["archives_done"] < s["archives_total"] or s["images_kept"] < s["images_to_keep"] or s["missing"] or s["undecodable"]:
-    sys.exit("fetch not complete: rerun  python -m data_pipeline.v1.openscene_images fetch --out %s --full --archives 200" % sys.argv[1])
+    sys.exit("fetch not complete: rerun  python -m data_pipeline.v1.openscene_images fetch --out %s --full --archives 200 --workers 3" % sys.argv[1])
 EOF
 "$PYTHON" -m data_pipeline.v1.canonical --out "$OUT" --sets smoke v1-pilot     # step 4, both sets
 "$PYTHON" -m data_pipeline.v1.qa_report --out "$OUT" --set v1-pilot            # Gate 1 page for v1-pilot

@@ -38,6 +38,7 @@ import tarfile
 import time
 import urllib.request
 from collections import Counter
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 import numpy as np
@@ -55,6 +56,15 @@ SETS = (selection.PILOT, selection.SMOKE)
 KB_PER_IMAGE = 211  # mean CAM_F0 JPEG, measured on archive 70 (V); estimates from it are D
 CHUNK = 1 << 20
 MAX_ATTEMPTS = 30  # per archive; a dropped connection resumes where it stopped
+# A connection that stays below SLOW_MB_S for SLOW_WINDOW_S is dropped and resumed on a new one: the
+# server sometimes leaves one connection crawling at ~1.6 MB/s while a fresh one gets ~36 (V, 2026-11-02).
+SLOW_MB_S = 5.0
+SLOW_WINDOW_S = 120.0
+MAX_RECONNECTS = 50  # per archive; after that a slow server is simply waited for
+
+
+class _SlowConnection(Exception):
+    pass
 
 
 # --- plan ----------------------------------------------------------------------------------------
@@ -174,7 +184,8 @@ def _download(archive: Dict[str, Any], dest: str) -> float:
     """Download to ``dest``, resuming a partial ``dest.part``; check size and SHA-256. Returns seconds."""
     start = time.time()
     part = dest + ".part"
-    for attempt in range(1, MAX_ATTEMPTS + 1):
+    attempt = reconnects = 0
+    while attempt < MAX_ATTEMPTS:
         have = os.path.getsize(part) if os.path.exists(part) else 0
         if have >= archive["bytes"]:
             break
@@ -184,15 +195,28 @@ def _download(archive: Dict[str, Any], dest: str) -> float:
                 if have and response.status != 206:
                     have = 0  # the server ignored the range: start again
                 next_report = have + (1 << 30)
+                window_t, window_have = time.time(), have
                 with open(part, "ab" if have else "wb") as f:
                     for block in iter(lambda: response.read(CHUNK), b""):
                         f.write(block)
                         have += len(block)
                         if have >= next_report:
                             rate = have / max(time.time() - start, 1e-6) / 1e6
-                            print(f"[fetch]   {have / 1e9:.1f} / {archive['bytes'] / 1e9:.1f} GB ({rate:.1f} MB/s)", flush=True)
+                            print(f"[fetch]   {archive['name']}: {have / 1e9:.1f} / {archive['bytes'] / 1e9:.1f} GB "
+                                  f"({rate:.1f} MB/s)", flush=True)
                             next_report += 1 << 30
+                        now = time.time()
+                        if now - window_t >= SLOW_WINDOW_S:
+                            rate = (have - window_have) / (now - window_t) / 1e6
+                            if rate < SLOW_MB_S and reconnects < MAX_RECONNECTS:
+                                raise _SlowConnection(f"{rate:.1f} MB/s")
+                            window_t, window_have = now, have
+        except _SlowConnection as slow:
+            reconnects += 1
+            print(f"[fetch]   {archive['name']}: slow connection ({slow}) at {have / 1e9:.2f} GB, resuming on a new one",
+                  flush=True)
         except (OSError, ValueError) as error:  # URLError, timeouts and dropped connections are OSErrors
+            attempt += 1
             wait = min(300, 10 * attempt)
             print(f"[fetch]   attempt {attempt} stopped at {have / 1e9:.2f} GB: {error!r}; resuming in {wait} s", flush=True)
             time.sleep(wait)
@@ -278,8 +302,13 @@ def _wanted(out_dir: str, manifest: Dict[str, Any]) -> Dict[str, Dict[str, str]]
             for t, log, p in zip(cands["token"][keep], cands["log_name"][keep], cands["cam_f0_path"][keep])}
 
 
-def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[str] = None) -> Dict[str, Any]:
-    """Fetch the first ``n_archives`` archives of the plan. ``source_dir`` (local copies) is for tests."""
+def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[str] = None,
+          workers: int = 1) -> Dict[str, Any]:
+    """Fetch the first ``n_archives`` archives of the plan. ``source_dir`` (local copies) is for tests.
+
+    ``workers`` > 1 downloads that many archives at once (the server caps each connection at
+    ~15 MB/s, V 2026-11-02); extraction and records stay one archive at a time, in plan order.
+    """
     try:  # PIL checks each JPEG: fail before the first download, not after it
         import PIL  # noqa: F401
     except ImportError as error:
@@ -296,11 +325,17 @@ def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[s
     os.makedirs(tmp_dir, exist_ok=True)
     done, failed = [], []
     order = manifest["archive_order"][:n_archives]
-    for k, n in enumerate(order, 1):
+    pending = [n for n in order if not os.path.exists(os.path.join(record_dir, f"{n}.json"))]
+    pool = ThreadPoolExecutor(max_workers=workers) if not source_dir else None
+    downloads: Dict[int, Future] = {}
+    for i, n in enumerate(pending):
+        k = order.index(n) + 1
         record_path = os.path.join(record_dir, f"{n}.json")
-        if os.path.exists(record_path):
-            continue
         archive = archives[n]
+        if pool:  # keep the next `workers` downloads running while this one is extracted
+            for m in pending[i : i + workers]:
+                if m not in downloads:
+                    downloads[m] = pool.submit(_download, archives[m], os.path.join(tmp_dir, archives[m]["name"]))
         print(f"[fetch] archive {n} ({k}/{len(order)}), {archive['bytes'] / 1e9:.1f} GB", flush=True)
         try:
             if source_dir:
@@ -309,7 +344,7 @@ def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[s
                     raise RuntimeError(f"{archive['name']}: SHA-256 differs")
             else:
                 tgz = os.path.join(tmp_dir, archive["name"])
-                download_s = _download(archive, tgz)
+                download_s = downloads.pop(n).result()
             record = {"archive": n, "name": archive["name"], "bytes": archive["bytes"], "sha256": archive["sha256"],
                       "sha256_ok": True, "download_s": round(download_s, 1)}
             record.update(_extract(tgz, archive, wanted, image_root))
@@ -326,6 +361,8 @@ def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[s
         done.append(n)
         print(f"[fetch] archive {n}: kept {record['kept']} of {record['wanted']}, {len(record['missing'])} missing, "
               f"{len(record['undecodable'])} undecodable, logs match map: {record['logs_match_map']}", flush=True)
+    if pool:
+        pool.shutdown()
     result = {"done_now": done, "failed": failed, **status(out_dir, quiet=True)}
     print(json.dumps({k: v for k, v in result.items() if k != "archives_left"}), flush=True)
     return result
@@ -370,6 +407,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         if name == "fetch":
             p.add_argument("--archives", type=int, default=SMOKE_ARCHIVES, help="the first N archives of the plan")
             p.add_argument("--full", action="store_true", help="allow more than the smoke set's archives (after Gate 1)")
+            p.add_argument("--workers", type=int, default=1, help="archives downloading at once")
     args = parser.parse_args(argv)
     if args.command == "plan":
         manifest = plan(args.out)
@@ -380,7 +418,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     elif args.command == "fetch":
         if args.archives > SMOKE_ARCHIVES and not args.full:
             parser.error(f"more than {SMOKE_ARCHIVES} archives needs --full: the full run waits for Gate 1 (plan §6)")
-        result = fetch(args.out, args.archives)
+        result = fetch(args.out, args.archives, workers=args.workers)
         sys.exit(1 if result["failed"] else 0)
     else:
         status(args.out)

@@ -129,6 +129,8 @@ def main() -> None:
     parser.add_argument("--no-checkpointing", action="store_true", help="faster, needs more memory")
     parser.add_argument("--ego-dropout", type=float, default=0.0,
                         help="share of training samples whose ego state and past positions are hidden [proposed]")
+    parser.add_argument("--save-every", type=int, default=50, help="optimizer steps between checkpoints; 0 = none")
+    parser.add_argument("--resume", action="store_true", help="continue from <out>/checkpoint.pt if it exists")
     args = parser.parse_args()
 
     from peft import LoraConfig, get_peft_model
@@ -137,7 +139,7 @@ def main() -> None:
     random.seed(args.seed)
     torch.manual_seed(args.seed)
     os.makedirs(args.out, exist_ok=True)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() and torch.cuda.device_count() > 0 else "cpu"
     dtype = torch.bfloat16 if device == "cuda" and torch.cuda.is_bf16_supported() else torch.float32
 
     train = read_jsonl(os.path.join(args.view, "train.jsonl"))[: args.limit]
@@ -174,19 +176,53 @@ def main() -> None:
         model.train()
         return sum(losses) / max(1, len(losses))
 
-    log = open(os.path.join(args.out, "log.jsonl"), "a", encoding="utf-8")
+    ckpt = os.path.join(args.out, "checkpoint.pt")
+    log_path = os.path.join(args.out, "log.jsonl")
+    order: List[int] = []
+    step = seen = tokens = 0
+    done_s = 0.0  # training seconds before this process, for resumed runs
+    first = None
+    if args.resume and os.path.exists(ckpt):
+        state = torch.load(ckpt, map_location="cpu", weights_only=False)
+        loaded = model.load_state_dict(state["trainable"], strict=False)
+        if loaded.unexpected_keys:
+            raise SystemExit(f"{ckpt} does not match this model: {loaded.unexpected_keys[:3]}")
+        optim.load_state_dict(state["optim"])
+        sched.load_state_dict(state["sched"])
+        step, seen, tokens, order, done_s, first = (state[k] for k in ("step", "seen", "tokens", "order", "elapsed_s",
+                                                                      "dev_loss_start"))
+        random.setstate(state["py_rng"])
+        batches.rng.setstate(state["dropout_rng"])
+        torch.set_rng_state(state["torch_rng"])
+        if device == "cuda" and state["cuda_rng"] is not None:
+            torch.cuda.set_rng_state_all(state["cuda_rng"])
+        with open(log_path, encoding="utf-8") as f:  # drop what was logged after the checkpoint
+            kept = [line for line in f if line.strip() and json.loads(line)["step"] <= step]
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.writelines(kept)
+        print(f"resumed from {ckpt} at step {step}", flush=True)
+
+    def save_checkpoint() -> None:
+        state = {"trainable": {n: p.detach().cpu() for n, p in model.named_parameters() if p.requires_grad},
+                 "optim": optim.state_dict(), "sched": sched.state_dict(), "step": step, "seen": seen,
+                 "tokens": tokens, "order": order, "elapsed_s": time.time() - start, "dev_loss_start": first,
+                 "py_rng": random.getstate(), "dropout_rng": batches.rng.getstate(), "torch_rng": torch.get_rng_state(),
+                 "cuda_rng": torch.cuda.get_rng_state_all() if device == "cuda" else None}
+        torch.save(state, ckpt + ".part")
+        os.replace(ckpt + ".part", ckpt)
+
+    log = open(log_path, "a", encoding="utf-8")
     run = {"args": vars(args), "device": torch.cuda.get_device_name(0) if device == "cuda" else "cpu",
            "dtype": str(dtype), "train_samples": len(train), "dev_samples_for_loss": len(dev),
            "trainable_params": trainable, "total_params": total, "lora_targets": len(targets),
-           "optimizer_steps": steps, "data": {f: sha256(os.path.join(args.view, f)) for f in ("train.jsonl", "dev.jsonl")}}
+           "optimizer_steps": steps, "resumed_at_step": step or None,
+           "data": {f: sha256(os.path.join(args.view, f)) for f in ("train.jsonl", "dev.jsonl")}}
     print(json.dumps({k: run[k] for k in ("device", "train_samples", "trainable_params", "optimizer_steps")}), flush=True)
-    start = time.time()
+    if first is None:
+        first = dev_loss()
+        log.write(json.dumps({"step": 0, "dev_loss": first}) + "\n")
+    start = time.time() - done_s
     model.train()
-    order: List[int] = []
-    step = seen = 0
-    tokens = 0
-    first = dev_loss()
-    log.write(json.dumps({"step": 0, "dev_loss": first}) + "\n")
     while step < steps:
         for _ in range(args.accum):
             if len(order) < args.batch:
@@ -211,9 +247,13 @@ def main() -> None:
         log.flush()
         if step % 10 == 0 or "dev_loss" in entry:
             print(json.dumps(entry), flush=True)
+        if args.save_every and step % args.save_every == 0 and step < steps:
+            save_checkpoint()
     elapsed = time.time() - start
     model.save_pretrained(os.path.join(args.out, "adapter"))
     processor.save_pretrained(os.path.join(args.out, "adapter"))
+    if os.path.exists(ckpt):
+        os.remove(ckpt)  # the adapter is saved; the checkpoint only served a restart
     run.update({"elapsed_s": round(elapsed, 1), "samples_seen": seen, "samples_per_s": round(seen / elapsed, 3),
                 "tokens_seen": tokens, "tokens_per_s": round(tokens / elapsed, 1), "dev_loss_start": first,
                 "peak_gpu_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2) if device == "cuda" else None})

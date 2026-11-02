@@ -113,6 +113,41 @@ def test_fetch_keeps_selected_jpegs_records_failures_and_resumes(tmp_path, index
     assert again["done_now"] == [] and again["images_kept"] == result["images_kept"]  # finished archives are skipped
 
 
+def test_fetch_with_parallel_downloads_extracts_in_order_and_cleans_up(tmp_path, indexed, monkeypatch):
+    src, archive_map, archive_tree = write_archives(tmp_path, indexed)
+    openscene_images.plan(str(indexed), archive_map, archive_tree)
+
+    def download(archive, dest):  # stands in for the network: copy the local archive
+        with open(src / archive["name"], "rb") as f, open(dest, "wb") as g:
+            g.write(f.read())
+        return 0.0
+
+    monkeypatch.setattr(openscene_images, "_download", download)
+    result = openscene_images.fetch(str(indexed), workers=2)
+    order = json.loads((indexed / "splits" / "manifest.json").read_text())["archive_order"]
+    assert result["failed"] == [] and result["done_now"] == order  # extracted in plan order
+    assert result["images_kept"] == len(read_tokens(indexed, "v1-pilot") | read_tokens(indexed, "smoke"))
+    assert not list((indexed / "images" / "tmp").iterdir())  # every downloaded archive deleted after extraction
+
+
+def test_parallel_downloads_extract_in_plan_order_and_keep_the_same_images(tmp_path, indexed, monkeypatch):
+    import shutil
+
+    src, archive_map, archive_tree = write_archives(tmp_path, indexed)
+    openscene_images.plan(str(indexed), archive_map, archive_tree)
+    order = json.loads((indexed / "splits" / "manifest.json").read_text())["archive_order"]
+
+    def download(archive, dest):  # stands in for the network: copy the local archive
+        shutil.copyfile(src / archive["name"], dest)
+        return 0.0
+
+    monkeypatch.setattr(openscene_images, "_download", download)
+    result = openscene_images.fetch(str(indexed), n_archives=len(order), workers=2)
+    assert result["failed"] == [] and result["done_now"] == order  # extracted in plan order
+    assert result["images_kept"] == len(read_tokens(indexed, "v1-pilot") | read_tokens(indexed, "smoke"))
+    assert not list((indexed / "images" / "tmp").iterdir())  # every downloaded archive was deleted
+
+
 def test_fetch_refuses_an_archive_whose_checksum_differs(tmp_path, indexed):
     src, archive_map, archive_tree = write_archives(tmp_path, indexed)
     openscene_images.plan(str(indexed), archive_map, archive_tree)
@@ -121,6 +156,55 @@ def test_fetch_refuses_an_archive_whose_checksum_differs(tmp_path, indexed):
     result = openscene_images.fetch(str(indexed), source_dir=str(src))
     assert [f["archive"] for f in result["failed"]] == [0] and result["done_now"] == [1]
     assert not (indexed / "images" / "archives" / "0.json").exists()
+
+
+def test_download_drops_a_slow_connection_and_resumes_where_it_stopped(tmp_path, monkeypatch, capsys):
+    data = os.urandom(50_000)
+    archive = {"name": "a.tgz", "url": "https://example.invalid/a.tgz", "bytes": len(data),
+               "sha256": hashlib.sha256(data).hexdigest()}
+
+    class Clock:  # fake time: the first connection delivers 1 kB per second, later ones are instant
+        now = 0.0
+
+        def time(self):
+            return self.now
+
+        def sleep(self, s):
+            self.now += s
+
+    clock, ranges = Clock(), []
+
+    class Response:
+        def __init__(self, start, seconds_per_read):
+            self.pos, self.slow = start, seconds_per_read
+            self.status = 206 if start else 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, n):
+            clock.now += self.slow
+            block = data[self.pos : self.pos + n]
+            self.pos += len(block)
+            return block
+
+    def urlopen(request, timeout):
+        start = int(request.get_header("Range", "bytes=0-")[6:].rstrip("-"))
+        ranges.append(start)
+        return Response(start, 1.0 if len(ranges) == 1 else 0.0)
+
+    monkeypatch.setattr(openscene_images, "time", clock)
+    monkeypatch.setattr(openscene_images, "CHUNK", 1000)
+    monkeypatch.setattr(openscene_images, "SLOW_WINDOW_S", 10.0)
+    monkeypatch.setattr(openscene_images.urllib.request, "urlopen", urlopen)
+    dest = tmp_path / "a.tgz"
+    openscene_images._download(archive, str(dest))
+    assert dest.read_bytes() == data
+    assert len(ranges) == 2 and ranges[0] == 0 and 0 < ranges[1] < len(data)  # resumed, not restarted
+    assert "slow connection" in capsys.readouterr().out
 
 
 def test_fetch_needs_full_for_more_than_the_smoke_archives(tmp_path, indexed):

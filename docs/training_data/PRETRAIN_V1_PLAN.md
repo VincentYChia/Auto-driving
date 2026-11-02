@@ -249,6 +249,10 @@ python -m data_pipeline.v1.openscene_images fetch  --out data/pretrain/v1.0-pilo
 - **One bad archive doesn't stop the run:** it is reported at the end, and the command exits with an error. Run it again to retry.
 - **Commit after `plan`:** `splits/*_tokens_*.txt` and `splits/manifest.json`.
 - **Lookup fix (2026-11-01):** working out which images to keep took over 5 minutes (`np.isin` on strings); it now takes under a second.
+- **Download speed (2026-11-02, V):**
+  - **The cause:** Hugging Face sometimes caps a single connection at 1.5–17 MB/s while this line gets ~18 MB/s from other servers.
+  - **Reconnecting:** a connection below 5 MB/s for 2 minutes is now dropped and resumed on a new one.
+  - **Parallel downloads:** `--workers 3` downloads three archives at once. Extraction stays one at a time, in plan order.
 
 ### How to run steps 4–7
 From the repo root. Use `--sets smoke` until the full fetch is done, then `--sets smoke v1-pilot` (a frame in both is stored once).

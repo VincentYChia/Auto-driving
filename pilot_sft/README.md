@@ -107,6 +107,9 @@ python pilot_sft/evaluate.py --view data/pretrain/v1.0-pilot/views/pilot_v1/smok
     --out ../runs/qwen35-0.8b-smoke/eval.json
 ```
 `--max-steps 200` makes a timing run.
+- **Checkpoints:** `train_lora.py` saves `<out>/checkpoint.pt` every 50 steps (`--save-every`).
+- **Resuming:** `--resume` continues an interrupted run from that checkpoint, e.g. after a shutdown or an Anvil time limit. Tested 2026-11-02: an interrupted and resumed run logs the same losses as an uninterrupted one.
+- **Cleanup:** the checkpoint is deleted once the adapter is saved.
 
 **Is the model reading the road?** Score it against the no-image baselines, then probe it, on the
 same dev samples (same `--samples` and `--seed` as `evaluate.py`):
