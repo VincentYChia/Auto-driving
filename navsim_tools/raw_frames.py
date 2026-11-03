@@ -24,9 +24,11 @@ from navsim_tools import geometry
 BOX_X, BOX_Y, BOX_Z, BOX_LENGTH, BOX_WIDTH, BOX_HEIGHT, BOX_YAW = range(7)
 
 
-def global_ego_pose(frame: Dict[str, Any]) -> np.ndarray:
+def global_ego_pose(frame: Dict[str, Any], navsim_yaw: bool = False) -> np.ndarray:
+    """``navsim_yaw`` takes the heading as NAVSIM does (pyquaternion); the default is the v1 data's."""
     tx, ty = frame["ego2global_translation"][:2]
-    return np.array([tx, ty, geometry.yaw_from_quaternion(frame["ego2global_rotation"])], dtype=np.float64)
+    yaw = (geometry.navsim_yaw_from_quaternion if navsim_yaw else geometry.yaw_from_quaternion)
+    return np.array([tx, ty, yaw(frame["ego2global_rotation"])], dtype=np.float64)
 
 
 def ego_velocity(frame: Dict[str, Any]) -> np.ndarray:
@@ -62,9 +64,9 @@ def camera_calibration(frame: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return out
 
 
-def ego_history_local(frames: Sequence[Dict[str, Any]], current_idx: int) -> np.ndarray:
+def ego_history_local(frames: Sequence[Dict[str, Any]], current_idx: int, navsim_yaw: bool = False) -> np.ndarray:
     """Ego poses of frames ``0..current_idx`` in the current ego frame (oldest first)."""
-    poses = np.stack([global_ego_pose(f) for f in frames[: current_idx + 1]])
+    poses = np.stack([global_ego_pose(f, navsim_yaw) for f in frames[: current_idx + 1]])
     return geometry.absolute_to_relative(poses[-1], poses)
 
 

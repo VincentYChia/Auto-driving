@@ -30,7 +30,7 @@ def build_records(scene_loader, num_history_frames: int, sensor_path: Path, spli
         frames = scene_loader.scene_frames_dicts[token]
         agent_input = scene_loader.get_agent_input_from_token(token)  # exactly what a NAVSIM agent receives
         history = np.stack([np.asarray(s.ego_pose, dtype=np.float64) for s in agent_input.ego_statuses])
-        ours = raw_frames.ego_history_local(frames, current_idx)
+        ours = raw_frames.ego_history_local(frames, current_idx, navsim_yaw=True)
         max_pose_gap = max(max_pose_gap, float(np.abs(ours[:, :2] - history[:, :2]).max()))
 
         rel_image = raw_frames.camera_paths(frames[current_idx]).get(FRONT_CAMERA)

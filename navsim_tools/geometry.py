@@ -8,6 +8,8 @@ Frames follow NAVSIM: poses are ``(x, y, yaw)``, x forward, y left, yaw in radia
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 
@@ -17,9 +19,21 @@ def normalize_angle(angle):
 
 
 def yaw_from_quaternion(wxyz) -> float:
-    """Yaw of a ``(w, x, y, z)`` quaternion; equals ``pyquaternion.Quaternion(*q).yaw_pitch_roll[0]``."""
+    """Textbook (z-y-x) yaw of a ``(w, x, y, z)`` quaternion; the v1 training data uses it.
+
+    It is not NAVSIM's ego heading (``navsim_yaw_from_quaternion``): with pitch or roll the two
+    differ, by up to ~3 mrad at OpenScene's ~1-2 degrees (V, 2026-11-03).
+    """
     w, x, y, z = (float(v) for v in wxyz)
     return float(np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)))
+
+
+def navsim_yaw_from_quaternion(wxyz) -> float:
+    """``pyquaternion.Quaternion(*q).yaw_pitch_roll[0]``, which NAVSIM uses: normalised, and w*z - x*y."""
+    w, x, y, z = (float(v) for v in wxyz)
+    n = math.sqrt(w * w + x * x + y * y + z * z)
+    w, x, y, z = w / n, x / n, y / n, z / n
+    return float(np.arctan2(2.0 * (w * z - x * y), 1.0 - 2.0 * (y * y + z * z)))
 
 
 def rotation(theta: float) -> np.ndarray:

@@ -40,6 +40,16 @@ def test_yaw_from_quaternion():
         assert geometry.yaw_from_quaternion(q) == pytest.approx(yaw, abs=1e-12)
 
 
+def test_navsim_yaw_matches_pyquaternion_and_differs_from_textbook_yaw_with_roll():
+    for yaw in (-3.0, 0.0, 0.7):
+        q = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
+        assert geometry.navsim_yaw_from_quaternion(q) == pytest.approx(yaw, abs=1e-12)
+    q = (0.92, 0.03, -0.02, 0.39)  # unnormalised, with pitch and roll
+    pyquaternion = pytest.importorskip("pyquaternion")
+    assert geometry.navsim_yaw_from_quaternion(q) == pytest.approx(pyquaternion.Quaternion(*q).yaw_pitch_roll[0], abs=1e-12)
+    assert abs(geometry.yaw_from_quaternion(q) - geometry.navsim_yaw_from_quaternion(q)) > 1e-3
+
+
 def test_waypoints_to_poses_headings():
     poses = geometry.waypoints_to_poses([[1, 0], [2, 1], [2, 1.01], [2, 3]])
     assert poses[0, 2] == pytest.approx(0.0)
