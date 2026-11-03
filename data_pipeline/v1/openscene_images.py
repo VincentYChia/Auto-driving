@@ -312,13 +312,15 @@ def _wanted(out_dir: str, manifest: Dict[str, Any]) -> Dict[str, Dict[str, str]]
 
 
 def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[str] = None,
-          workers: int = 1) -> Dict[str, Any]:
+          workers: int = 1, shard: int = 0, num_shards: int = 1) -> Dict[str, Any]:
     """Fetch the first ``n_archives`` archives of the plan.
 
     ``workers`` > 1 downloads that many archives at once (the server caps each connection at
     ~15 MB/s, V 2026-11-02); extraction and records stay one archive at a time, in plan order.
     ``source_dir`` reads archives already downloaded there instead (tests, or ``hf download`` on
     Anvil); archives not there yet are skipped, so running again picks them up.
+    ``shard`` of ``num_shards`` takes every ``num_shards``-th archive of the plan, so several processes
+    can extract at once: each archive has its own record and its frames their own files.
     """
     try:  # PIL checks each JPEG: fail before the first download, not after it
         import PIL  # noqa: F401
@@ -336,7 +338,8 @@ def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[s
     os.makedirs(tmp_dir, exist_ok=True)
     done, failed = [], []
     order = manifest["archive_order"][:n_archives]
-    pending = [n for n in order if not os.path.exists(os.path.join(record_dir, f"{n}.json"))]
+    pending = [n for k, n in enumerate(order) if k % num_shards == shard
+               and not os.path.exists(os.path.join(record_dir, f"{n}.json"))]
     not_yet = []
     if source_dir:
         not_yet = [n for n in pending if not os.path.exists(os.path.join(source_dir, archives[n]["name"]))]
@@ -428,6 +431,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             p.add_argument("--full", action="store_true", help="allow more than the smoke set's archives (after Gate 1)")
             p.add_argument("--workers", type=int, default=1, help="archives downloading at once")
             p.add_argument("--source-dir", help="read archives already downloaded here; skip those not there yet")
+            p.add_argument("--shard", type=int, default=0, help="with --num-shards: this process's share of the archives")
+            p.add_argument("--num-shards", type=int, default=1)
     args = parser.parse_args(argv)
     if args.command == "plan":
         manifest = plan(args.out, set_name=args.set)
@@ -438,7 +443,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     elif args.command == "fetch":
         if args.archives > SMOKE_ARCHIVES and not args.full:
             parser.error(f"more than {SMOKE_ARCHIVES} archives needs --full: the full run waits for Gate 1 (plan §6)")
-        result = fetch(args.out, args.archives, source_dir=args.source_dir, workers=args.workers)
+        result = fetch(args.out, args.archives, source_dir=args.source_dir, workers=args.workers,
+                       shard=args.shard, num_shards=args.num_shards)
         sys.exit(1 if result["failed"] else 0)
     else:
         status(args.out)

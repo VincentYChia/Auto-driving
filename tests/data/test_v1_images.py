@@ -108,6 +108,15 @@ def test_fetch_from_a_source_dir_skips_archives_not_there_yet(tmp_path, indexed)
     assert second["done_now"] == [1] and second["not_in_source_dir"] == []
 
 
+def test_fetch_shards_split_the_archives_between_processes(tmp_path, indexed):
+    src, archive_map, archive_tree = write_archives(tmp_path, indexed)
+    manifest = openscene_images.plan(str(indexed), archive_map, archive_tree)
+    first = openscene_images.fetch(str(indexed), source_dir=str(src), shard=1, num_shards=2)
+    assert first["done_now"] == [manifest["archive_order"][1]]
+    second = openscene_images.fetch(str(indexed), source_dir=str(src), shard=0, num_shards=2)
+    assert second["done_now"] == [manifest["archive_order"][0]] and second["archives_done"] == 2
+
+
 def test_fetch_keeps_selected_jpegs_records_failures_and_resumes(tmp_path, indexed):
     cands = tables.read(str(indexed / "index" / "candidates.parquet"), ["token", "log_name"])
     openscene_images.plan(str(indexed), *write_archives(tmp_path / "clean", indexed)[1:])
