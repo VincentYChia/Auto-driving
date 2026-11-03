@@ -18,7 +18,9 @@ image inlined as a base64 data URL: what Together.ai's vision fine-tuning takes,
 Face chat templates read.
 
 The prompt holds only what NAVSIM shows a planner at test time: the front image, ego speed,
-acceleration and yaw rate, 1.5 s of past positions, and the route command.
+acceleration and yaw rate, 1.5 s of past positions, and the route command. The yaw rate is
+differenced from the current and -0.5 s headings (pilot_v1.1); pilot_v1.0 used canonical
+``yaw_rate``, a central difference through the +0.5 s pose, which NAVSIM's AgentInput does not have.
 """
 
 from __future__ import annotations
@@ -35,10 +37,11 @@ from typing import Any, Dict, Optional, Sequence
 import numpy as np
 
 from data_pipeline.v1 import provenance, tables
+from navsim_tools import geometry
 from data_pipeline.v1.openscene_index import PATH_OFFSETS_S
 
 VIEW = "pilot_v1"
-PROMPT_VERSION = "pilot_v1.0"
+PROMPT_VERSION = "pilot_v1.1"  # 1.0 -> 1.1: past-only yaw rate (2026-11-03)
 WIDTH = 640
 JPEG_QUALITY = 90
 HISTORY_S = (-1.5, -1.0, -0.5)
@@ -53,7 +56,7 @@ PROMPT = (
     "Predict the path for the next 4 seconds: 8 positions (x, y) in metres, one every 0.5 s."
 )
 COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "path_xyyaw", "path_valid",
-           "speed", "accel_lon", "yaw_rate", "command")
+           "speed", "accel_lon", "command")
 PAIR = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
 
 
@@ -67,12 +70,20 @@ def parse_path(text: str, n: int = len(TARGET_S)) -> Optional[np.ndarray]:
     return np.array(pairs[:n], dtype=np.float64) if len(pairs) >= n else None
 
 
+NOW, PREV = (int(np.flatnonzero(np.isclose(PATH_OFFSETS_S, t))[0]) for t in (0.0, -0.5))
+
+
+def past_yaw_rate(path: np.ndarray) -> float:
+    """(heading now - heading 0.5 s ago) / 0.5 s, in rad/s: no pose after the anchor."""
+    return float(geometry.normalize_angle(path[NOW, 2] - path[PREV, 2]) / (PATH_OFFSETS_S[NOW] - PATH_OFFSETS_S[PREV]))
+
+
 def sample(frames: tables.Columns, k: int) -> Dict[str, Any]:
     path = np.asarray(frames["path_xyyaw"][k], dtype=np.float64)
     hist = path[[int(np.flatnonzero(np.isclose(PATH_OFFSETS_S, t))[0]) for t in HISTORY_S]]
     fut = path[[int(np.flatnonzero(np.isclose(PATH_OFFSETS_S, t))[0]) for t in TARGET_S]]
     prompt = PROMPT.format(speed=float(frames["speed"][k]), accel=round(float(frames["accel_lon"][k]), 1) + 0.0,
-                           yaw_rate=round(float(frames["yaw_rate"][k]), 2) + 0.0, history=_pairs(hist[:, :2] + 0.0),
+                           yaw_rate=round(past_yaw_rate(path), 2) + 0.0, history=_pairs(hist[:, :2] + 0.0),
                            command=COMMAND_TEXT.get(str(frames["command"][k]), "none given"))
     log, token = str(frames["log_name"][k]), str(frames["token"][k])
     return {

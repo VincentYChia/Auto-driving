@@ -114,6 +114,19 @@ def test_pilot_view_writes_prompts_targets_and_a_chat_export(fetched):
     assert pilot_view.parse_path("(1.0, 2.0) (3, -4)") is None
 
 
+def test_pilot_prompt_yaw_rate_uses_no_pose_after_the_anchor():
+    offsets = pilot_view.PATH_OFFSETS_S
+    path = np.zeros((len(offsets), 3))
+    path[:, 0] = offsets * 5.0
+    path[:, 2] = offsets * 0.1  # turning at 0.1 rad/s
+    frames = {"frame_id": ["f"], "log_name": ["log"], "token": ["t"], "our_split": ["train"], "city": ["c"],
+              "path_xyyaw": [path], "speed": [5.0], "accel_lon": [0.0], "command": ["straight"]}
+    before = pilot_view.sample(frames, 0)["prompt"]
+    assert "yaw rate +0.10 rad/s" in before
+    path[offsets > 0, 2] = 1.0  # a different future must not change the prompt
+    assert pilot_view.sample(frames, 0)["prompt"] == before
+
+
 def test_release_pins_tables_and_images_and_refuses_an_incomplete_set(fetched):
     out, metadata = fetched
     canonical.build(str(out), ("smoke", "v1-pilot"), str(metadata))

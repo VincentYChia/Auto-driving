@@ -26,6 +26,12 @@ the full set. The two overlap: 1,472 frames are in both (11,000 + 47,000 − 56,
   `dev.jsonl`, and the CAM_F0 images downscaled to 640 × 360.
 - **Prompt:** speed, acceleration, yaw rate, past positions at −1.5 / −1.0 / −0.5 s, and the route command.
   These are only test-time inputs.
+- **Yaw-rate leak, fixed 2026-11-03 (prompt `pilot_v1.1`):** `pilot_v1.0` took the yaw rate from the
+  heading change between −0.5 s and **+0.5 s**, so it carried half a second of the future, which
+  NAVSIM's agent input does not have. `pilot_v1.1` uses −0.5 s to now. On the 2,000 v1-pilot dev samples
+  the no-image bars move from 0.73 to 0.78 m (MLP), 0.87 to 0.93 (linear), 1.08 to 1.15 (kinematic) (V).
+  The two smoke models below were trained and scored on `pilot_v1.0`, so their numbers are slightly
+  optimistic. The v1-pilot runs on Anvil use `pilot_v1.1`.
 - **Answer:** `(6.6, 0.1) (13.2, 0.1) … (48.7, 0.2)`, metres, x forward, y left.
 - **Score:** open-loop ADE / FDE on the dev split (NAVSIM's val logs), next to the constant-velocity
   baseline on the same samples. These are not NAVSIM scores.
