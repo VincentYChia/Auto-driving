@@ -4,8 +4,11 @@
 #   STEP=cache sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # once per split (needs maps + logs)
 #   STEP=cv    sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # sanity check: NAVSIM's constant-velocity agent
 #   STEP=mvlad sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # score MVLAD-AD predictions
+#   STEP=pilot PREDICTIONS=<dir> NAME=<label> sbatch ...                # score other saved waypoints (our pilot)
 #
 # NAVSIM_VERSION=v1 (default) gives PDMS with the v1.1 devkit; v2 gives EPDMS with the main branch.
+# No GPU is used: with a CPU allocation, override the partition, e.g. 30-min steps that resume (caching skips
+# finished scenes): sbatch -A <cpu account> -p debug --gpus-per-node=0 --cpus-per-task=128 --time=00:30:00 ...
 #SBATCH --job-name=navsim-score
 #SBATCH --partition=gpu
 #SBATCH --gpus-per-node=1
@@ -16,7 +19,7 @@ set -euo pipefail
 source "${SLURM_SUBMIT_DIR:-.}/scripts/anvil/common.sh"
 activate_env "$NAVSIM_CONDA_ENV"
 SPLIT="${SPLIT:-navtest}"
-STEP="${STEP:?set STEP=cache|cv|mvlad}"
+STEP="${STEP:?set STEP=cache|cv|mvlad|pilot}"
 NAVSIM_VERSION="${NAVSIM_VERSION:-v1}"
 CACHE="$NAVSIM_EXP_ROOT/metric_cache_${SPLIT}_${NAVSIM_VERSION}"
 THREADS="worker.threads_per_node=${SLURM_CPUS_PER_TASK:-8}"
@@ -38,6 +41,12 @@ mvlad)
         experiment_name="mvlad_${SPLIT}_${NAVSIM_VERSION}" \
         agent._target_=navsim_eval.precomputed_agent.PrecomputedTrajectoryAgent \
         +agent.predictions_path="$NAVSIM_EXP_ROOT/mvlad/${SPLIT}_predictions"
+    ;;
+pilot)  # any precomputed waypoints, e.g. pilot_sft/predict_navsim.py: PREDICTIONS=<dir> NAME=<label>
+    python "$SCRIPTS/run_pdm_score.py" train_test_split="$SPLIT" metric_cache_path="$CACHE" "$THREADS" \
+        experiment_name="${NAME:?set NAME}_${SPLIT}_${NAVSIM_VERSION}" \
+        agent._target_=navsim_eval.precomputed_agent.PrecomputedTrajectoryAgent \
+        +agent.predictions_path="${PREDICTIONS:?set PREDICTIONS}"
     ;;
 *)
     echo "unknown STEP=$STEP" >&2; exit 1 ;;
