@@ -10,11 +10,14 @@
 #   # EGO_DROPOUT=0.5 hides ego state and past positions on half the training samples [proposed]
 #   # a job that hit its time limit or was preempted: resubmit with its run folder; it resumes from checkpoint.pt
 #   RUN_DIR=$NAVSIM_EXP_ROOT/pilot_sft/<model>-<set>-<job> SET=v1-pilot sbatch scripts/anvil/pilot_sft/train_lora.sbatch
+#   (steps whose output exists are skipped, so resubmitting a finished or half-scored run is safe)
+# --time-min lets the backfill scheduler start the job in a gap shorter than 24 h; it then resumes on resubmit.
 #SBATCH --job-name=pilot-sft
 #SBATCH --partition=gpu
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=24:00:00
+#SBATCH --time-min=02:00:00
 #SBATCH --output=%x-%j.out
 set -euo pipefail
 source "${SLURM_SUBMIT_DIR:-.}/scripts/anvil/common.sh"
@@ -26,12 +29,14 @@ RUN="${RUN_DIR:-$NAVSIM_EXP_ROOT/pilot_sft/$(basename "$MODEL")-$SET-${SLURM_JOB
 EXTRA=()
 [ -n "${MAX_STEPS:-}" ] && EXTRA+=(--max-steps "$MAX_STEPS")
 cd "$REPO_ROOT"
-python pilot_sft/train_lora.py --view "$VIEW" --model "$MODEL" --out "$RUN" \
+# run.json is written once the adapter is saved; without this check a resubmit would start training over
+[ -f "$RUN/run.json" ] || python pilot_sft/train_lora.py --view "$VIEW" --model "$MODEL" --out "$RUN" \
     --epochs "${EPOCHS:-2}" --batch "${BATCH:-8}" --accum "${ACCUM:-2}" --ego-dropout "${EGO_DROPOUT:-0}" \
     --resume ${EXTRA[@]+"${EXTRA[@]}"}
-python pilot_sft/evaluate.py --view "$VIEW" --model "$MODEL" --adapter "$RUN/adapter" \
+[ -f "$RUN/eval.json" ] || python pilot_sft/evaluate.py --view "$VIEW" --model "$MODEL" --adapter "$RUN/adapter" \
     --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/eval.json"
 # the bars to beat (no image) and what the model relies on, on the same dev samples
-python pilot_sft/baselines.py --view "$VIEW" --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/baselines.json"
-python pilot_sft/probes.py --view "$VIEW" --model "$MODEL" --adapter "$RUN/adapter" \
+[ -f "$RUN/baselines.json" ] || python pilot_sft/baselines.py --view "$VIEW" --samples "${EVAL_SAMPLES:-1000}" \
+    --out "$RUN/baselines.json"
+[ -f "$RUN/probes.json" ] || python pilot_sft/probes.py --view "$VIEW" --model "$MODEL" --adapter "$RUN/adapter" \
     --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/probes.json"
