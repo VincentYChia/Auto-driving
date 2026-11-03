@@ -11,6 +11,8 @@ data/*.json
 results/
 # ...except the pilot's aggregate scores (no per-sample answers; pilot_sft/README.md)
 !pilot_sft/results/
+# ...and NAVSIM aggregate scores (metric means only)
+!docs/navsim_eval/results/
 
 # Training outputs
 exp/

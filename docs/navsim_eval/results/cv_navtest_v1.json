@@ -1,0 +1,19 @@
+{
+ "what": "NAVSIM's constant-velocity agent on navtest, PDMS with the v1.1 devkit: the scoring-pipeline sanity check",
+ "evidence": "V (measured on Anvil, 2026-11-03)",
+ "split": "navtest",
+ "devkit": "navsim v1.1",
+ "scenes": 12146,
+ "failed": 0,
+ "job": "navsim-cv 21921216 (CPU debug partition)",
+ "metrics": {
+  "no_at_fault_collisions": 0.6802,
+  "drivable_area_compliance": 0.5784,
+  "time_to_collision_within_bound": 0.5003,
+  "comfort": 1.0,
+  "ego_progress": 0.1944,
+  "driving_direction_compliance": 0.7991,
+  "pdms": 0.2065
+ },
+ "published_reference": "NAVSIM paper, constant velocity: NC 68.0, DAC 57.8, TTC 50.0, C 100, EP 19.4, PDMS 20.6 (matches)"
+}
