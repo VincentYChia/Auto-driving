@@ -54,6 +54,9 @@ class SelectionConfig:
 # ~10 GB of CAM_F0 JPEGs at 211 KB each (V, archive 70), drawn from every log [agreed 2026-10-31].
 SMOKE = SelectionConfig("smoke", n_train=10_000, n_dev=1_000, spacing_s=1.0, balance_alpha=0.5)
 PILOT = SelectionConfig("v1-pilot", n_train=45_000, n_dev=2_000, balance_alpha=0.5)
+# Built on Anvil in its own dataset folder [proposed 2026-11-03]. The 2.0 s spacing caps train at 103,382 (V,
+# 2026-11-03); the dev draw does not depend on n_train, so its 2k dev set is v1-pilot's.
+LARGE = SelectionConfig("v1-large", n_train=100_000, n_dev=2_000, balance_alpha=0.5)
 
 
 def log_codes(cands: tables.Columns) -> np.ndarray:

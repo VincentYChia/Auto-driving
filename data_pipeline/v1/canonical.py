@@ -37,7 +37,7 @@ from data_pipeline import labels
 from data_pipeline.v1 import openscene_index, projection, provenance, safe_pickle, stats, tables
 from data_pipeline.v1.openscene_index import ANCHOR, CAMERA, CORE, PATH_OFFSETS_S
 
-SETS = ("smoke", "v1-pilot")
+SETS = ("smoke", "v1-pilot", "v1-large")
 METADATA = os.path.join("data", "pretrain", "downloads", "openscene_metadata_trainval.tgz")
 OTHER_CAMERAS = ("CAM_L0", "CAM_R0", "CAM_L1", "CAM_R1", "CAM_L2", "CAM_R2", "CAM_B0")
 LICENCE = "CC BY-NC-SA 4.0 (nuPlan, OpenScene)"

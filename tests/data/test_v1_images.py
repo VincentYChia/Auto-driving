@@ -84,6 +84,30 @@ def test_plan_selects_every_set_and_orders_archives(tmp_path, indexed):
     assert archives["1"]["logs"] == ["log_b", "log_c"] and archives["0"]["url"].endswith("camera_0.tgz")
 
 
+def test_plan_for_v1_large_selects_only_it_and_keeps_the_pilot_dev_set(tmp_path, indexed):
+    _, archive_map, archive_tree = write_archives(tmp_path, indexed)
+    openscene_images.plan(str(indexed), archive_map, archive_tree)
+    pilot_dev = (indexed / "splits" / "v1-pilot_tokens_dev.txt").read_text()
+    manifest = openscene_images.plan(str(indexed), archive_map, archive_tree, set_name="v1-large")
+    assert list(manifest["selections"]) == ["v1-large"] and manifest["smoke_archives"] == []
+    assert (indexed / "splits" / "v1-large_tokens_dev.txt").read_text() == pilot_dev
+    assert manifest["frames_to_keep"] == len(read_tokens(indexed, "v1-large"))
+
+
+def test_fetch_from_a_source_dir_skips_archives_not_there_yet(tmp_path, indexed):
+    src, archive_map, archive_tree = write_archives(tmp_path, indexed)
+    openscene_images.plan(str(indexed), archive_map, archive_tree)
+    later = src.parent / "later"
+    later.mkdir()
+    name = openscene_images.ARCHIVE_NAME.format(n=1)
+    (src / name).rename(later / name)
+    first = openscene_images.fetch(str(indexed), source_dir=str(src))
+    assert first["done_now"] == [0] and first["not_in_source_dir"] == [1] and first["failed"] == []
+    (later / name).rename(src / name)
+    second = openscene_images.fetch(str(indexed), source_dir=str(src))
+    assert second["done_now"] == [1] and second["not_in_source_dir"] == []
+
+
 def test_fetch_keeps_selected_jpegs_records_failures_and_resumes(tmp_path, indexed):
     cands = tables.read(str(indexed / "index" / "candidates.parquet"), ["token", "log_name"])
     openscene_images.plan(str(indexed), *write_archives(tmp_path / "clean", indexed)[1:])

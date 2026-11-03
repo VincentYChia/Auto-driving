@@ -240,7 +240,7 @@ mirrored left/right, or bent the wrong way means a convention is wrong. Numeric 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Gate 1 QA report: renders and distributions of the canonical record.")
     parser.add_argument("--out", required=True, help="dataset directory, e.g. data/pretrain/v1.0-pilot")
-    parser.add_argument("--set", default="smoke", choices=("smoke", "v1-pilot"))
+    parser.add_argument("--set", default="smoke", choices=("smoke", "v1-pilot", "v1-large"))
     parser.add_argument("--n", type=int, default=50, help="number of renders")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args(argv)

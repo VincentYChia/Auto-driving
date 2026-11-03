@@ -5,6 +5,8 @@ from OpenScene's camera archives.
     python -m data_pipeline.v1.openscene_images fetch  --out data/pretrain/v1.0-pilot          # the smoke set's 20 archives
     python -m data_pipeline.v1.openscene_images fetch  --out data/pretrain/v1.0-pilot --full   # all 200, after Gate 1
     python -m data_pipeline.v1.openscene_images status --out data/pretrain/v1.0-pilot
+    python -m data_pipeline.v1.openscene_images plan   --out <dir> --set v1-large   # 100k train, own folder (Anvil)
+    python -m data_pipeline.v1.openscene_images fetch  --out <dir> --full --archives 200 --source-dir <hf download dir>
 
 ``plan`` reads only the metadata index (minutes, no images) [agreed 2026-10-31]:
 * selects v1-pilot (``selection.PILOT``: 45k train + 2k dev, train balanced) from every log;
@@ -125,28 +127,35 @@ def _write_tokens(path: str, tokens: Iterable[str]) -> None:
         f.writelines(f"{t}\n" for t in sorted(tokens))
 
 
-def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = ARCHIVE_TREE_URL) -> Dict[str, Any]:
+def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = ARCHIVE_TREE_URL,
+         set_name: str = selection.PILOT.name) -> Dict[str, Any]:
+    """``set_name`` v1-pilot selects v1-pilot and smoke; v1-large selects only v1-large (its own dataset folder)."""
     cands = tables.read(os.path.join(out_dir, "index", "candidates.parquet"),
                         ["token", "log_name", "t_us", "our_split", "city", "decision_lon", "decision_lat",
                          "standstill", "has_cam_f0", "pose_ok"])
     archives = load_archives(archive_map, archive_tree)
     in_index = set(cands["log_name"].tolist())
     in_map = {log for a in archives.values() for log in a["logs"]}
-    pilot_rows, pilot_report = selection.select(cands, selection.PILOT, available_logs=in_map)
-    order = archive_order(cands, pilot_rows, archives)
-    smoke_logs = [log for n in order[:SMOKE_ARCHIVES] for log in archives[n]["logs"]]
-    smoke_rows, smoke_report = selection.select(cands, selection.SMOKE, available_logs=smoke_logs)
+    main = {c.name: c for c in (selection.PILOT, selection.LARGE)}[set_name]
+    main_rows, main_report = selection.select(cands, main, available_logs=in_map)
+    order = archive_order(cands, main_rows, archives)
+    sets = [(main, main_rows, main_report)]
+    smoke_archives: List[int] = []
+    if main is selection.PILOT:
+        smoke_archives = order[:SMOKE_ARCHIVES]
+        smoke_logs = [log for n in smoke_archives for log in archives[n]["logs"]]
+        sets.append((selection.SMOKE, *selection.select(cands, selection.SMOKE, available_logs=smoke_logs)))
 
     split_dir = os.path.join(out_dir, "splits")
     os.makedirs(split_dir, exist_ok=True)
     reports = {}
-    for config, rows, report in ((selection.PILOT, pilot_rows, pilot_report), (selection.SMOKE, smoke_rows, smoke_report)):
+    for config, rows, report in sets:
         for split in ("train", "dev"):
             _write_tokens(os.path.join(split_dir, f"{config.name}_tokens_{split}.txt"),
                           cands["token"][rows][cands["our_split"][rows] == split])
         report["images_gb_estimate"] = round(len(rows) * KB_PER_IMAGE / 1e6, 2)  # D
         reports[config.name] = report
-    wanted = set(pilot_rows.tolist()) | set(smoke_rows.tolist())
+    wanted = set().union(*(set(rows.tolist()) for _, rows, _ in sets))
     per_archive = Counter({n: 0 for n in archives})
     archive_of = {log: n for n, a in archives.items() for log in a["logs"]}
     per_archive.update(archive_of[cands["log_name"][r]] for r in wanted)
@@ -165,8 +174,8 @@ def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = A
         "index_logs_missing_from_map": len(in_index - in_map),
         "map_logs_missing_from_index": len(in_map - in_index),
         "archive_order": order,
-        "smoke_archives": order[:SMOKE_ARCHIVES],
-        "download_gb": {"smoke": round(sum(archives[n]["bytes"] for n in order[:SMOKE_ARCHIVES]) / 1e9, 1),
+        "smoke_archives": smoke_archives,
+        "download_gb": {"smoke": round(sum(archives[n]["bytes"] for n in smoke_archives) / 1e9, 1),
                         "all": round(sum(a["bytes"] for a in archives.values()) / 1e9, 1)},
         "frames_to_keep": len(wanted),
         "frames_to_keep_per_archive": {str(n): per_archive[n] for n in order},
@@ -304,10 +313,12 @@ def _wanted(out_dir: str, manifest: Dict[str, Any]) -> Dict[str, Dict[str, str]]
 
 def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[str] = None,
           workers: int = 1) -> Dict[str, Any]:
-    """Fetch the first ``n_archives`` archives of the plan. ``source_dir`` (local copies) is for tests.
+    """Fetch the first ``n_archives`` archives of the plan.
 
     ``workers`` > 1 downloads that many archives at once (the server caps each connection at
     ~15 MB/s, V 2026-11-02); extraction and records stay one archive at a time, in plan order.
+    ``source_dir`` reads archives already downloaded there instead (tests, or ``hf download`` on
+    Anvil); archives not there yet are skipped, so running again picks them up.
     """
     try:  # PIL checks each JPEG: fail before the first download, not after it
         import PIL  # noqa: F401
@@ -326,6 +337,10 @@ def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[s
     done, failed = [], []
     order = manifest["archive_order"][:n_archives]
     pending = [n for n in order if not os.path.exists(os.path.join(record_dir, f"{n}.json"))]
+    not_yet = []
+    if source_dir:
+        not_yet = [n for n in pending if not os.path.exists(os.path.join(source_dir, archives[n]["name"]))]
+        pending = [n for n in pending if n not in not_yet]
     pool = ThreadPoolExecutor(max_workers=workers) if not source_dir else None
     downloads: Dict[int, Future] = {}
     for i, n in enumerate(pending):
@@ -363,8 +378,9 @@ def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[s
               f"{len(record['undecodable'])} undecodable, logs match map: {record['logs_match_map']}", flush=True)
     if pool:
         pool.shutdown()
-    result = {"done_now": done, "failed": failed, **status(out_dir, quiet=True)}
-    print(json.dumps({k: v for k, v in result.items() if k != "archives_left"}), flush=True)
+    result = {"done_now": done, "failed": failed, "not_in_source_dir": not_yet, **status(out_dir, quiet=True)}
+    print(json.dumps({**{k: v for k, v in result.items() if k not in ("archives_left", "not_in_source_dir")},
+                      "not_in_source_dir": len(not_yet)}), flush=True)
     return result
 
 
@@ -404,13 +420,17 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        ("status", "what has been fetched so far")):
         p = sub.add_parser(name, help=text)
         p.add_argument("--out", required=True, help="dataset directory holding index/, e.g. data/pretrain/v1.0-pilot")
+        if name == "plan":
+            p.add_argument("--set", default=selection.PILOT.name, choices=(selection.PILOT.name, selection.LARGE.name),
+                           help="v1-pilot (with smoke) or v1-large, each in its own dataset directory")
         if name == "fetch":
             p.add_argument("--archives", type=int, default=SMOKE_ARCHIVES, help="the first N archives of the plan")
             p.add_argument("--full", action="store_true", help="allow more than the smoke set's archives (after Gate 1)")
             p.add_argument("--workers", type=int, default=1, help="archives downloading at once")
+            p.add_argument("--source-dir", help="read archives already downloaded here; skip those not there yet")
     args = parser.parse_args(argv)
     if args.command == "plan":
-        manifest = plan(args.out)
+        manifest = plan(args.out, set_name=args.set)
         print(json.dumps({k: manifest[k] for k in ("frames_to_keep", "smoke_archives", "download_gb")}))
         for name, report in manifest["selections"].items():
             print(name, {s: (r["selected"], r["target"], r["logs"]) for s, r in report["splits"].items()},
@@ -418,7 +438,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     elif args.command == "fetch":
         if args.archives > SMOKE_ARCHIVES and not args.full:
             parser.error(f"more than {SMOKE_ARCHIVES} archives needs --full: the full run waits for Gate 1 (plan §6)")
-        result = fetch(args.out, args.archives, workers=args.workers)
+        result = fetch(args.out, args.archives, source_dir=args.source_dir, workers=args.workers)
         sys.exit(1 if result["failed"] else 0)
     else:
         status(args.out)

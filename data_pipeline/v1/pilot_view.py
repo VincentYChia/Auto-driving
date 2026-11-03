@@ -212,7 +212,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     for name in ("build", "export"):
         p = sub.add_parser(name)
         p.add_argument("--out", required=True, help="dataset directory, e.g. data/pretrain/v1.0-pilot")
-        p.add_argument("--set", default="smoke", choices=("smoke", "v1-pilot"))
+        p.add_argument("--set", default="smoke", choices=("smoke", "v1-pilot", "v1-large"))
         if name == "build":
             p.add_argument("--width", type=int, default=WIDTH, help="image width in the view (px)")
             p.add_argument("--workers", type=int, default=8)
