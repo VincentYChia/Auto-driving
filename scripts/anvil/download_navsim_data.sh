@@ -6,6 +6,7 @@
 #   bash scripts/anvil/download_navsim_data.sh maps              # nuPlan maps (needed for scoring)
 #   bash scripts/anvil/download_navsim_data.sh test-logs         # navtest logs, ~1 GB
 #   bash scripts/anvil/download_navsim_data.sh test-cameras      # navtest camera images only (no LiDAR)
+#   START=14 bash scripts/anvil/download_navsim_data.sh test-cameras   # resume a stopped camera download at archive 14
 #   bash scripts/anvil/download_navsim_data.sh trainval-logs     # navtrain logs + annotations, ~14 GB
 #   bash scripts/anvil/download_navsim_data.sh navtrain-current  # navtrain current-frame sensors
 #   bash scripts/anvil/download_navsim_data.sh navtrain-history  # navtrain past-frame sensors
@@ -42,7 +43,7 @@ test-logs)
     merge_split openscene-v1.1/meta_datas test navsim_logs && rm -r openscene-v1.1
     ;;
 test-cameras)
-    for split in $(seq 0 31); do
+    for split in $(seq "${START:-0}" 31); do  # archives are deleted once merged, so resume with START
         fetch_untar "$HF/openscene-v1.1/openscene_sensor_test_camera/openscene_sensor_test_camera_${split}.tgz"
         merge_split openscene-v1.1/sensor_blobs test sensor_blobs && rm -r openscene-v1.1
     done
