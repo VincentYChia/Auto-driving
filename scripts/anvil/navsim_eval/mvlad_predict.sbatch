@@ -6,6 +6,8 @@
 #   MAX_SAMPLES=20 sbatch --array=0 --time=00:30:00 --partition=gpu-debug scripts/anvil/navsim_eval/mvlad_predict.sbatch
 #   # full run on 8 GPUs
 #   sbatch --array=0-7 scripts/anvil/navsim_eval/mvlad_predict.sbatch
+#   # one shard of the same 8 again (a resubmit, or a 20-scene check that counts towards it): set NUM_SHARDS
+#   NUM_SHARDS=8 sbatch --array=0 scripts/anvil/navsim_eval/mvlad_predict.sbatch
 #SBATCH --job-name=mvlad-predict
 #SBATCH --partition=gpu
 #SBATCH --gpus-per-node=1

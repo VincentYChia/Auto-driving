@@ -12,6 +12,7 @@ job that hits the wall-clock limit can simply be resubmitted. Score the results 
 import argparse
 import json
 import os
+import sys
 import time
 import warnings
 from dataclasses import replace
@@ -75,6 +76,8 @@ def main():
             except Exception as exc:  # keep going; failed scenes are listed in the errors file
                 err.write(json.dumps({"token": token, "error": repr(exc)}) + "\n")
                 err.flush()
+                if not model_seconds and i + 1 >= 20:  # a broken setup, not a bad scene: fail the job
+                    sys.exit(f"first {i + 1} scenes all failed, last error: {exc!r}")
                 continue
             model_seconds.append(seconds)
             out.write(

@@ -31,6 +31,7 @@ from llava.conversation import conv_templates
 from llava.hooks import register_cache_LLaDA_V
 from llava.mm_utils import process_images, tokenizer_image_token
 from llava.model.builder import load_pretrained_model
+from llava.model.language_model import modeling_llada
 from llava.constants import IMAGE_TOKEN_INDEX
 
 from train.config.nuscene_inference_vla import CONFIGS
@@ -108,6 +109,8 @@ def load_mvlad(config):
             model.lm_head.weight[action_token_id_list] = emb
         if hasattr(model, "config"):
             model.config.action_token_ids = action_token_id_list
+    # generate() otherwise imports train/llava/train/train.py (deepspeed, webdataset) for this same list
+    modeling_llada.model_action_token_ids = action_token_id_list
 
     point_tokenizer = load_point_tokenizer(weights_file)
     ids_tensor = torch.from_numpy(np.load(config.unused_token_ids_path)).to(config.device)
