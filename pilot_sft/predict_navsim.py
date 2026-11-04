@@ -99,8 +99,11 @@ def main() -> None:
                 else:
                     row["waypoints"] = path.round(3).tolist()
                 out.write(json.dumps(row) + "\n")
+                os.remove(os.path.join(args.out, "images", f"{r['id']}.jpg"))  # scratch has a file quota
             out.flush()
             n = i + len(chunk)
+            if fallbacks == n >= 64:  # a broken model would otherwise score as constant velocity
+                sys.exit(f"first {n} answers all failed to parse, last: {answers[-1]!r}")
             print(f"{n}/{len(todo)} scenes, {n / (time.time() - start):.2f} scenes/s, {fallbacks} fallbacks", flush=True)
     print(json.dumps({"shard": args.shard, "scenes": len(todo), "fallbacks": fallbacks,
                       "elapsed_s": round(time.time() - start, 1)}), flush=True)
