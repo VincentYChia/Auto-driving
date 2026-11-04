@@ -81,6 +81,28 @@ Same settings plus `--ego-dropout 0.5`, same 500 dev samples. Aggregates in `res
   on full input. Whether more data makes the model use the image with ego state present is the
   open question the 45k run answers [proposed].
 
+### v1-pilot: 45,000 samples, 2 epochs, `--ego-dropout 0.5` (2026-11-04, V)
+1,000 dev samples (seed 0), prompt `pilot_v1.1`, one A100 on Anvil. Aggregates in
+`results/qwen35-0.8b-v1pilot-egodrop50.json` and `results/qwen35-2b-v1pilot-egodrop50.json`.
+
+| ADE / FDE (m) | Qwen3.5-0.8B | Qwen3.5-2B |
+|---|---|---|
+| **Full input** | **0.661 / 1.737** | **0.655 / 1.708** |
+| Camera image blanked | 0.937 / 2.549 | 0.885 / 2.372 |
+| Ego state and past positions hidden | 2.910 / 5.365 | 2.950 / 5.436 |
+| Both hidden | 13.096 / 23.244 | 13.096 / 23.244 |
+| Training time, peak GPU memory | 1.8 h, 13.8 GB | 2.6 h, 16.9 GB |
+
+No-image bars on the same samples (ADE / FDE): constant velocity 1.890 / 4.509, kinematic 1.164 / 3.084,
+linear 0.925 / 2.492, MLP 0.781 / 2.118, command mean 6.419 / 11.548.
+
+- **Both models beat the no-image MLP** (by 0.12 m ADE), which no smoke-set model did.
+- **They now use the image with ego state present:** blanking it costs 0.28 m (0.8B) and 0.23 m (2B), against 0.08 m on the smoke set.
+- **With ego state hidden they beat the command-mean bar by 3.5 m.**
+- **With nothing to go on they predict "stopped":** 13.096 / 23.244 is exactly the score of an all-zero path on these samples (V), so both models match.
+- **The past positions are still ignored:** drift follow −0.01 for both, 0.37 for the MLP.
+- **The two models are tied:** paired 2B − 0.8B on the same samples is −0.007 m ADE (95% bootstrap CI −0.028 to +0.014) and −0.028 m FDE (−0.087 to +0.031). NAVSIM decides between them.
+
 On Windows, Qwen3.5's linear-attention layers fall back to slow reference kernels
 (`flash-linear-attention` and `causal_conv1d` are not installed). On Linux GPUs, install them.
 
