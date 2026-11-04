@@ -1,0 +1,134 @@
+{
+ "step": "4: canonical record (docs/training_data/PRETRAIN_V1_PLAN.md \u00a74)",
+ "created_utc": "2026-11-04T04:07:04Z",
+ "code": {
+  "module": "__main__",
+  "repo_commit": "ff075209329ba86167900ffd87ffd0f339d521db",
+  "repo_dirty": true
+ },
+ "sets": {
+  "v1-large": {
+   "selected": 102000,
+   "with_image": 102000,
+   "missing_image": 0,
+   "by_split": {
+    "train": 100000,
+    "dev": 2000
+   }
+  }
+ },
+ "frames": 102000,
+ "logs": 1306,
+ "checks": [
+  {
+   "check": "frame ids are unique",
+   "ok": true
+  },
+  {
+   "check": "no frame from a NAVSIM evaluation log or token (rule 5)",
+   "ok": true
+  },
+  {
+   "check": "every frame is train or dev",
+   "ok": true
+  },
+  {
+   "check": "no log is in both train and dev",
+   "ok": true
+  },
+  {
+   "check": "dev logs are nuPlan val logs (rule 4)",
+   "ok": true
+  },
+  {
+   "check": "the -1.5 \u2026 +4.0 s path is valid in every frame",
+   "ok": true
+  },
+  {
+   "check": "the path is (0, 0, 0) at the anchor",
+   "ok": true,
+   "value": 0.0
+  },
+  {
+   "check": "path times stay within 8 \u00d7 0.05 s of the 0.5 s grid",
+   "ok": true,
+   "value": {
+    "p1": 0.0,
+    "p5": 0.0,
+    "p50": 0.0003,
+    "p95": 0.0011,
+    "p99": 0.0024
+   }
+  },
+  {
+   "check": "metadata CAM_F0 path = index path",
+   "ok": true
+  },
+  {
+   "check": "every frame lists the other 7 cameras' paths",
+   "ok": true,
+   "value": 0
+  },
+  {
+   "check": "one image size",
+   "ok": true,
+   "value": {
+    "1920x1080": 102000
+   }
+  },
+  {
+   "check": "calibration is finite",
+   "ok": true
+  },
+  {
+   "check": "lidar2ego is the identity (so LiDAR frame = ego frame)",
+   "ok": true,
+   "value": 0
+  },
+  {
+   "check": "box, name and track lists have equal lengths",
+   "ok": true
+  },
+  {
+   "check": "rates (information, not pass/fail)",
+   "ok": true,
+   "value": {
+    "speed_consistent": 1.0,
+    "standstill": 0.1641,
+    "has_route": 0.9345,
+    "crosses_scene_boundary": 0.2756,
+    "in_navtrain": 0.1685,
+    "boxes_per_frame": {
+     "p1": 2.0,
+     "p5": 11.0,
+     "p50": 82.0,
+     "p95": 255.0,
+     "p99": 340.0
+    }
+   }
+  },
+  {
+   "check": "every image file matches its step-3 SHA-256",
+   "ok": true,
+   "value": 0
+  }
+ ],
+ "outputs": {
+  "frames.parquet": {
+   "rows": 102000,
+   "bytes": 69906647,
+   "sha256": "80e0a9b466cae41d5e6655afa2199ab3e948a7da64c6208bee92818b8a081385"
+  },
+  "privileged.parquet": {
+   "rows": 102000,
+   "bytes": 977011241,
+   "sha256": "7bb12efc83f83376b493ccd31fbe1cbf49fd246c0a6294c764c7973e9bfcbe36"
+  },
+  "labels/decision_rules_v0.1.parquet": {
+   "rows": 102000,
+   "bytes": 3177772,
+   "sha256": "5b90021982db1f5b87123bf2feace5ecf7195b23afd6d7a14213e7ee8d9a7b3d"
+  }
+ },
+ "runtime_s": 318.5
+}
