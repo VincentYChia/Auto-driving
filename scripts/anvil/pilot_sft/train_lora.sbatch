@@ -32,7 +32,7 @@ cd "$REPO_ROOT"
 # run.json is written once the adapter is saved; without this check a resubmit would start training over
 [ -f "$RUN/run.json" ] || python pilot_sft/train_lora.py --view "$VIEW" --model "$MODEL" --out "$RUN" \
     --epochs "${EPOCHS:-2}" --batch "${BATCH:-8}" --accum "${ACCUM:-2}" --ego-dropout "${EGO_DROPOUT:-0}" \
-    --resume ${EXTRA[@]+"${EXTRA[@]}"}
+    --lr "${LR:-2e-4}" --rank "${LORA_RANK:-32}" --alpha "${LORA_ALPHA:-64}" --resume ${EXTRA[@]+"${EXTRA[@]}"}
 [ -f "$RUN/eval.json" ] || python pilot_sft/evaluate.py --view "$VIEW" --model "$MODEL" --adapter "$RUN/adapter" \
     --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/eval.json"
 # the bars to beat (no image) and what the model relies on, on the same dev samples
