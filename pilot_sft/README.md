@@ -103,6 +103,20 @@ linear 0.925 / 2.492, MLP 0.781 / 2.118, command mean 6.419 / 11.548.
 - **The past positions are still ignored:** drift follow −0.01 for both, 0.37 for the MLP.
 - **The two models are tied:** paired 2B − 0.8B on the same samples is −0.007 m ADE (95% bootstrap CI −0.028 to +0.014) and −0.028 m FDE (−0.087 to +0.031). NAVSIM decides between them.
 
+### v1-large: 100,000 samples, 1 epoch, `--ego-dropout 0.5` (2026-11-05, V)
+Qwen3.5-2B on the same 1,000 dev samples. Aggregates in `results/qwen35-2b-v1large-egodrop50.json`.
+
+| ADE / FDE (m) | 45,000 samples, 2 epochs | 100,000 samples, 1 epoch |
+|---|---|---|
+| **Full input** | **0.655 / 1.708** | **0.657 / 1.708** |
+| Camera image blanked | 0.885 / 2.372 | 0.876 / 2.339 |
+| Ego state and past positions hidden | 2.950 / 5.436 | 2.950 / 5.420 |
+| Samples seen in training | 90,016 | 100,000 |
+
+- **2.2 times the distinct samples changed nothing measurable:** paired large − 45k is +0.003 m ADE (95% bootstrap CI −0.013 to +0.019) and −0.001 m FDE (−0.043 to +0.043).
+- **Samples seen were about the same,** so this tests more variety, not more training. It does not test 2 epochs on the larger set.
+- **The MLP's drift follow is not stable:** 0.37 on v1-pilot, 0.05 on v1-large. The pilot's stays at −0.01 to −0.02.
+
 On Windows, Qwen3.5's linear-attention layers fall back to slow reference kernels
 (`flash-linear-attention` and `causal_conv1d` are not installed). On Linux GPUs, install them.
 
