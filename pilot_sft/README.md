@@ -117,6 +117,23 @@ Qwen3.5-2B on the same 1,000 dev samples. Aggregates in `results/qwen35-2b-v1lar
 - **Samples seen were about the same,** so this tests more variety, not more training. It does not test 2 epochs on the larger set.
 - **The MLP's drift follow is not stable:** 0.37 on v1-pilot, 0.05 on v1-large. The pilot's stays at −0.01 to −0.02.
 
+### Heavier blinding: `--ego-dropout 0.8` (2026-11-06, V)
+Qwen3.5-0.8B on v1-pilot, 2 epochs, the same 1,000 dev samples; only the dropout changed. One seed each. Aggregates in `results/qwen35-0.8b-v1pilot-egodrop80.json`.
+
+| ADE / FDE (m) | `--ego-dropout 0.5` | `--ego-dropout 0.8` |
+|---|---|---|
+| **Full input** | **0.661 / 1.737** | **0.705 / 1.817** |
+| Camera image blanked | 0.937 / 2.549 | 0.964 / 2.571 |
+| Ego state and past positions hidden | 2.910 / 5.365 | 2.825 / 5.222 |
+| Both hidden | 13.096 / 23.244 | 13.096 / 23.244 |
+| What blanking the image costs (ADE) | +0.276 | +0.259 |
+| Final dev loss | 0.190 | 0.192 |
+
+- **Full input got worse:** paired 0.8 − 0.5 is +0.043 m ADE (95% bootstrap CI +0.024 to +0.062) and +0.080 m FDE (+0.030 to +0.130).
+- **Reliance on the image did not rise:** blanking costs about the same. The gain with ego hidden is 3% (no CI: the probes keep aggregates only).
+- **With ego hidden, error grows at about 1.2 m/s in both runs** (0.6 m at 0.5 s, 5.2–5.4 m at 4 s), the pattern of a steady speed error (D). More blinding barely changed it, so one frame may be the limit there (R, not tested).
+- NAVSIM has not scored this run yet.
+
 On Windows, Qwen3.5's linear-attention layers fall back to slow reference kernels
 (`flash-linear-attention` and `causal_conv1d` are not installed). On Linux GPUs, install them.
 
