@@ -154,6 +154,19 @@ Qwen3.5-0.8B, `--ego-dropout 0.5`, the same 1,000 dev samples and the same dev f
 - **"Both hidden" is a path that stands still.** A path of all zeros scores exactly 13.096 / 23.244 on these samples (V), which is why that row is the same in every run. It says nothing about the model beyond that it stops when given nothing.
 - NAVSIM has not scored this run yet.
 
+### Larger LoRA: rank 128 (2026-11-07, V)
+Qwen3.5-0.8B on v1-pilot, 2 epochs, the same 1,000 dev samples; only rank 32 → 128 and alpha 64 → 256 changed, which takes trainable parameters from 21.6M to 86.6M. One seed each. Aggregates in `results/qwen35-0.8b-v1pilot-rank128.json`.
+
+| ADE / FDE (m) | Rank 32 | Rank 128 |
+|---|---|---|
+| **Full input** | **0.661 / 1.737** | **0.668 / 1.729** |
+| Camera image blanked | 0.937 / 2.549 | 0.924 / 2.479 |
+| Ego state and past positions hidden | 2.910 / 5.365 | 2.970 / 5.458 |
+| What blanking the image costs (ADE) | +0.276 | +0.256 |
+| Final dev loss | 0.190 | 0.189 |
+
+- **No measurable change on full input:** paired difference +0.007 m ADE (95% bootstrap CI −0.011 to +0.025) and −0.008 m FDE (−0.056 to +0.040). LoRA size is not what limits this run.
+
 On Windows, Qwen3.5's linear-attention layers fall back to slow reference kernels
 (`flash-linear-attention` and `causal_conv1d` are not installed). On Linux GPUs, install them.
 
