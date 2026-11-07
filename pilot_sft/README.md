@@ -134,6 +134,26 @@ Qwen3.5-0.8B on v1-pilot, 2 epochs, the same 1,000 dev samples; only the dropout
 - **With ego hidden, error grows at about 1.2 m/s in both runs** (0.6 m at 0.5 s, 5.2–5.4 m at 4 s), the pattern of a steady speed error (D). More blinding barely changed it, so one frame may be the limit there (R, not tested).
 - NAVSIM has not scored this run yet.
 
+### More data and more passes: v1-large, 3 epochs (2026-11-07, V)
+Qwen3.5-0.8B, `--ego-dropout 0.5`, the same 1,000 dev samples and the same dev file (hash checked). One seed each. Aggregates in `results/qwen35-0.8b-v1large-ep3.json`.
+
+| ADE / FDE (m) | v1-pilot, 2 epochs (45,000 samples, 5,626 steps) | v1-large, 3 epochs (100,000 samples, 18,750 steps) |
+|---|---|---|
+| **Full input** | **0.661 / 1.737** | **0.629 / 1.636** |
+| Camera image blanked | 0.937 / 2.549 | 0.973 / 2.648 |
+| Ego state and past positions hidden | 2.910 / 5.365 | 2.762 / 5.078 |
+| Both hidden | 13.096 / 23.244 | 13.096 / 23.244 |
+| What blanking the image costs (ADE) | +0.276 | +0.344 |
+| Final dev loss | 0.190 | 0.187 |
+| Training time | 1.8 h | 6.2 h |
+
+- **Full input improved:** paired difference −0.032 m ADE (95% bootstrap CI −0.053 to −0.012) and −0.101 m FDE (−0.157 to −0.042).
+- **It also beats both 2B runs on dev:** −0.026 m ADE (−0.049 to −0.003) against 2B on v1-pilot, −0.028 m (−0.050 to −0.007) against 2B on v1-large at 1 epoch. Those 2B runs had far fewer steps, so this does not show the smaller model is better.
+- **The image counts for more:** blanking now costs +0.344, where `--ego-dropout 0.8` left it unchanged. The probes keep aggregates only, so there is no CI on this.
+- **Data or steps? Not separated yet.** The `ep6` run (v1-pilot, about 16,900 steps) will separate them.
+- **"Both hidden" is a path that stands still.** A path of all zeros scores exactly 13.096 / 23.244 on these samples (V), which is why that row is the same in every run. It says nothing about the model beyond that it stops when given nothing.
+- NAVSIM has not scored this run yet.
+
 On Windows, Qwen3.5's linear-attention layers fall back to slow reference kernels
 (`flash-linear-attention` and `causal_conv1d` are not installed). On Linux GPUs, install them.
 
