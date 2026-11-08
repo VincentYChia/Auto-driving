@@ -109,8 +109,11 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (n
 | | PDMS (95% CI) | No collision | Drivable area | TTC | Comfort | Progress | Direction | Scenes scoring 0 |
 |---|---|---|---|---|---|---|---|---|
 | **0.8B, v1-pilot, 2 epochs** | **0.752 (0.746–0.759)** | 0.962 | 0.870 | 0.886 | 1.000 | 0.700 | 0.968 | 16% |
+| 2B, v1-pilot, 2 epochs | 0.751 (0.745–0.757) | 0.962 | 0.871 | 0.884 | 1.000 | 0.697 | 0.968 | 16% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
 
+- **2B and 0.8B are tied on NAVSIM too:** paired 2B − 0.8B over all 12,146 scenes is −0.001 PDMS (95% bootstrap CI −0.006 to +0.004), and no sub-metric differs. The 2.5× larger model buys nothing here.
+- **The hard scenes are shared:** 12% of scenes score 0 for both models; each fails about 4% more that the other passes.
 - **Published bars on the same split** (from the papers, not rerun here): ego-status MLP 0.656, TransFuser 0.840, human 0.948. Our constant velocity matches the published 0.206.
 - **Most of the zeros come from leaving the drivable area** (13% of scenes); at-fault collisions zero 3%.
 - **Comfort is 0.9998, not a constant:** MVLAD's raw paths score 0.75 on it, so the metric is live and the pilot's paths are smooth.
