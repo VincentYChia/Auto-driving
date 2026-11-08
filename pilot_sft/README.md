@@ -103,6 +103,18 @@ linear 0.925 / 2.492, MLP 0.781 / 2.118, command mean 6.419 / 11.548.
 - **The past positions are still ignored:** drift follow −0.01 for both, 0.37 for the MLP.
 - **The two models are tied:** paired 2B − 0.8B on the same samples is −0.007 m ADE (95% bootstrap CI −0.028 to +0.014) and −0.028 m FDE (−0.087 to +0.031). NAVSIM decides between them.
 
+### NAVSIM navtest, full set (2026-11-08, V)
+PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (no fallbacks to constant velocity) and scored (0 failed). Aggregates in `../docs/navsim_eval/results/`.
+
+| | PDMS (95% CI) | No collision | Drivable area | TTC | Comfort | Progress | Direction | Scenes scoring 0 |
+|---|---|---|---|---|---|---|---|---|
+| **0.8B, v1-pilot, 2 epochs** | **0.752 (0.746–0.759)** | 0.962 | 0.870 | 0.886 | 1.000 | 0.700 | 0.968 | 16% |
+| Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
+
+- **Published bars on the same split** (from the papers, not rerun here): ego-status MLP 0.656, TransFuser 0.840, human 0.948. Our constant velocity matches the published 0.206.
+- **Most of the zeros come from leaving the drivable area** (13% of scenes); at-fault collisions zero 3%.
+- **Comfort is 0.9998, not a constant:** MVLAD's raw paths score 0.75 on it, so the metric is live and the pilot's paths are smooth.
+
 ### v1-large: 100,000 samples, 1 epoch, `--ego-dropout 0.5` (2026-11-05, V)
 Qwen3.5-2B on the same 1,000 dev samples. Aggregates in `results/qwen35-2b-v1large-egodrop50.json`.
 
@@ -151,7 +163,6 @@ Qwen3.5-0.8B, `--ego-dropout 0.5`, the same 1,000 dev samples and the same dev f
 - **It also beats both 2B runs on dev:** −0.026 m ADE (−0.049 to −0.003) against 2B on v1-pilot, −0.028 m (−0.050 to −0.007) against 2B on v1-large at 1 epoch. Those 2B runs had far fewer steps, so this does not show the smaller model is better.
 - **The image counts for more:** blanking now costs +0.344, where `--ego-dropout 0.8` left it unchanged. The probes keep aggregates only, so there is no CI on this.
 - **Data or steps? Not separated yet.** The `ep6` run (v1-pilot, about 16,900 steps) will separate them.
-- **"Both hidden" is a path that stands still.** A path of all zeros scores exactly 13.096 / 23.244 on these samples (V), which is why that row is the same in every run. It says nothing about the model beyond that it stops when given nothing.
 - NAVSIM has not scored this run yet.
 
 ### Larger LoRA: rank 128 (2026-11-07, V)

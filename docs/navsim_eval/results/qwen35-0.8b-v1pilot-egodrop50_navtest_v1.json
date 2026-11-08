@@ -1,0 +1,34 @@
+{
+ "what": "Qwen3.5-0.8B LoRA pilot (v1-pilot, 2 epochs, --ego-dropout 0.5, prompt pilot_v1.1) on navtest, PDMS with the v1.1 devkit. Aggregates only.",
+ "evidence": "V (measured on Anvil)",
+ "split": "navtest",
+ "devkit": "navsim v1.1",
+ "scenes": 12146,
+ "failed": 0,
+ "predictions": 12146,
+ "fallbacks_to_constant_velocity": 0,
+ "job": "nav-08b 21944223 (predictions, 4 A100 shards), full-08b 22012297 (scoring, gpu-debug), 2026-11-08",
+ "metrics": {
+  "no_at_fault_collisions": 0.962,
+  "drivable_area_compliance": 0.8695,
+  "time_to_collision_within_bound": 0.8857,
+  "comfort": 0.9998,
+  "ego_progress": 0.6997,
+  "driving_direction_compliance": 0.9678,
+  "pdms": 0.7524
+ },
+ "pdms_95ci_bootstrap": [
+  0.7461,
+  0.7586
+ ],
+ "share_scenes_score_zero": 0.1615,
+ "median_scene_score": 0.9177,
+ "share_zero_by_metric": {
+  "no_at_fault_collisions": 0.0343,
+  "drivable_area_compliance": 0.1305,
+  "driving_direction_compliance": 0.0158
+ },
+ "vs_constant_velocity_same_scenes": {
+  "pdms_difference": 0.5459
+ }
+}
