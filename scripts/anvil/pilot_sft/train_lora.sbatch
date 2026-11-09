@@ -27,11 +27,13 @@ MODEL="${MODEL:-Qwen/Qwen3.5-2B}"
 VIEW="$TRAINING_DATA_ROOT/pilot_v1/$SET"
 RUN="${RUN_DIR:-$NAVSIM_EXP_ROOT/pilot_sft/$(basename "$MODEL")-$SET-${SLURM_JOB_ID:-local}}"
 # VISION=frozen|lora|full (VISION_LR for full) trains the vision encoder too; SNAPSHOTS=1 keeps and scores
-# the adapter at every epoch end; LIMIT=N uses the first N train samples (tests) [proposed 2026-11-08]
+# the adapter at every epoch end; LIMIT=N uses the first N train samples and DEV_LOSS_SAMPLES the dev-loss
+# sample size (tests) [proposed 2026-11-08]
 EXTRA=()
 [ -n "${MAX_STEPS:-}" ] && EXTRA+=(--max-steps "$MAX_STEPS")
 [ -n "${LIMIT:-}" ] && EXTRA+=(--limit "$LIMIT")
 [ -n "${SNAPSHOTS:-}" ] && EXTRA+=(--snapshot-epochs)
+[ -n "${DEV_LOSS_SAMPLES:-}" ] && EXTRA+=(--eval-samples "$DEV_LOSS_SAMPLES")
 cd "$REPO_ROOT"
 # run.json is written once the adapter is saved; without this check a resubmit would start training over
 [ -f "$RUN/run.json" ] || python pilot_sft/train_lora.py --view "$VIEW" --model "$MODEL" --out "$RUN" \
@@ -40,12 +42,18 @@ cd "$REPO_ROOT"
     --vision "${VISION:-frozen}" --vision-lr "${VISION_LR:-2e-5}" --resume ${EXTRA[@]+"${EXTRA[@]}"}
 [ -f "$RUN/eval.json" ] || python pilot_sft/evaluate.py --view "$VIEW" --model "$MODEL" --adapter "$RUN/adapter" \
     --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/eval.json"
-# the same dev samples for each epoch snapshot, to see where more passes stop helping
+# fit on the training data: a fixed seeded sample of train.jsonl, full input (no ego masking). Train ADE well
+# below dev ADE, with dev rising, is memorization; both low and close is learning the task
+[ -f "$RUN/eval_train.json" ] || python pilot_sft/evaluate.py --view "$VIEW" --split train --model "$MODEL" \
+    --adapter "$RUN/adapter" --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/eval_train.json"
+# the same dev and train samples for each epoch snapshot, to see where more passes stop helping
 for snap in "$RUN"/epoch_*/; do
     [ -f "$snap/adapter_config.json" ] || continue
     k=$(basename "$snap")
     [ -f "$RUN/eval_$k.json" ] || python pilot_sft/evaluate.py --view "$VIEW" --model "$MODEL" --adapter "$snap" \
         --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/eval_$k.json"
+    [ -f "$RUN/eval_train_$k.json" ] || python pilot_sft/evaluate.py --view "$VIEW" --split train --model "$MODEL" \
+        --adapter "$snap" --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/eval_train_$k.json"
 done
 # the bars to beat (no image) and what the model relies on, on the same dev samples
 [ -f "$RUN/baselines.json" ] || python pilot_sft/baselines.py --view "$VIEW" --samples "${EVAL_SAMPLES:-1000}" \
