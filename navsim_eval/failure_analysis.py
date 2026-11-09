@@ -8,7 +8,8 @@ input (driving command, speed, map), and writes aggregate tables only, never per
   the next 4 s (turned, stopped, started, shifted sideways, kept going) and map (city);
 * error against the human path (ADE, FDE, along-track and cross-track error at 4 s) on zero and non-zero scenes;
 * how often models fail on the same scenes, and on scenes where NAVSIM's human agent (the recorded path
-  itself) also scores zero, when its score CSV is given.
+  itself) also scores zero, when its score CSV is given;
+* with --view, the same groups' shares in training views (pilot_v1 jsonl, read as files), next to navtest's.
 
     python navsim_eval/failure_analysis.py --out <json> --cache <npz> \\
         --model "0.8B pilot=<predictions>=<score csv>" --model "MVLAD-AD=<...>=<...>" \\
@@ -110,6 +111,27 @@ def errors(pred: np.ndarray, human: np.ndarray) -> Dict[str, np.ndarray]:
     return {"ade": ade, "fde": np.linalg.norm(end, axis=1), "along": along, "across": across}
 
 
+def read_view(path: str) -> Dict[str, np.ndarray]:
+    """A training view's targets as human paths (pilot_v1 jsonl rows: target_xy, target_yaw, meta), read as a file."""
+    human, speed, command, maps = [], [], [], []
+    with open(path) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            human.append(np.column_stack([np.asarray(r["target_xy"], float), np.asarray(r["target_yaw"], float)]))
+            speed.append(float(r["meta"]["speed"]))
+            command.append(str(r["meta"]["command"]))
+            maps.append(str(r["meta"]["city"]))
+    human_a, speed_a = np.array(human, dtype=np.float64), np.array(speed)
+    return {"command": np.array(command, dtype=object), "ego_speed": speed_band(speed_a),
+            "human_next_4s": maneuver(human_a, speed_a), "map": np.array(maps, dtype=object)}
+
+
+def shares(groups: Dict[str, np.ndarray]) -> Dict[str, Dict[str, float]]:
+    return {g: {k: round(float((v == k).mean()), 4) for k in sorted(set(v))} for g, v in groups.items()}
+
+
 def summary(score: np.ndarray, err: Dict[str, np.ndarray], mask: np.ndarray, nc0: np.ndarray,
             dac0: np.ndarray) -> Dict[str, float]:
     n = int(mask.sum())
@@ -130,6 +152,8 @@ def main() -> None:
     p.add_argument("--cv", default=None, help="score csv of NAVSIM's constant-velocity agent (its path is rebuilt "
                    "from the current speed, as that agent plans)")
     p.add_argument("--human", default=None, help="score csv of NAVSIM's human agent")
+    p.add_argument("--view", action="append", default=[],
+                   help='"name=<pilot_v1 jsonl>": also give that training view\'s mix over the same groups')
     args = p.parse_args()
 
     models = []
@@ -207,6 +231,11 @@ def main() -> None:
                                  for i, a in enumerate(names) for b in names[i + 1:]}
     if human_zero is not None:
         out["human_agent_zero_scenes"] = int(human_zero.sum())
+    if args.view:
+        out["mix"] = {"navtest": shares(groups)}
+        for spec in args.view:
+            name, path = spec.split("=", 1)
+            out["mix"][name] = shares(read_view(path))
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w") as f:
         json.dump(out, f, indent=1)

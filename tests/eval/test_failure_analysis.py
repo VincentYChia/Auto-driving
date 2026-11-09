@@ -45,3 +45,20 @@ def test_errors_along_and_across():
 def test_speed_band_edges():
     assert list(speed_band(np.array([0.0, 0.5, 4.0, 11.9, 20.0]))) == [
         "stopped (<0.5 m/s)", "slow (0.5-4)", "medium (4-8)", "fast (8-12)", "very fast (>12)"]
+
+
+def test_read_view_and_shares(tmp_path):
+    import json
+
+    from navsim_eval.failure_analysis import read_view, shares
+
+    rows = [{"target_xy": [[8 * t, 0.0] for t in T], "target_yaw": [0.0] * 8,
+             "meta": {"speed": 8.0, "command": "straight", "city": "us-ma-boston"}},
+            {"target_xy": [[0.0, 0.0]] * 8, "target_yaw": [0.0] * 8,
+             "meta": {"speed": 0.0, "command": "unknown", "city": "us-nv-las-vegas-strip"}}]
+    f = tmp_path / "train.jsonl"
+    f.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    mix = shares(read_view(str(f)))
+    assert mix["human_next_4s"] == {"keep going": 0.5, "stay stopped": 0.5}
+    assert mix["command"] == {"straight": 0.5, "unknown": 0.5}
+    assert mix["ego_speed"] == {"fast (8-12)": 0.5, "stopped (<0.5 m/s)": 0.5}
