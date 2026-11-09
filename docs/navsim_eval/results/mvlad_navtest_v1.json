@@ -1,0 +1,34 @@
+{
+ "what": "MVLAD-AD (LLaDA-V 8B masked-diffusion VLA, official weights with its nuScenes-trained adapter, no driving command in its prompt, history padded from 1.5 s to 5 s at constant velocity; navsim_eval/predict_mvlad.py) on navtest, PDMS with the v1.1 devkit. Aggregates only.",
+ "evidence": "V (measured on Anvil)",
+ "split": "navtest",
+ "devkit": "navsim v1.1",
+ "scenes": 12146,
+ "failed": 0,
+ "predictions": 12146,
+ "fallbacks_to_constant_velocity": 0,
+ "job": "mvlad-predict 21921036 + 21936746 (8 A100 shards), full-mvlad 22089546 (scoring, CPU shared), 2026-11-09",
+ "metrics": {
+  "no_at_fault_collisions": 0.7644,
+  "drivable_area_compliance": 0.6521,
+  "time_to_collision_within_bound": 0.6093,
+  "comfort": 0.7505,
+  "ego_progress": 0.3437,
+  "driving_direction_compliance": 0.8286,
+  "pdms": 0.3616
+ },
+ "pdms_95ci_bootstrap": [
+  0.3546,
+  0.3685
+ ],
+ "share_scenes_score_zero": 0.5106,
+ "median_scene_score": 0.0,
+ "share_zero_by_metric": {
+  "no_at_fault_collisions": 0.2125,
+  "drivable_area_compliance": 0.3479,
+  "driving_direction_compliance": 0.1195
+ },
+ "vs_constant_velocity_same_scenes": {
+  "pdms_difference": 0.1551
+ }
+}
