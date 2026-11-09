@@ -119,6 +119,7 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (n
 | **0.8B, v1-pilot, 2 epochs** | **0.752 (0.746–0.759)** | 0.962 | 0.870 | 0.886 | 1.000 | 0.700 | 0.968 | 16% |
 | 2B, v1-pilot, 2 epochs | 0.751 (0.745–0.757) | 0.962 | 0.871 | 0.884 | 1.000 | 0.697 | 0.968 | 16% |
 | 2B, v1-large (100,000 samples), 1 epoch | 0.748 (0.741–0.754) | 0.964 | 0.862 | 0.890 | 1.000 | 0.694 | 0.967 | 17% |
+| 0.8B, v1-pilot, 2 epochs, `--ego-dropout 0.8` | 0.742 (0.736–0.749) | 0.959 | 0.862 | 0.883 | 1.000 | 0.689 | 0.966 | 17% |
 | Human driver's recorded path (NAVSIM's human agent, our run) | 0.946 (0.945–0.947) | 1.000 | 1.000 | 1.000 | 0.999 | 0.870 | 0.988 | 0% |
 | MVLAD-AD 8B (official weights, nuScenes adapter, no command) | 0.362 (0.355–0.369) | 0.764 | 0.652 | 0.609 | 0.751 | 0.344 | 0.829 | 51% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
@@ -126,6 +127,7 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (n
 - **2B and 0.8B are tied on NAVSIM too:** paired 2B − 0.8B over all 12,146 scenes is −0.001 PDMS (95% bootstrap CI −0.006 to +0.004), and no sub-metric differs. The 2.5× larger model buys nothing here.
 - **The 0.8B pilot is far ahead of MVLAD-AD:** paired MVLAD − 0.8B over all 12,146 scenes is −0.391 PDMS (95% bootstrap CI −0.399 to −0.383); MVLAD scores higher on 12% of scenes, lower on 68%. MVLAD runs here with its nuScenes-trained adapter, no route command and history padded to 5 s (`../docs/navsim_eval/RUNBOOK.md` §2), so this is not a verdict on masked diffusion.
 - **More data did not move the 2B on NAVSIM (2026-11-09):** 2B on v1-large (100,000 samples, 1 epoch) against 2B on v1-pilot, paired: −0.004 PDMS (95% bootstrap CI −0.008 to +0.001); against the 0.8B: −0.005 (−0.010 to +0.001). Dev agreed (0.657 vs 0.655 m ADE): one pass over 100,000 samples is worth two over 45,000, at the same number of steps.
+- **Heavier blinding costs on NAVSIM as on dev (2026-11-09):** `--ego-dropout 0.8` against 0.5, paired over all 12,146 scenes: −0.010 PDMS (95% bootstrap CI −0.014 to −0.006), with drivable area −0.008 (−0.012 to −0.004) and progress −0.010 (−0.014 to −0.006). Dev had it +0.043 m ADE worse. Dev and NAVSIM agree in direction.
 - **The human path never scores 0** (our run of NAVSIM's human agent: 0.946, published 0.948), so every zero a pilot gets is the plan's fault, not the metric's.
 - **The hard scenes are shared:** 12% of scenes score 0 for both models; each fails about 4% more that the other passes. 93% of the 0.8B's zero scenes are also zeros for constant velocity: the pilot fails where driving straight on fails.
 - **Published bars on the same split** (from the papers, not rerun here): ego-status MLP 0.656, TransFuser 0.840, human 0.948. Our constant velocity (0.207) and human (0.946) runs match the published 0.206 and 0.948.
@@ -202,7 +204,7 @@ Qwen3.5-0.8B on v1-pilot, 2 epochs, the same 1,000 dev samples; only the dropout
 - **Full input got worse:** paired 0.8 − 0.5 is +0.043 m ADE (95% bootstrap CI +0.024 to +0.062) and +0.080 m FDE (+0.030 to +0.130).
 - **Reliance on the image did not rise:** blanking costs about the same. The gain with ego hidden is 3% (no CI: the probes keep aggregates only).
 - **With ego hidden, error grows at about 1.2 m/s in both runs** (0.6 m at 0.5 s, 5.2–5.4 m at 4 s), the pattern of a steady speed error (D). More blinding barely changed it, so one frame may be the limit there (R, not tested).
-- NAVSIM has not scored this run yet.
+- **NAVSIM agrees:** −0.010 PDMS (−0.014 to −0.006) against `--ego-dropout 0.5` (table above).
 
 ### More data and more passes: v1-large, 3 epochs (2026-11-07, V)
 Qwen3.5-0.8B, `--ego-dropout 0.5`, the same 1,000 dev samples and the same dev file (hash checked). One seed each. Aggregates in `results/qwen35-0.8b-v1large-ep3.json`.
