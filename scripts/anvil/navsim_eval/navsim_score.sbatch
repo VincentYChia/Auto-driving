@@ -3,6 +3,7 @@
 #
 #   STEP=cache sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # once per split (needs maps + logs)
 #   STEP=cv    sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # sanity check: NAVSIM's constant-velocity agent
+#   STEP=human sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # NAVSIM's human agent (the recorded path)
 #   STEP=mvlad sbatch scripts/anvil/navsim_eval/navsim_score.sbatch     # score MVLAD-AD predictions
 #   STEP=pilot PREDICTIONS=<dir> NAME=<label> sbatch ...                # score other saved waypoints (our pilot)
 #
@@ -19,7 +20,7 @@ set -euo pipefail
 source "${SLURM_SUBMIT_DIR:-.}/scripts/anvil/common.sh"
 activate_env "$NAVSIM_CONDA_ENV"
 SPLIT="${SPLIT:-navtest}"
-STEP="${STEP:?set STEP=cache|cv|mvlad|pilot}"
+STEP="${STEP:?set STEP=cache|cv|human|mvlad|pilot}"
 NAVSIM_VERSION="${NAVSIM_VERSION:-v1}"
 CACHE="$NAVSIM_EXP_ROOT/metric_cache_${SPLIT}_${NAVSIM_VERSION}"
 THREADS="worker.threads_per_node=${SLURM_CPUS_PER_TASK:-8}"
@@ -35,6 +36,10 @@ cache)
 cv)
     python "$SCRIPTS/run_pdm_score.py" train_test_split="$SPLIT" metric_cache_path="$CACHE" "$THREADS" \
         experiment_name="cv_${SPLIT}_${NAVSIM_VERSION}"
+    ;;
+human)  # NAVSIM's human agent: the recorded path scored as a plan (the reference for "unavoidable" zeros)
+    python "$SCRIPTS/run_pdm_score.py" train_test_split="$SPLIT" metric_cache_path="$CACHE" "$THREADS" \
+        experiment_name="human_${SPLIT}_${NAVSIM_VERSION}" agent=human_agent
     ;;
 mvlad)
     python "$SCRIPTS/run_pdm_score.py" train_test_split="$SPLIT" metric_cache_path="$CACHE" "$THREADS" \
