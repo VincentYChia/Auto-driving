@@ -3,15 +3,24 @@ record (``canonical.py``). Every choice here is a view choice [proposed]; the ca
 unchanged, so another view is a re-run, not a re-extraction (§4b).
 
     python -m data_pipeline.v1.pilot_view build  --out data/pretrain/v1.0-pilot --set smoke
+    python -m data_pipeline.v1.pilot_view build  --out data/pretrain/v1.0-xl --set v1-xl --storage zip --workers 64
     python -m data_pipeline.v1.pilot_view export --out data/pretrain/v1.0-pilot --set smoke --format chat
 
 ``build`` writes ``<out>/views/pilot_v1/<set>/``:
 * ``images/<log>/<token>.jpg``: CAM_F0 downscaled to ``--width`` (640 × 360 by default: 220 visual
-  tokens for Qwen3.5, whose images snap to 32 px steps; native 1920 × 1080 would be 2,040, D);
+  tokens for Qwen3.5, whose images snap to 32 px steps; native 1920 × 1080 would be 2,040, D).
+  With ``--storage zip`` [proposed] the same JPEG bytes go into one file instead, ``images.zip``
+  (uncompressed, members sorted, member name = the jsonl ``image`` field, fixed timestamps), so a
+  200k-sample view costs one inode, not 200k (Anvil's file quota). ``pilot_sft/view_images.py``
+  reads either layout;
 * ``train.jsonl``, ``dev.jsonl``: one sample per line: ``id``, ``image`` (relative to the view
   directory), ``prompt``, ``target`` (text), ``target_xy`` / ``target_yaw`` (the 8 continuous poses,
   0.5 … 4 s), and ``meta`` for slicing results (city, command, decisions, speed);
-* ``view.json``: the view's settings, counts, and the constant-velocity baseline on each split.
+* ``view.json``: the view's settings, counts, storage, measured image sizes, and the
+  constant-velocity baseline on each split.
+
+Source images are read through ``image_store.read_image``: the loose original if it exists, else its
+member in the archive's pack (``images/packs/<archive>.zip``).
 
 ``export --format chat`` writes ``chat_<split>.jsonl`` in the OpenAI ``messages`` format with the
 image inlined as a base64 data URL: what Together.ai's vision fine-tuning takes, and what Hugging
@@ -31,12 +40,14 @@ import io
 import json
 import os
 import re
+import zipfile
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from data_pipeline.v1 import provenance, tables
+from data_pipeline.v1 import image_store, provenance, tables
 from navsim_tools import geometry
 from data_pipeline.v1.openscene_index import PATH_OFFSETS_S
 
@@ -58,6 +69,11 @@ PROMPT = (
 COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "path_xyyaw", "path_valid",
            "speed", "accel_lon", "command")
 PAIR = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
+SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd")
+STORAGE = ("loose", "zip")
+ZIP_NAME = "images.zip"  # pilot_sft/view_images.ZIP_NAME
+ZIP_CHUNK = 4096  # resized images held in memory at once by a zip build (about 40 kB each at 640 px, D)
+ZIP_DATE = image_store.DATE_TIME  # the earliest a zip can store: no build time in the bytes
 
 
 def _pairs(xy: np.ndarray) -> str:
@@ -113,36 +129,148 @@ def constant_velocity(frames: tables.Columns, rows: np.ndarray) -> Dict[str, flo
             "samples": int(len(rows))}
 
 
-def _resize(job) -> int:
+def resize_bytes(src_bytes: bytes, width: int = WIDTH) -> bytes:
+    """The view's JPEG of one image: ``width`` px wide, aspect kept, bilinear, quality ``JPEG_QUALITY``."""
     from PIL import Image
 
+    with Image.open(io.BytesIO(src_bytes)) as image:
+        height = round(image.height * width / image.width)
+        small = image.convert("RGB").resize((width, height), Image.BILINEAR, reducing_gap=3.0)
+    buf = io.BytesIO()
+    small.save(buf, format="JPEG", quality=JPEG_QUALITY)
+    return buf.getvalue()
+
+
+def _resize(job) -> int:
+    """Resize file ``src`` to file ``dst`` unless ``dst`` exists (``predict_navsim.py`` uses this too)."""
     src, dst, width = job
     if os.path.exists(dst):
         return 0
-    with Image.open(src) as image:
-        height = round(image.height * width / image.width)
-        small = image.convert("RGB").resize((width, height), Image.BILINEAR, reducing_gap=3.0)
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    small.save(dst + ".part", format="JPEG", quality=JPEG_QUALITY)
-    os.replace(dst + ".part", dst)
+    with open(src, "rb") as f:
+        small = resize_bytes(f.read(), width)
+    _write_file(dst, small)
     return 1
+
+
+def _write_file(dst: str, data: bytes) -> None:
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    with open(dst + ".part", "wb") as f:
+        f.write(data)
+    os.replace(dst + ".part", dst)
+
+
+def _read_source(out_dir: str, image_path: str, source_archive: int) -> bytes:
+    """One original CAM_F0 JPEG: the loose file, or its member in the archive's pack (``image_store``)."""
+    return image_store.read_image(out_dir, image_path, source_archive)
+
+
+def _jpeg_size(data: Any) -> Tuple[int, int]:
+    """(width, height) of a JPEG given as bytes or as a path; Pillow reads the header only."""
+    from PIL import Image
+
+    with Image.open(io.BytesIO(data) if isinstance(data, bytes) else data) as image:
+        return image.size
+
+
+def _resize_loose(job) -> Tuple[int, Tuple[int, int]]:
+    """(1 if written now else 0, (width, height) of the view image) for one loose-layout image."""
+    out_dir, image_path, source_archive, dst, width = job
+    if os.path.exists(dst):  # measured from the file's header, so a re-run does not read every image
+        return 0, _jpeg_size(dst)
+    small = resize_bytes(_read_source(out_dir, image_path, source_archive), width)
+    _write_file(dst, small)
+    return 1, _jpeg_size(small)
+
+
+def _resize_member(job) -> bytes:
+    out_dir, image_path, source_archive, width = job
+    return resize_bytes(_read_source(out_dir, image_path, source_archive), width)
+
+
+def _zip_info(name: str) -> zipfile.ZipInfo:
+    """A member header that depends on the name only: fixed time, Unix ``rw-r--r--``, stored (as ``image_store``'s packs)."""
+    info = zipfile.ZipInfo(name, date_time=ZIP_DATE)
+    info.compress_type = zipfile.ZIP_STORED
+    info.create_system = image_store.CREATE_SYSTEM
+    info.external_attr = image_store.EXTERNAL_ATTR
+    return info
+
+
+def write_zip(path: str, names: Sequence[str], jobs: Sequence[Any], workers: int,
+              chunk: int = ZIP_CHUNK) -> List[Tuple[int, int]]:
+    """Resize ``jobs`` in parallel, ``chunk`` at a time, into ``path`` as members ``names`` (sorted).
+
+    Written to ``path + ".part"``, synced, then renamed, so ``path`` is complete or absent. Returns the
+    measured (width, height) of every member, in ``names`` order.
+    """
+    if list(names) != sorted(names) or len(set(names)) != len(names):
+        raise ValueError("zip members must be unique and sorted")
+    sizes: List[Tuple[int, int]] = []
+    try:
+        with open(path + ".part", "wb") as f:
+            with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as archive, \
+                    ProcessPoolExecutor(max_workers=workers) as pool:
+                for start in range(0, len(jobs), chunk):
+                    part = jobs[start : start + chunk]
+                    for name, data in zip(names[start : start + chunk],
+                                          pool.map(_resize_member, part, chunksize=max(1, len(part) // (4 * workers)))):
+                        archive.writestr(_zip_info(name), data)
+                        sizes.append(_jpeg_size(data))
+            f.flush()
+            os.fsync(f.fileno())
+    except Exception:  # e.g. a source image missing from its pack: no multi-GB .part left on scratch
+        if os.path.exists(path + ".part"):
+            os.remove(path + ".part")
+        raise
+    os.replace(path + ".part", path)
+    return sizes
 
 
 def view_dir(out_dir: str, set_name: str) -> str:
     return os.path.join(out_dir, "views", VIEW, set_name)
 
 
-def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: int = 8) -> Dict[str, Any]:
+def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: int = 8,
+          storage: str = "loose") -> Dict[str, Any]:
+    """Write the view of ``set_name``. ``storage="zip"`` [proposed] packs the images into ``images.zip``.
+
+    A loose build skips images that already exist; a zip build always rewrites ``images.zip`` (the bytes
+    are the same for the same inputs). Either way ``train.jsonl`` / ``dev.jsonl`` are the same. A loose
+    build refuses a view folder that holds ``images.zip``: the readers would serve the zip's images.
+    """
+    if storage not in STORAGE:
+        raise ValueError(f"unknown storage {storage}")
+    stale_zip = os.path.join(view_dir(out_dir, set_name), ZIP_NAME)
+    if storage == "loose" and os.path.exists(stale_zip):
+        raise FileExistsError(f"{stale_zip} exists, and the readers (ViewImages, export) prefer it to loose "
+                              "images: move it aside, or build with --storage zip")
     member = f"in_{set_name.replace('-', '_')}"
-    frames = tables.read(os.path.join(out_dir, "frames.parquet"), list(COLUMNS) + [member])
+    frames = tables.read(os.path.join(out_dir, "frames.parquet"), list(COLUMNS) + ["source_archive", member])
     rows = np.flatnonzero(frames[member])
     target = view_dir(out_dir, set_name)
     os.makedirs(target, exist_ok=True)
-    jobs = [(os.path.join(out_dir, *str(frames["image_path"][k]).split("/")),
-             os.path.join(target, "images", str(frames["log_name"][k]), f"{frames['token'][k]}.jpg"), width)
-            for k in rows]
-    with ProcessPoolExecutor(max_workers=workers) as pool:
-        written = sum(pool.map(_resize, jobs, chunksize=64))
+
+    def source(k: int) -> Tuple[str, str, int]:
+        return out_dir, str(frames["image_path"][k]), int(frames["source_archive"][k])
+
+    images_zip = None
+    if storage == "loose":
+        jobs = [(*source(k), os.path.join(target, "images", str(frames["log_name"][k]), f"{frames['token'][k]}.jpg"),
+                 width) for k in rows]
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            done = list(pool.map(_resize_loose, jobs, chunksize=64))
+        written, sizes = sum(d[0] for d in done), [d[1] for d in done]
+    else:
+        name_of = {int(k): f"images/{frames['log_name'][k]}/{frames['token'][k]}.jpg" for k in rows}  # sample()["image"]
+        order = sorted(name_of, key=name_of.get)
+        names = [name_of[k] for k in order]
+        path = os.path.join(target, ZIP_NAME)
+        sizes = write_zip(path, names, [(*source(k), width) for k in order], workers)
+        written = len(names)
+        images_zip = {"file": ZIP_NAME, "members": len(names), "bytes": os.path.getsize(path),
+                      "sha256": provenance.sha256_file(path), "compression": "stored"}
+    measured = Counter(f"{w}x{h}" for w, h in sizes)
+    height = int(Counter(h for _, h in sizes).most_common(1)[0][0]) if sizes else round(1080 * width / 1920)
     counts = {}
     for split in ("train", "dev"):
         chosen = rows[frames["our_split"][rows] == split]
@@ -158,13 +286,18 @@ def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: in
         "created_utc": provenance.utc_now(),
         "repo_commit": provenance.git_commit(provenance.REPO_ROOT),
         "source": "frames.parquet (canonical record, step 4)",
+        "storage": storage,
         "samples": counts,
-        "image": {"width": width, "height": round(1080 * width / 1920), "jpeg_quality": JPEG_QUALITY,
+        "image": {"width": width, "height": height, "jpeg_quality": JPEG_QUALITY,
                   "resized_now": int(written),
-                  "visual_tokens_qwen3_5": _qwen_visual_tokens(width, round(1080 * width / 1920), 32),
-                  "visual_tokens_qwen2_5_vl": _qwen_visual_tokens(width, round(1080 * width / 1920), 28),
+                  "measured_sizes": dict(sorted(measured.items())),
+                  "height_note": "V: the most common height among the view's images (measured_sizes); "
+                                 "computed as 1080 · width / 1920 only for an empty view",
+                  "visual_tokens_qwen3_5": _qwen_visual_tokens(width, height, 32),
+                  "visual_tokens_qwen2_5_vl": _qwen_visual_tokens(width, height, 28),
                   "visual_tokens_note": "D: each side rounded to the nearest multiple of patch × merge "
                                         "(Qwen2VLImageProcessor), one token per merged patch"},
+        "images_zip": images_zip,
         "history_s": list(HISTORY_S),
         "target_s": list(TARGET_S),
         "number_format": "metres, 1 decimal in text; continuous values in target_xy / target_yaw",
@@ -174,9 +307,7 @@ def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: in
         "constant_velocity_baseline": {split: constant_velocity(frames, rows[frames["our_split"][rows] == split])
                                        for split in ("train", "dev")},
     }
-    with open(os.path.join(target, "view.json"), "w", encoding="utf-8") as f:
-        json.dump(spec, f, indent=1, ensure_ascii=False)
-        f.write("\n")
+    provenance.write_text(os.path.join(target, "view.json"), json.dumps(spec, indent=1, ensure_ascii=False) + "\n")
     return spec
 
 
@@ -200,21 +331,47 @@ def export(out_dir: str, set_name: str = "smoke", fmt: str = "chat", limit: Opti
         raise ValueError(f"unknown format {fmt}")
     target = view_dir(out_dir, set_name)
     out = {}
-    for split in ("train", "dev"):
-        path = os.path.join(target, f"chat_{split}.jsonl")
-        n = 0
-        with open(os.path.join(target, f"{split}.jsonl"), encoding="utf-8") as src, \
-                open(path + ".part", "w", encoding="utf-8", newline="\n") as dst:
-            for line in src:
-                if limit is not None and n >= limit:
-                    break
-                item = json.loads(line)
-                with open(os.path.join(target, *item["image"].split("/")), "rb") as f:
-                    dst.write(json.dumps(chat_record(item, f.read())) + "\n")
-                n += 1
-        os.replace(path + ".part", path)
-        out[split] = {"samples": n, "bytes": os.path.getsize(path), "sha256": provenance.sha256_file(path)}
+    with _ViewReader(target) as images:
+        for split in ("train", "dev"):
+            path = os.path.join(target, f"chat_{split}.jsonl")
+            n = 0
+            with open(os.path.join(target, f"{split}.jsonl"), encoding="utf-8") as src, \
+                    open(path + ".part", "w", encoding="utf-8", newline="\n") as dst:
+                for line in src:
+                    if limit is not None and n >= limit:
+                        break
+                    item = json.loads(line)
+                    dst.write(json.dumps(chat_record(item, images.read(item["image"]))) + "\n")
+                    n += 1
+            os.replace(path + ".part", path)
+            out[split] = {"samples": n, "bytes": os.path.getsize(path), "sha256": provenance.sha256_file(path)}
     return out
+
+
+class _ViewReader:
+    """A view's image bytes: the ``images.zip`` member if the view is packed, else the loose file.
+
+    The same rule as ``pilot_sft/view_images.ViewImages``, kept here so ``data_pipeline`` does not
+    import from ``pilot_sft`` (the trainer reads the view, not the other way round).
+    """
+
+    def __init__(self, target: str):
+        self.target = target
+        path = os.path.join(target, ZIP_NAME)
+        self.archive = zipfile.ZipFile(path) if os.path.isfile(path) else None
+
+    def read(self, rel: str) -> bytes:
+        if self.archive is not None:
+            return self.archive.read(rel)
+        with open(os.path.join(self.target, *rel.split("/")), "rb") as f:
+            return f.read()
+
+    def __enter__(self) -> "_ViewReader":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        if self.archive is not None:
+            self.archive.close()
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
@@ -223,17 +380,20 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     for name in ("build", "export"):
         p = sub.add_parser(name)
         p.add_argument("--out", required=True, help="dataset directory, e.g. data/pretrain/v1.0-pilot")
-        p.add_argument("--set", default="smoke", choices=("smoke", "v1-pilot", "v1-large"))
+        p.add_argument("--set", default="smoke", choices=SETS)
         if name == "build":
             p.add_argument("--width", type=int, default=WIDTH, help="image width in the view (px)")
             p.add_argument("--workers", type=int, default=8)
+            p.add_argument("--storage", default="loose", choices=STORAGE,
+                           help="loose: images/<log>/<token>.jpg; zip: one images.zip [proposed]")
         else:
             p.add_argument("--format", default="chat", choices=("chat",))
             p.add_argument("--limit", type=int, default=None, help="first N samples per split (a quick test file)")
     args = parser.parse_args(argv)
     if args.command == "build":
-        spec = build(args.out, args.set, args.width, args.workers)
-        print(json.dumps({k: spec[k] for k in ("samples", "image", "constant_velocity_baseline")}, indent=1))
+        spec = build(args.out, args.set, args.width, args.workers, args.storage)
+        print(json.dumps({k: spec[k] for k in ("samples", "storage", "image", "images_zip",
+                                               "constant_velocity_baseline")}, indent=1))
     else:
         print(json.dumps(export(args.out, args.set, args.format, args.limit), indent=1))
 

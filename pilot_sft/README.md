@@ -21,9 +21,16 @@ here, **R** reported by others, **D** derived by us. Everything here is [propose
 The smoke set is the small first sample, used to check the data and the training before spending on
 the full set. The two overlap: 1,472 frames are in both (11,000 + 47,000 − 56,528).
 
+**Larger sets, built on Anvil** (`docs/training_data/PRETRAIN_V1_PLAN.md` §10). All three use v1-pilot's 2,000 dev samples, with the same dev file:
+- **v1-large:** 100,000 train.
+- **v1-xl:** 200,000 train, anchors ≥ 1.0 s apart, containing all of v1-large [agreed 2026-11-08].
+- **v1-xl-nd:** 176,232 of v1-xl's train, without the added Las Vegas near-duplicates [proposed].
+
+`SET=v1-xl` or `SET=v1-xl-nd` in `train_lora.sbatch` reads `$TRAINING_DATA_ROOT/pilot_v1/<set>`. Compare the two at equal steps [proposed]. Their views keep the images in one `images.zip`, whose members are named by the jsonl `image` field. `pilot_sft/view_images.py` reads the zip member, or the loose file in older views.
+
 ## What goes in and out
 - **Data:** the `pilot_v1` view (`data_pipeline/v1/pilot_view.py`, plan step 7): `train.jsonl`,
-  `dev.jsonl`, and the CAM_F0 images downscaled to 640 × 360.
+  `dev.jsonl`, and the CAM_F0 images downscaled to 640 × 360 (loose files, or `images.zip` in the v1-xl views).
 - **Prompt:** speed, acceleration, yaw rate, past positions at −1.5 / −1.0 / −0.5 s, and the route command.
   These are only test-time inputs.
 - **Yaw-rate leak, fixed 2026-11-03 (prompt `pilot_v1.1`):** `pilot_v1.0` took the yaw rate from the

@@ -13,9 +13,19 @@ Order:
    (rule 7) and caps keep_speed + straight at ``cruise_cap`` of the sample (rule 8). The other
    classes are drawn first, in random order, so they keep their natural proportions; cruise anchors
    fill the rest. If the other classes run out, cruise fills the gap and the cap is reported as
-   exceeded. Random order packs anchors ~25% below what the spacing allows, so if the target is
-   still not met, a last pass fills the remaining gaps log by log in time order. Together they reach
-   ~83% of the maximum on an unbroken log (D, measured on synthetic logs in the tests).
+   exceeded. Random order alone reaches 83 of the 100 anchors an unbroken 200 s log allows at 2 s
+   (V, the synthetic log in the tests) and 84–88% of the per-log maximum on the real index at 2.0,
+   1.5 and 1.0 s (V, 2026-11-08). A last pass then offers the remaining rows log by log in time
+   order, but it runs only after every pool row of the split has been offered and the picker never
+   frees a slot, so it adds 0 rows (V: tests, 200 random synthetic setups, the real index). It is
+   kept as a harmless guard; the report counts what it adds (``stages.fill``).
+
+``fixed`` rows (v1-xl: every v1-large row) are accepted before the draw [proposed 2026-11-08]. They
+seed the picker in (log, time) order, count against the target and the cruise quota, and are left
+out of the shuffled lists; the balance weights are still computed over the full pool. A fixed row
+that is ineligible, thinned, in the wrong split or closer than the spacing to another raises.
+The first draw of other classes is capped at the room the fixed rows leave, so fixed rows that are
+more than ``cruise_cap`` cruise never push a split past its target. With ``fixed=None`` the selected rows are exactly those of the draw without it.
 
 With ``balance_alpha`` > 0 the train split is drawn in a weighted random order instead: an anchor's
 weight is ``n ** -balance_alpha``, where n counts the split's pool anchors with its city and lateral
@@ -28,7 +38,7 @@ from __future__ import annotations
 
 import bisect
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -57,6 +67,9 @@ PILOT = SelectionConfig("v1-pilot", n_train=45_000, n_dev=2_000, balance_alpha=0
 # Built on Anvil in its own dataset folder [proposed 2026-11-03]. The 2.0 s spacing caps train at 103,382 (V,
 # 2026-11-03); the dev draw does not depend on n_train, so its 2k dev set is v1-pilot's.
 LARGE = SelectionConfig("v1-large", n_train=100_000, n_dev=2_000, balance_alpha=0.5)
+# v1-large's rules with train anchors >= 1.0 s apart, about 2x [agreed 2026-11-08]. Planned with every v1-large
+# row fixed, so it is a superset of v1-large with v1-pilot's dev set [proposed mechanics]: 200,000 train (V).
+XL = SelectionConfig("v1-xl", n_train=200_000, n_dev=2_000, spacing_s=1.0, balance_alpha=0.5)
 
 
 def log_codes(cands: tables.Columns) -> np.ndarray:
@@ -135,16 +148,67 @@ class _SpacedPicker:
         return out
 
 
+SPLITS = ("train", "dev")
+Fixed = Union[Sequence[int], np.ndarray, Mapping[str, Sequence[int]]]
+
+
+def _fixed_rows(cands: tables.Columns, fixed: Optional[Fixed]) -> np.ndarray:
+    """Sorted unique row indices of ``fixed``. A mapping split → rows also checks each row's split."""
+    if fixed is None:
+        return np.zeros(0, dtype=np.int64)
+    if isinstance(fixed, Mapping):
+        unknown = set(fixed) - set(SPLITS)
+        if unknown:
+            raise ValueError(f"fixed rows given for unknown splits {sorted(unknown)}")
+        parts = []
+        for split, rows in fixed.items():
+            rows = np.asarray(rows, dtype=np.int64).reshape(-1)
+            wrong = int((cands["our_split"][rows] != split).sum())
+            if wrong:
+                raise RuntimeError(f"{wrong} fixed {split} rows are not in the index's {split} split")
+            parts.append(rows)
+        rows = np.concatenate(parts) if parts else np.zeros(0, dtype=np.int64)
+    else:
+        rows = np.asarray(fixed, dtype=np.int64).reshape(-1)
+    unique = np.unique(rows)
+    if len(unique) != len(rows):
+        raise ValueError(f"{len(rows) - len(unique)} fixed rows are given twice")
+    if len(unique) and (unique[0] < 0 or unique[-1] >= len(cands["t_us"])):
+        raise ValueError("a fixed row is outside the index")
+    return unique
+
+
 def select(
-    cands: tables.Columns, config: SelectionConfig, available_logs: Optional[Iterable[str]] = None
+    cands: tables.Columns,
+    config: SelectionConfig,
+    available_logs: Optional[Iterable[str]] = None,
+    fixed: Optional[Fixed] = None,
 ) -> Tuple[np.ndarray, Dict[str, Any]]:
-    """Sorted indices of the selected rows, and statistics per split."""
+    """Sorted indices of the selected rows, and statistics per split.
+
+    ``fixed``: rows that must be selected (row indices, or a mapping split → row indices, which also
+    checks the split). They are accepted first and count against each split's target and cruise
+    quota (see the module docstring). ``None`` selects exactly what the draw alone selects.
+    """
     codes = log_codes(cands)
     n_logs = int(codes.max()) + 1 if len(codes) else 0
     base = eligible(cands, available_logs)
     pool = thin_standstill(cands, base, config.standstill_period_s, codes)
     cruise = is_cruise(cands)
     picker = _SpacedPicker(codes, cands["t_us"], config.spacing_s)
+    fixed_rows = _fixed_rows(cands, fixed)
+    if not base[fixed_rows].all():
+        raise RuntimeError(f"{int((~base[fixed_rows]).sum())} fixed rows fail rule 2, 3 or 5, or their log is unavailable")
+    if not pool[fixed_rows].all():
+        raise RuntimeError(f"{int((~pool[fixed_rows]).sum())} fixed rows are removed by standstill thinning (rule 6)")
+    if not np.isin(cands["our_split"][fixed_rows], SPLITS).all():
+        raise RuntimeError("a fixed row is in neither train nor dev")
+    is_fixed = np.zeros(len(codes), dtype=bool)
+    is_fixed[fixed_rows] = True
+    seeded = picker.take(iter(fixed_rows[np.lexsort((cands["t_us"][fixed_rows], codes[fixed_rows]))]), len(fixed_rows))
+    if len(seeded) != len(fixed_rows):
+        raise RuntimeError(f"{len(fixed_rows) - len(seeded)} fixed rows are closer than {config.spacing_s} s "
+                           "to another fixed row of their log (rule 7)")
     report: Dict[str, Any] = {
         "config": asdict(config),
         "available_logs": None if available_logs is None else len(set(available_logs)),
@@ -156,18 +220,30 @@ def select(
         rng = np.random.default_rng([config.seed, split_id])
         weights = None
         if split == "train" and config.balance_alpha > 0:
-            in_pool = np.flatnonzero(pool & in_split)
+            in_pool = np.flatnonzero(pool & in_split)  # fixed rows included: the weights stay those of the full pool
             weights = np.zeros(len(codes))
             weights[in_pool] = balance_weights(cands, in_pool, config.balance_alpha)
-        rows_other = np.flatnonzero(pool & in_split & ~cruise)
-        rows_cruise = np.flatnonzero(pool & in_split & cruise)
+        picked = [int(r) for r in fixed_rows[in_split[fixed_rows]]]
+        n_fixed = len(picked)
+        if n_fixed > target:
+            raise RuntimeError(f"{n_fixed} fixed {split} rows exceed the target of {target}")
+        n_fixed_other = int((~cruise[picked]).sum()) if picked else 0
+        rows_other = np.flatnonzero(pool & in_split & ~cruise & ~is_fixed)
+        rows_cruise = np.flatnonzero(pool & in_split & cruise & ~is_fixed)
         others = iter(_draw_order(rng, rows_other, None if weights is None else weights[rows_other]))
         cruisers = iter(_draw_order(rng, rows_cruise, None if weights is None else weights[rows_cruise]))
         cruise_quota = int(np.floor(config.cruise_cap * target))
-        picked = picker.take(others, target - cruise_quota)
-        picked += picker.take(cruisers, target - len(picked))
-        picked += picker.take(others, target - len(picked))  # only if cruise anchors ran out
-        if len(picked) < target:  # fill the gaps random order left: logs in random order, each in time order
+        stages: Dict[str, int] = {}
+        # others_1 is capped at the room left: fixed rows that are mostly cruise would otherwise push it past the
+        # target (a no-op without fixed rows, where target - quota <= target)
+        n_others_1 = min(target - n_fixed, max(0, target - cruise_quota - n_fixed_other))
+        for stage, rows_in, n in (("others_1", others, n_others_1),
+                                  ("cruise", cruisers, None), ("others_2", others, None)):  # others_2: only if cruise ran out
+            new = picker.take(rows_in, target - len(picked) if n is None else n)
+            stages[stage] = len(new)
+            picked += new
+        n_before_fill = len(picked)
+        if len(picked) < target:  # offer what is left log by log in time order (adds 0 rows, see the module docstring)
             left = pool & in_split
             left[picked] = False
             log_order = rng.permutation(n_logs)
@@ -175,7 +251,10 @@ def select(
                 rows = np.flatnonzero(group)
                 rows = rows[np.lexsort((cands["t_us"][rows], log_order[codes[rows]]))]
                 picked += picker.take(iter(rows), target - len(picked))
+        stages["fill"] = len(picked) - n_before_fill
         rows = np.array(picked, dtype=np.int64)
+        if len(rows) > target:  # a bug, so it raises
+            raise RuntimeError(f"selected {len(rows)} {split} rows, more than the target of {target}")
         n_cruise = int(cruise[rows].sum())
         report["splits"][split] = {
             "candidates": int(in_split.sum()),
@@ -185,6 +264,9 @@ def select(
             "target": target,
             "selected": len(rows),
             "shortfall": target - len(rows),
+            "fixed": n_fixed,
+            "added": len(rows) - n_fixed,
+            "stages": stages,
             "cruise_share": round(n_cruise / len(rows), 4) if len(rows) else None,
             "cruise_cap_exceeded": n_cruise > cruise_quota,
             "logs": len(set(codes[rows].tolist())),
@@ -195,12 +277,15 @@ def select(
         }
         chosen += picked
     selected = np.sort(np.array(chosen, dtype=np.int64))
-    _check(cands, selected, base, codes, config.spacing_s)
+    _check(cands, selected, base, codes, config.spacing_s, fixed=fixed_rows)
     return selected, report
 
 
-def _check(cands: tables.Columns, selected: np.ndarray, base: np.ndarray, codes: np.ndarray, spacing_s: float) -> None:
+def _check(cands: tables.Columns, selected: np.ndarray, base: np.ndarray, codes: np.ndarray, spacing_s: float,
+           fixed: Optional[np.ndarray] = None) -> None:
     """Post-conditions; violations are bugs, so they raise even under ``python -O``."""
+    if fixed is not None and not np.isin(fixed, selected).all():
+        raise RuntimeError("a fixed row is not selected")
     if not base[selected].all():
         raise RuntimeError("selected a row that fails rule 2, 3 or 5")
     splits = cands["our_split"][selected]

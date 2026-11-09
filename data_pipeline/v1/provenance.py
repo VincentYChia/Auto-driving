@@ -1,9 +1,10 @@
-"""Provenance helpers for manifests: git commits, checksums, timestamps."""
+"""Provenance helpers for manifests: git commits, checksums, timestamps, and writing a manifest whole."""
 
 from __future__ import annotations
 
 import datetime
 import hashlib
+import os
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -39,3 +40,18 @@ def sha256_file(path: str, chunk: int = 1 << 20) -> str:
 
 def utc_now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def write_text(path: str, text: str, newline: Optional[str] = None) -> None:
+    """Write ``text`` to ``path`` whole or not at all: ``path.part``, flush, fsync, then ``os.replace``.
+
+    For the files a later step takes as "done" (a fetch record, ``canonical.json``, ``view.json``,
+    ``qa/summary.json``): a job stopped mid-write leaves only the ``.part``, never a truncated marker.
+    ``newline`` is ``open``'s, so the bytes are those a plain ``open(path, "w")`` write would give.
+    """
+    part = path + ".part"
+    with open(part, "w", encoding="utf-8", newline=newline) as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(part, path)

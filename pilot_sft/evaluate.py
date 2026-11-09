@@ -23,6 +23,8 @@ import urllib.request
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
+from view_images import ViewImages  # pilot_sft/: images.zip if the view is packed, else the loose files
+
 PAIR = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
 TARGET_S = [0.5 * (k + 1) for k in range(8)]
 
@@ -57,6 +59,7 @@ class HF:
         import train_lora
 
         self.torch, self.view, self.train_lora = torch, view, train_lora
+        self.images = ViewImages(view)
         self.blank_image = False  # probes.py: flat grey in place of every camera image
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
@@ -84,7 +87,7 @@ class HF:
         from PIL import Image
 
         prompts = [self.train_lora.prompt_text(self.processor, it) for it in items]
-        images = [Image.open(os.path.join(self.view, *it["image"].split("/"))).convert("RGB") for it in items]
+        images = [self.images.open(it["image"]).convert("RGB") for it in items]
         if self.blank_image:
             images = [Image.new("RGB", im.size, (128, 128, 128)) for im in images]
         batch = self.processor(text=prompts, images=images, padding=True, return_tensors="pt").to(self.device)
@@ -97,12 +100,12 @@ class HF:
 class Ollama:
     def __init__(self, model: str, view: str, host: str = "http://localhost:11434"):
         self.model, self.view, self.host = model, view, host
+        self.images = ViewImages(view)
 
     def answer(self, items: List[Dict[str, Any]]) -> List[str]:
         out = []
         for it in items:
-            with open(os.path.join(self.view, *it["image"].split("/")), "rb") as f:
-                image = base64.b64encode(f.read()).decode()
+            image = base64.b64encode(self.images.read(it["image"])).decode()
             body = {"model": self.model, "stream": False, "think": False, "options": {"temperature": 0},
                     "messages": [{"role": "system", "content": it["system"]},
                                  {"role": "user", "content": it["prompt"] + "\nAnswer with the 8 pairs only.",

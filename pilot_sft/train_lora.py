@@ -1,7 +1,8 @@
 """LoRA fine-tuning of a small Qwen VLM as the driving pilot, on the ``pilot_v1`` view.
 
-Reads only the view written by ``data_pipeline/v1/pilot_view.py`` (``train.jsonl``, ``dev.jsonl``,
-``images/``), so it runs anywhere the view is copied: this computer, Anvil or a rented GPU.
+Reads only the view written by ``data_pipeline/v1/pilot_view.py`` (``train.jsonl``, ``dev.jsonl``, and
+``images/`` or ``images.zip``, through ``view_images.py``), so it runs anywhere the view is copied: this
+computer, Anvil or a rented GPU.
 
     python pilot_sft/train_lora.py --view data/pretrain/v1.0-pilot/views/pilot_v1/smoke \\
         --model Qwen/Qwen3.5-2B --out runs/qwen35-2b-smoke --epochs 2
@@ -29,7 +30,8 @@ import time
 from typing import Any, Dict, List
 
 import torch
-from PIL import Image
+
+from view_images import ViewImages  # pilot_sft/: images.zip if the view is packed, else the loose files
 
 
 def read_jsonl(path: str) -> List[Dict[str, Any]]:
@@ -84,6 +86,7 @@ class Batches:
 
     def __init__(self, processor, view: str, items: List[Dict[str, Any]], ego_dropout: float = 0.0, seed: int = 0):
         self.processor, self.view, self.items = processor, view, items
+        self.images = ViewImages(view)
         self.end = answer_end(processor)
         self.ego_dropout, self.rng = ego_dropout, random.Random(seed + 1)
 
@@ -92,7 +95,7 @@ class Batches:
             items = [mask_ego(it) if self.rng.random() < self.ego_dropout else it for it in items]
         prompts = [prompt_text(self.processor, it) for it in items]
         texts = [p + it["target"] + self.end for p, it in zip(prompts, items)]
-        images = [Image.open(os.path.join(self.view, *it["image"].split("/"))).convert("RGB") for it in items]
+        images = [self.images.open(it["image"]).convert("RGB") for it in items]
         batch = self.processor(text=texts, images=images, padding=True, return_tensors="pt")
         prompt_ids = self.processor(text=prompts, images=images, padding=False)["input_ids"]
         labels = batch["input_ids"].clone()
@@ -131,7 +134,8 @@ def vision_tower_name(model) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--view", required=True, help="pilot_v1 view directory (train.jsonl, dev.jsonl, images/)")
+    parser.add_argument("--view", required=True,
+                        help="pilot_v1 view directory (train.jsonl, dev.jsonl, images/ or images.zip)")
     parser.add_argument("--model", default="Qwen/Qwen3.5-2B")
     parser.add_argument("--out", required=True)
     parser.add_argument("--epochs", type=float, default=2.0)

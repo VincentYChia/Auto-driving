@@ -7,6 +7,8 @@ from OpenScene's camera archives.
     python -m data_pipeline.v1.openscene_images status --out data/pretrain/v1.0-pilot
     python -m data_pipeline.v1.openscene_images plan   --out <dir> --set v1-large   # 100k train, own folder (Anvil)
     python -m data_pipeline.v1.openscene_images fetch  --out <dir> --full --archives 200 --source-dir <hf download dir>
+    python -m data_pipeline.v1.openscene_images plan   --out data/pretrain/v1.0-xl --set v1-xl \
+        --extends data/pretrain/v1.0-large/splits/v1-large   # 200k train ⊇ v1-large, plus v1-xl-nd (v1-xl spec)
 
 ``plan`` reads only the metadata index (minutes, no images) [agreed 2026-10-31]:
 * selects v1-pilot (``selection.PILOT``: 45k train + 2k dev, train balanced) from every log;
@@ -25,6 +27,17 @@ from OpenScene's camera archives.
 * writes ``images/archives/<n>.json`` and deletes the archive. Archives with that file are skipped,
   so an interrupted run resumes when run again. Disk use peaks at the largest archive (19.3 GB)
   plus the kept images (~10 GB).
+
+With ``--source-dir`` the archives are read where they are and never deleted. ``--storage pack``
+[proposed format, v1-xl spec §4; packing agreed 2026-11-08 for Anvil's file quota] keeps the same
+JPEG bytes as members of one uncompressed ``images/packs/<n>.zip`` per archive instead of one file
+per frame (``image_store.py``: format, and ``read_image`` for either layout); the pack is complete
+before the record is written. ``--shard i/k`` and ``--extract-workers N`` spread the archives over
+processes; each archive is still one pack and one record, so a run stopped by a job's time limit
+resumes at the first archive without a record:
+
+    python -m data_pipeline.v1.openscene_images fetch --out <dir> --full --archives 200 \\
+        --source-dir <hf download dir> --storage pack --shard 3/96
 """
 
 from __future__ import annotations
@@ -35,17 +48,18 @@ import io
 import json
 import os
 import posixpath
+import shutil
 import sys
 import tarfile
 import time
 import urllib.request
 from collections import Counter
-from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from data_pipeline.v1 import provenance, selection, tables
+from data_pipeline.v1 import image_store, novelty, provenance, selection, stats, tables
 from data_pipeline.v1.openscene_index import CAMERA
 
 HF_ROOT = "https://huggingface.co/datasets/OpenDriveLab/OpenScene/resolve/main/openscene-v1.1/"
@@ -127,34 +141,155 @@ def _write_tokens(path: str, tokens: Iterable[str]) -> None:
         f.writelines(f"{t}\n" for t in sorted(tokens))
 
 
+PLAN_COLUMNS = ["token", "log_name", "t_us", "our_split", "city", "decision_lon", "decision_lat",
+                "standstill", "has_cam_f0", "pose_ok"]
+ND_SUFFIX = "-nd"  # v1-xl-nd: v1-xl train without added Las Vegas near-duplicates [proposed 2026-11-08]
+
+
+def _read_tokens(path: str) -> List[str]:
+    with open(path, encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+def _base_rows(cands: tables.Columns, extends: str) -> Dict[str, np.ndarray]:
+    """Rows of the base set's token files ``<extends>_tokens_{train,dev}.txt``, per split.
+
+    Every base token must be in the index, once, with the split its file names. The files must have
+    LF line ends: the plan checks the copies and the dev files by their bytes' SHA-256, so a CRLF
+    checkout (``core.autocrlf``) would fail those checks for no data reason.
+    """
+    row_of = {t: i for i, t in enumerate(cands["token"].tolist())}  # np.isin on strings takes minutes
+    rows = {}
+    for split in ("train", "dev"):
+        path = f"{extends}_tokens_{split}.txt"
+        with open(path, "rb") as f:
+            if b"\r" in f.read():
+                raise ValueError(f"{path} has CRLF line ends, the committed file LF; the plan compares the files' "
+                                 "bytes, so use an LF copy (core.autocrlf rewrites them on a Windows checkout)")
+        tokens = _read_tokens(path)
+        missing = [t for t in tokens if t not in row_of]
+        if missing:
+            raise ValueError(f"{len(missing)} base {split} tokens are not in the index, e.g. {missing[0]}")
+        if len(set(tokens)) != len(tokens):
+            raise ValueError(f"the base {split} file lists a token twice")
+        r = np.array(sorted(row_of[t] for t in tokens), dtype=np.int64)
+        wrong = int((cands["our_split"][r] != split).sum())
+        if wrong:
+            raise ValueError(f"{wrong} base {split} tokens are in another split of the index")
+        rows[split] = r
+    return rows
+
+
+def _describe(cands: tables.Columns, rows: np.ndarray) -> Dict[str, Any]:
+    """Per split: the counts a set derived from a selection reports (its rows are not drawn, so no target)."""
+    out = {}
+    cruise = selection.is_cruise(cands)
+    for split in ("train", "dev"):
+        r = rows[cands["our_split"][rows] == split]
+        out[split] = {"selected": len(r), "logs": len(set(cands["log_name"][r].tolist())),
+                      "cruise_share": round(float(cruise[r].mean()), 4) if len(r) else None,
+                      "city": stats.value_counts(cands["city"][r]),
+                      "decision_lon": stats.value_counts(cands["decision_lon"][r]),
+                      "decision_lat": stats.value_counts(cands["decision_lat"][r]),
+                      "standstill_share": round(float(cands["standstill"][r].mean()), 4) if len(r) else None}
+    return out
+
+
+def _repo_relative(path: str) -> str:
+    """``path`` relative to the repo when it is inside it (manifests are committed), else as given; ``/`` separators."""
+    full, root = os.path.normcase(os.path.abspath(path)), os.path.normcase(os.path.abspath(provenance.REPO_ROOT))
+    try:
+        inside = os.path.commonpath([full, root]) == root
+    except ValueError:  # another drive
+        inside = False
+    return (os.path.relpath(os.path.abspath(path), provenance.REPO_ROOT) if inside else path).replace(os.sep, "/")
+
+
+def _sha256(path: str) -> str:
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
 def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = ARCHIVE_TREE_URL,
-         set_name: str = selection.PILOT.name) -> Dict[str, Any]:
-    """``set_name`` v1-pilot selects v1-pilot and smoke; v1-large selects only v1-large (its own dataset folder)."""
-    cands = tables.read(os.path.join(out_dir, "index", "candidates.parquet"),
-                        ["token", "log_name", "t_us", "our_split", "city", "decision_lon", "decision_lat",
-                         "standstill", "has_cam_f0", "pose_ok"])
+         set_name: str = selection.PILOT.name, extends: Optional[str] = None) -> Dict[str, Any]:
+    """``set_name`` v1-pilot selects v1-pilot and smoke; v1-large selects only v1-large (its own dataset folder).
+
+    v1-xl [agreed 2026-11-08; superset mechanics proposed] needs ``extends``, the prefix of the base
+    set's token files (``data/pretrain/v1.0-large/splits/v1-large``). Every base row is fixed in the
+    draw (``selection.select(fixed=...)``), so v1-xl contains the base and its dev set is the base's.
+    The plan also writes, as [proposed] extras that need no further extraction:
+    * ``v1-xl-nd``: v1-xl train through ``novelty.nested_filter`` (base ⊂ v1-xl-nd ⊂ v1-xl), same dev;
+    * a copy of the base token files, so the folder holds all three sets;
+    * ``v1-xl_label_conflicts.tsv``: the rows of the three sets that fail a hard-bad test (report only).
+    """
+    xl = set_name == selection.XL.name
+    if xl and extends is None:
+        raise ValueError("v1-xl extends a base set: pass extends=<splits dir>/<base set name>, e.g. .../splits/v1-large")
+    if extends is not None and not xl:
+        raise ValueError(f"extends is for {selection.XL.name} only")
+    split_dir = os.path.join(out_dir, "splits")
+    if xl and _same_dir(os.path.dirname(extends) or ".", split_dir):
+        raise ValueError(f"--out {out_dir} is the base set's own folder: its splits/manifest.json and "
+                         "images/archives.json would be replaced; plan v1-xl into a folder of its own")
+    columns = list(PLAN_COLUMNS)
+    if xl:  # the near-duplicate and label-conflict tests need the path and the prompt values
+        columns += [c for c in dict.fromkeys(novelty.NEAR_DUP_COLUMNS + novelty.CONFLICT_COLUMNS) if c not in columns]
+    cands = tables.read(os.path.join(out_dir, "index", "candidates.parquet"), columns)
     archives = load_archives(archive_map, archive_tree)
     in_index = set(cands["log_name"].tolist())
     in_map = {log for a in archives.values() for log in a["logs"]}
-    main = {c.name: c for c in (selection.PILOT, selection.LARGE)}[set_name]
-    main_rows, main_report = selection.select(cands, main, available_logs=in_map)
+    main = {c.name: c for c in (selection.PILOT, selection.LARGE, selection.XL)}[set_name]
+    base = _base_rows(cands, extends) if xl else None
+    main_rows, main_report = selection.select(cands, main, available_logs=in_map, fixed=base)
     order = archive_order(cands, main_rows, archives)
-    sets = [(main, main_rows, main_report)]
+    sets = [(main.name, main_rows, main_report)]
     smoke_archives: List[int] = []
     if main is selection.PILOT:
         smoke_archives = order[:SMOKE_ARCHIVES]
         smoke_logs = [log for n in smoke_archives for log in archives[n]["logs"]]
-        sets.append((selection.SMOKE, *selection.select(cands, selection.SMOKE, available_logs=smoke_logs)))
+        sets.append((selection.SMOKE.name, *selection.select(cands, selection.SMOKE, available_logs=smoke_logs)))
+    extra: Dict[str, Any] = {}
+    if xl:
+        nested, extra = _nested_sets(cands, main.name, main_rows, base, extends)
+        sets += nested
 
-    split_dir = os.path.join(out_dir, "splits")
     os.makedirs(split_dir, exist_ok=True)
+    staged: List[str] = []  # each file is written as <path>.part and moved into place only once every check passed
+
+    def part(path: str) -> str:
+        staged.append(path)
+        return path + ".part"
+
     reports = {}
-    for config, rows, report in sets:
-        for split in ("train", "dev"):
-            _write_tokens(os.path.join(split_dir, f"{config.name}_tokens_{split}.txt"),
-                          cands["token"][rows][cands["our_split"][rows] == split])
-        report["images_gb_estimate"] = round(len(rows) * KB_PER_IMAGE / 1e6, 2)  # D
-        reports[config.name] = report
+    try:
+        for name, rows, report in sets:
+            for split in ("train", "dev"):
+                path = os.path.join(split_dir, f"{name}_tokens_{split}.txt")
+                if xl and name == extra["base"]["set"]:  # a byte copy of the base files
+                    shutil.copyfile(f"{extends}_tokens_{split}.txt", part(path))
+                else:
+                    _write_tokens(part(path), cands["token"][rows][cands["our_split"][rows] == split])
+            report["images_gb_estimate"] = round(len(rows) * KB_PER_IMAGE / 1e6, 2)  # D
+            if xl:  # interface I1 of the v1-xl spec: counts and file hashes per selection
+                for split in ("train", "dev"):
+                    report[split] = int((cands["our_split"][rows] == split).sum())
+                report["sha256"] = {split: _sha256(os.path.join(split_dir, f"{name}_tokens_{split}.txt.part"))
+                                    for split in ("train", "dev")}
+            reports[name] = report
+        if xl:
+            for name, report in reports.items():  # violations are bugs, so they raise
+                if report["sha256"]["dev"] != extra["base"]["sha256"]["dev"]:
+                    raise RuntimeError(f"{name}'s dev tokens differ from the base's")
+            if reports[extra["base"]["set"]]["sha256"] != extra["base"]["sha256"]:
+                raise RuntimeError("the copy of the base token files differs from the base")
+            extra["label_conflicts"] = _write_label_conflicts(cands, sets, split_dir, main.name, part)
+    except BaseException:  # leave the folder as it was: remove only this call's unfinished .part files
+        for path in staged:
+            if os.path.exists(path + ".part"):
+                os.remove(path + ".part")
+        raise
+    for path in staged:
+        os.replace(path + ".part", path)
     wanted = set().union(*(set(rows.tolist()) for _, rows, _ in sets))
     per_archive = Counter({n: 0 for n in archives})
     archive_of = {log: n for n, a in archives.items() for log in a["logs"]}
@@ -162,8 +297,8 @@ def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = A
 
     image_dir = os.path.join(out_dir, "images")
     os.makedirs(image_dir, exist_ok=True)
-    with open(os.path.join(image_dir, "archives.json"), "w", encoding="utf-8") as f:
-        json.dump({str(n): a for n, a in archives.items()}, f, indent=1)
+    provenance.write_text(os.path.join(image_dir, "archives.json"),
+                          json.dumps({str(n): a for n, a in archives.items()}, indent=1))
     manifest = {
         "step": "3: selection and archive order (docs/training_data/PRETRAIN_V1_PLAN.md)",
         "created_utc": provenance.utc_now(),
@@ -180,10 +315,71 @@ def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = A
         "frames_to_keep": len(wanted),
         "frames_to_keep_per_archive": {str(n): per_archive[n] for n in order},
         "selections": reports,
+        **extra,
     }
-    with open(os.path.join(split_dir, "manifest.json"), "w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=1)
+    provenance.write_text(os.path.join(split_dir, "manifest.json"), json.dumps(manifest, indent=1))  # last: a whole plan
     return manifest
+
+
+def _same_dir(a: str, b: str) -> bool:
+    """``a`` and ``b`` name one folder (``samefile`` when both exist, which also sees links)."""
+    if os.path.isdir(a) and os.path.isdir(b):
+        return os.path.samefile(a, b)
+    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def _nested_sets(cands: tables.Columns, main_name: str, main_rows: np.ndarray, base: Dict[str, np.ndarray],
+                 extends: str) -> Tuple[List[Tuple[str, np.ndarray, Dict[str, Any]]], Dict[str, Any]]:
+    """The two sets nested in v1-xl, base ⊂ v1-xl-nd ⊂ v1-xl, as (name, rows, report), and manifest keys."""
+    base_name, nd_name = os.path.basename(extends), main_name + ND_SUFFIX
+    if base_name in (main_name, nd_name):
+        raise ValueError(f"the base set cannot be {base_name}")
+    base_rows = np.sort(np.concatenate([base["train"], base["dev"]]))
+    train = main_rows[cands["our_split"][main_rows] == "train"]
+    dev = main_rows[cands["our_split"][main_rows] == "dev"]
+    if not np.array_equal(dev, base["dev"]):  # checked before any file is written
+        raise RuntimeError(f"{main_name} dev is not {base_name}'s: {len(dev)} rows vs {len(base['dev'])}; "
+                           f"its n_dev must equal the base's dev count so that no dev row is drawn")
+    nd_train = novelty.nested_filter(cands, train, base["train"])
+    nd_rows = np.sort(np.concatenate([nd_train, dev]))
+    if not (np.isin(base_rows, nd_rows).all() and np.isin(nd_rows, main_rows).all()):  # a bug, so it raises
+        raise RuntimeError(f"{base_name} ⊂ {nd_name} ⊂ {main_name} does not hold")
+    nd_report = {"derived_from": main_name, "filter": "novelty.nested_filter on train; dev unchanged",
+                 "dropped_train": int(len(train) - len(nd_train)), "splits": _describe(cands, nd_rows)}
+    base_report = {"copied_from": f"{base_name}_tokens_{{train,dev}}.txt", "splits": _describe(cands, base_rows)}
+    extra = {
+        "base": {"set": base_name, "prefix": _repo_relative(extends),
+                 "sha256": {s: _sha256(f"{extends}_tokens_{s}.txt") for s in ("train", "dev")},
+                 "train": len(base["train"]), "dev": len(base["dev"])},
+        "novelty": {"set": nd_name, **novelty.parameters()},
+    }
+    return [(nd_name, nd_rows, nd_report), (base_name, base_rows, base_report)], extra
+
+
+def _write_label_conflicts(cands: tables.Columns, sets: Sequence[Tuple[str, np.ndarray, Any]], split_dir: str,
+                           main_name: str, target: Callable[[str], str] = lambda path: path) -> Dict[str, Any]:
+    """``splits/<main>_label_conflicts.tsv``: token, set, reasons for each flagged row (report only).
+
+    ``set`` is the smallest of the nested ``sets`` that holds the row, with its split, e.g.
+    ``v1-large/train`` (so it is in all three sets) or ``v1-xl/train`` (only in v1-xl).
+    ``target`` maps the file's path to the path actually written (``plan`` writes ``.part`` first).
+    """
+    smallest: Dict[int, str] = {}
+    for name, rows, _ in sets:  # largest first, so each smaller set overwrites
+        smallest.update({int(r): name for r in rows})
+    conflicts = novelty.label_conflicts(cands, sets[0][1])
+    path = os.path.join(split_dir, f"{main_name}_label_conflicts.tsv")
+    with open(target(path), "w", encoding="utf-8", newline="\n") as f:
+        f.write("token\tset\treasons\n")
+        for r, reasons in sorted(conflicts, key=lambda item: cands["token"][item[0]]):
+            f.write(f"{cands['token'][r]}\t{smallest[r]}/{cands['our_split'][r]}\t{','.join(reasons)}\n")
+    flagged = {r for r, _ in conflicts}
+    return {
+        "file": os.path.basename(path), "report_only": True, "tests": list(novelty.REASONS),
+        "rows": {name: {s: sum(1 for r in rows.tolist() if r in flagged and cands["our_split"][r] == s)
+                        for s in ("train", "dev")} for name, rows, _ in sets},
+        "by_reason": {k: sum(k in reasons for _, reasons in conflicts) for k in novelty.REASONS},
+    }
 
 
 # --- fetch ---------------------------------------------------------------------------------------
@@ -250,12 +446,25 @@ def _decode(data: bytes) -> List[int]:
         return list(image.size)
 
 
-def _extract(tgz: str, archive: Dict[str, Any], wanted: Dict[str, Dict[str, str]], image_root: str) -> Dict[str, Any]:
-    """Keep the wanted CAM_F0 JPEGs of one archive. ``wanted``: cam_f0_path → {token, log}."""
+def _member_name(log: str, token: str) -> str:
+    """The kept JPEG's path relative to the dataset directory: ``canonical.image_path``, and its pack member name."""
+    return f"images/{CAMERA}/{log}/{token}.jpg"
+
+
+def _extract(tgz: str, archive: Dict[str, Any], wanted: Dict[str, Dict[str, str]], image_root: str,
+             pack: Optional[str] = None) -> Dict[str, Any]:
+    """Keep the wanted CAM_F0 JPEGs of one archive. ``wanted``: cam_f0_path → {token, log}.
+
+    ``pack`` None writes each JPEG as a loose file under ``image_root``. A path writes them all, byte
+    for byte, as the members of one pack (``image_store.write_pack``: ``.part``, fsync, ``os.replace``),
+    with no file per frame; the frames of one archive (≤ 1,689 in v1-xl, ~0.4 GB, V/D) are held in
+    memory until then, because the members are sorted and the tar stream is not.
+    """
     start = time.time()
     logs_seen, images, undecodable = set(), [], []
     members = 0
     found = set()
+    packed: List[Tuple[str, bytes]] = []
     with tarfile.open(tgz, "r|gz") as tar:
         for member in tar:
             if not member.isfile():
@@ -276,14 +485,23 @@ def _extract(tgz: str, archive: Dict[str, Any], wanted: Dict[str, Dict[str, str]
                 undecodable.append({"token": frame["token"], "error": repr(error)[:200]})
                 continue
             # The path is built from the index's log name and token, never from the member name.
-            path = os.path.join(image_root, CAMERA, frame["log"], frame["token"] + ".jpg")
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path + ".part", "wb") as f:
-                f.write(data)
-            os.replace(path + ".part", path)
+            if pack is not None:
+                packed.append((_member_name(frame["log"], frame["token"]), data))
+            else:
+                path = os.path.join(image_root, CAMERA, frame["log"], frame["token"] + ".jpg")
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path + ".part", "wb") as f:
+                    f.write(data)
+                os.replace(path + ".part", path)
             images.append({"token": frame["token"], "log": frame["log"], "bytes": len(data),
                            "sha256": hashlib.sha256(data).hexdigest(), "width": size[0], "height": size[1]})
     in_archive = {rel: f for rel, f in wanted.items() if f["log"] in set(archive["logs"])}
+    pack_fields: Dict[str, Any] = {}
+    if pack is not None:  # written before the record, so a record always means a finished pack
+        written = image_store.write_pack(pack, packed)
+        pack_fields = {"pack": os.path.relpath(pack, os.path.dirname(image_root)).replace(os.sep, "/"),
+                       "pack_members": written["members"], "pack_bytes": written["bytes"],
+                       "pack_sha256": written["sha256"]}
     return {
         "logs_in_map": sorted(archive["logs"]),
         "logs_in_archive": sorted(logs_seen),
@@ -296,6 +514,7 @@ def _extract(tgz: str, archive: Dict[str, Any], wanted: Dict[str, Dict[str, str]
         "image_bytes": sum(i["bytes"] for i in images),
         "extract_s": round(time.time() - start, 1),
         "images": images,
+        **pack_fields,
     }
 
 
@@ -311,17 +530,89 @@ def _wanted(out_dir: str, manifest: Dict[str, Any]) -> Dict[str, Dict[str, str]]
             for t, log, p in zip(cands["token"][keep], cands["log_name"][keep], cands["cam_f0_path"][keep])}
 
 
+STORAGE = ("loose", "pack")  # how fetch keeps the JPEGs; see image_store.py
+
+
+def _write_record(record_path: str, record: Dict[str, Any]) -> None:
+    record["finished_utc"] = provenance.utc_now()
+    provenance.write_text(record_path, json.dumps(record))  # synced before the rename: a record is never empty
+
+
+def _print_kept(n: int, record: Dict[str, Any]) -> None:
+    print(f"[fetch] archive {n}: kept {record['kept']} of {record['wanted']}, {len(record['missing'])} missing, "
+          f"{len(record['undecodable'])} undecodable, logs match map: {record['logs_match_map']}"
+          + (f", pack {record['pack_bytes'] / 1e6:.0f} MB" if "pack" in record else ""), flush=True)
+
+
+def _source_record(n: int, archive: Dict[str, Any], tgz: str, wanted: Dict[str, Dict[str, str]], image_root: str,
+                   pack: Optional[str]) -> Dict[str, Any]:
+    """The record of one archive in a source directory: check its SHA-256, then extract. ``tgz`` is only read."""
+    if provenance.sha256_file(tgz) != archive["sha256"]:
+        raise RuntimeError(f"{archive['name']}: SHA-256 differs")
+    record = {"archive": n, "name": archive["name"], "bytes": archive["bytes"], "sha256": archive["sha256"],
+              "sha256_ok": True, "download_s": 0.0}
+    record.update(_extract(tgz, archive, wanted, image_root, pack))
+    return record
+
+
+_worker_wanted: Dict[str, Dict[str, str]] = {}
+
+
+def _init_extract_worker(wanted: Dict[str, Dict[str, str]]) -> None:
+    global _worker_wanted
+    _worker_wanted = wanted
+
+
+def _extract_task(n: int, archive: Dict[str, Any], tgz: str, image_root: str, pack: Optional[str],
+                  record_path: str) -> Dict[str, Any]:
+    """One archive in an extraction worker: its record is written there, so a stopped job keeps it."""
+    print(f"[fetch] archive {n}, {archive['bytes'] / 1e9:.1f} GB (worker {os.getpid()})", flush=True)
+    record = _source_record(n, archive, tgz, _worker_wanted, image_root, pack)
+    _write_record(record_path, record)
+    return record
+
+
+def parse_shard(shard: Any, num_shards: Optional[int] = None) -> Tuple[int, int]:
+    """``"3"`` with ``num_shards`` 96, or ``"3/96"``, → (3, 96). The shard must be in 0 … num_shards − 1."""
+    text = str(shard)
+    if "/" in text:
+        i, k = (int(v) for v in text.split("/", 1))
+        if num_shards not in (None, 1, k):
+            raise ValueError(f"shard {text} and num_shards {num_shards} disagree")
+    else:
+        i, k = int(text), 1 if num_shards is None else int(num_shards)
+    if not (k >= 1 and 0 <= i < k):
+        raise ValueError(f"shard {i} of {k}: needs 0 <= shard < num_shards")
+    return i, k
+
+
 def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[str] = None,
-          workers: int = 1, shard: int = 0, num_shards: int = 1) -> Dict[str, Any]:
+          workers: int = 1, shard: Any = 0, num_shards: int = 1, storage: str = "loose",
+          extract_workers: int = 1) -> Dict[str, Any]:
     """Fetch the first ``n_archives`` archives of the plan.
 
     ``workers`` > 1 downloads that many archives at once (the server caps each connection at
     ~15 MB/s, V 2026-11-02); extraction and records stay one archive at a time, in plan order.
     ``source_dir`` reads archives already downloaded there instead (tests, or ``hf download`` on
-    Anvil); archives not there yet are skipped, so running again picks them up.
+    Anvil); archives not there yet are skipped, so running again picks them up. An archive in
+    ``source_dir`` is only read, never deleted; only one this function downloaded itself (to
+    ``images/tmp/``) is deleted, after its record is written.
     ``shard`` of ``num_shards`` takes every ``num_shards``-th archive of the plan, so several processes
-    can extract at once: each archive has its own record and its frames their own files.
+    can extract at once: each archive has its own record and its frames their own files (or pack).
+    ``shard`` may also be given as ``"i/k"``.
+    ``extract_workers`` > 1 (``source_dir`` only) extracts that many archives at once in a process
+    pool, within this process's shard. Each worker writes its archive's pack and record itself, so a
+    job stopped by its time limit keeps every finished archive and the next run resumes.
+    ``storage`` "loose" (default) keeps ``images/CAM_F0/<log>/<token>.jpg``. "pack" [proposed format,
+    v1-xl spec §4] keeps the same bytes as the members ``images/CAM_F0/<log>/<token>.jpg`` of
+    ``images/packs/<archive>.zip`` (``image_store``) and adds ``pack``, ``pack_members``, ``pack_bytes``
+    and ``pack_sha256`` to the record; ``members`` stays the number of tar members streamed.
     """
+    if storage not in STORAGE:
+        raise ValueError(f"storage must be one of {STORAGE}, not {storage!r}")
+    if extract_workers > 1 and not source_dir:
+        raise ValueError("extract_workers > 1 needs source_dir (downloaded archives extract one at a time)")
+    shard, num_shards = parse_shard(shard, num_shards)
     try:  # PIL checks each JPEG: fail before the first download, not after it
         import PIL  # noqa: F401
     except ImportError as error:
@@ -336,6 +627,10 @@ def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[s
     tmp_dir = os.path.join(image_root, "tmp")
     os.makedirs(record_dir, exist_ok=True)
     os.makedirs(tmp_dir, exist_ok=True)
+
+    def pack_of(n: int) -> Optional[str]:
+        return image_store.pack_path(out_dir, n) if storage == "pack" else None
+
     done, failed = [], []
     order = manifest["archive_order"][:n_archives]
     pending = [n for k, n in enumerate(order) if k % num_shards == shard
@@ -344,6 +639,25 @@ def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[s
     if source_dir:
         not_yet = [n for n in pending if not os.path.exists(os.path.join(source_dir, archives[n]["name"]))]
         pending = [n for n in pending if n not in not_yet]
+    if source_dir and extract_workers > 1 and pending:
+        with ProcessPoolExecutor(max_workers=extract_workers, initializer=_init_extract_worker,
+                                 initargs=(wanted,)) as extractors:
+            futures = {extractors.submit(_extract_task, n, archives[n], os.path.join(source_dir, archives[n]["name"]),
+                                         image_root, pack_of(n), os.path.join(record_dir, f"{n}.json")): n
+                       for n in pending}
+            for future in as_completed(futures):
+                n = futures[future]
+                try:
+                    record = future.result()
+                except Exception as error:  # keep going, as below; the next run retries this archive
+                    print(f"[fetch] archive {n} failed: {error!r}", flush=True)
+                    failed.append({"archive": n, "error": repr(error)[:500]})
+                    continue
+                done.append(n)
+                _print_kept(n, record)
+        done.sort(key=order.index)
+        failed.sort(key=lambda f: order.index(f["archive"]))
+        pending = []
     pool = ThreadPoolExecutor(max_workers=workers) if not source_dir else None
     downloads: Dict[int, Future] = {}
     for i, n in enumerate(pending):
@@ -357,28 +671,23 @@ def fetch(out_dir: str, n_archives: int = SMOKE_ARCHIVES, source_dir: Optional[s
         print(f"[fetch] archive {n} ({k}/{len(order)}), {archive['bytes'] / 1e9:.1f} GB", flush=True)
         try:
             if source_dir:
-                tgz, download_s = os.path.join(source_dir, archive["name"]), 0.0
-                if provenance.sha256_file(tgz) != archive["sha256"]:
-                    raise RuntimeError(f"{archive['name']}: SHA-256 differs")
+                tgz = os.path.join(source_dir, archive["name"])
+                record = _source_record(n, archive, tgz, wanted, image_root, pack_of(n))
             else:
                 tgz = os.path.join(tmp_dir, archive["name"])
                 download_s = downloads.pop(n).result()
-            record = {"archive": n, "name": archive["name"], "bytes": archive["bytes"], "sha256": archive["sha256"],
-                      "sha256_ok": True, "download_s": round(download_s, 1)}
-            record.update(_extract(tgz, archive, wanted, image_root))
+                record = {"archive": n, "name": archive["name"], "bytes": archive["bytes"],
+                          "sha256": archive["sha256"], "sha256_ok": True, "download_s": round(download_s, 1)}
+                record.update(_extract(tgz, archive, wanted, image_root, pack_of(n)))
         except Exception as error:  # keep going: one bad archive should not stop a multi-day run
             print(f"[fetch] archive {n} failed: {error!r}", flush=True)
             failed.append({"archive": n, "error": repr(error)[:500]})
             continue
-        record["finished_utc"] = provenance.utc_now()
-        with open(record_path + ".part", "w", encoding="utf-8") as f:
-            json.dump(record, f)
-        os.replace(record_path + ".part", record_path)
-        if not source_dir:
+        _write_record(record_path, record)
+        if not source_dir:  # only the copy downloaded to images/tmp/ above; a source_dir archive is never touched
             os.remove(tgz)
         done.append(n)
-        print(f"[fetch] archive {n}: kept {record['kept']} of {record['wanted']}, {len(record['missing'])} missing, "
-              f"{len(record['undecodable'])} undecodable, logs match map: {record['logs_match_map']}", flush=True)
+        _print_kept(n, record)
     if pool:
         pool.shutdown()
     result = {"done_now": done, "failed": failed, "not_in_source_dir": not_yet, **status(out_dir, quiet=True)}
@@ -410,6 +719,10 @@ def status(out_dir: str, quiet: bool = False) -> Dict[str, Any]:
         "logs_not_matching_map": [r["archive"] for r in records if not r["logs_match_map"]],
         "archives_left": [n for n in manifest["archive_order"] if n not in {r["archive"] for r in records}],
     }
+    packed = [r for r in records if "pack" in r]
+    if packed:  # only for --storage pack, so a loose build's status is unchanged
+        result["archives_packed"] = len(packed)
+        result["pack_gb"] = round(sum(r["pack_bytes"] for r in packed) / 1e9, 2)
     if not quiet:
         print(json.dumps({k: v for k, v in result.items() if k != "archives_left"}, indent=1))
     return result
@@ -424,27 +737,53 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         p = sub.add_parser(name, help=text)
         p.add_argument("--out", required=True, help="dataset directory holding index/, e.g. data/pretrain/v1.0-pilot")
         if name == "plan":
-            p.add_argument("--set", default=selection.PILOT.name, choices=(selection.PILOT.name, selection.LARGE.name),
-                           help="v1-pilot (with smoke) or v1-large, each in its own dataset directory")
+            p.add_argument("--set", default=selection.PILOT.name,
+                           choices=(selection.PILOT.name, selection.LARGE.name, selection.XL.name),
+                           help="v1-pilot (with smoke), v1-large, or v1-xl (with v1-xl-nd; needs --extends), "
+                                "each in its own dataset directory")
+            p.add_argument("--extends", help="v1-xl: prefix of the base token files, "
+                                             "e.g. data/pretrain/v1.0-large/splits/v1-large")
+            p.add_argument("--map", default=ARCHIVE_MAP_URL, help="OpenScene's archive → log map: URL or local copy")
+            p.add_argument("--tree", default=ARCHIVE_TREE_URL,
+                           help="Hugging Face's file listing of the camera archives: URL or local copy")
         if name == "fetch":
             p.add_argument("--archives", type=int, default=SMOKE_ARCHIVES, help="the first N archives of the plan")
             p.add_argument("--full", action="store_true", help="allow more than the smoke set's archives (after Gate 1)")
             p.add_argument("--workers", type=int, default=1, help="archives downloading at once")
             p.add_argument("--source-dir", help="read archives already downloaded here; skip those not there yet")
-            p.add_argument("--shard", type=int, default=0, help="with --num-shards: this process's share of the archives")
-            p.add_argument("--num-shards", type=int, default=1)
+            p.add_argument("--shard", default="0",
+                           help="with --num-shards: this process's share of the archives; or i/k for both")
+            p.add_argument("--num-shards", type=int, default=None)
+            p.add_argument("--storage", default="loose", choices=STORAGE,
+                           help="loose: one file per JPEG (default); pack: one uncompressed zip per archive, "
+                                "images/packs/<n>.zip [proposed format]")
+            p.add_argument("--extract-workers", type=int, default=1,
+                           help="with --source-dir: archives extracted at once by a process pool")
     args = parser.parse_args(argv)
     if args.command == "plan":
-        manifest = plan(args.out, set_name=args.set)
+        if args.set == selection.XL.name and not args.extends:
+            parser.error(f"--set {selection.XL.name} needs --extends <base token file prefix>")
+        if args.extends and args.set != selection.XL.name:
+            parser.error(f"--extends is for --set {selection.XL.name} only")
+        manifest = plan(args.out, args.map, args.tree, set_name=args.set, extends=args.extends)
         print(json.dumps({k: manifest[k] for k in ("frames_to_keep", "smoke_archives", "download_gb")}))
         for name, report in manifest["selections"].items():
-            print(name, {s: (r["selected"], r["target"], r["logs"]) for s, r in report["splits"].items()},
+            print(name, {s: (r["selected"], r.get("target"), r["logs"]) for s, r in report["splits"].items()},
                   f"~{report['images_gb_estimate']} GB (D)")
+        if "label_conflicts" in manifest:
+            print("label conflicts (report only):", json.dumps(manifest["label_conflicts"]["rows"]))
     elif args.command == "fetch":
         if args.archives > SMOKE_ARCHIVES and not args.full:
             parser.error(f"more than {SMOKE_ARCHIVES} archives needs --full: the full run waits for Gate 1 (plan §6)")
+        try:
+            shard, num_shards = parse_shard(args.shard, args.num_shards)
+        except ValueError as error:
+            parser.error(str(error))
+        if args.extract_workers > 1 and not args.source_dir:
+            parser.error("--extract-workers needs --source-dir")
         result = fetch(args.out, args.archives, source_dir=args.source_dir, workers=args.workers,
-                       shard=args.shard, num_shards=args.num_shards)
+                       shard=shard, num_shards=num_shards, storage=args.storage,
+                       extract_workers=args.extract_workers)
         sys.exit(1 if result["failed"] else 0)
     else:
         status(args.out)

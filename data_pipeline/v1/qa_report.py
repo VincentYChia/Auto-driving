@@ -26,7 +26,7 @@ from typing import Any, Dict, Optional, Sequence
 
 import numpy as np
 
-from data_pipeline.v1 import projection, provenance, stats, tables
+from data_pipeline.v1 import image_store, projection, provenance, stats, tables
 from data_pipeline.v1.openscene_index import PATH_OFFSETS_S
 
 RENDER_WIDTH = 960
@@ -36,9 +36,11 @@ HORIZON_CHECK = (PATH_OFFSETS_S >= 1.0) & (PATH_OFFSETS_S <= 4.0)
 MOVING_MPS = 2.0
 TIME_ERR_EDGES = (0.0, 0.001, 0.005, 0.01, 0.02, 0.05, stats.INF)
 SPEED_EDGES = (0.0, 0.3, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, stats.INF)
-COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "image_w", "image_h", "K", "dist",
-           "cam_to_ego", "path_xyyaw", "path_valid", "path_t_s", "speed", "accel_lon", "command", "has_route",
-           "crosses_scene_boundary", "flag_speed_consistent", "flag_standstill", "max_time_err_s", "in_navtrain")
+COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "source_archive", "image_w", "image_h",
+           "K", "dist", "cam_to_ego", "path_xyyaw", "path_valid", "path_t_s", "speed", "accel_lon", "command",
+           "has_route", "crosses_scene_boundary", "flag_speed_consistent", "flag_standstill", "max_time_err_s",
+           "in_navtrain")
+SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd")  # as canonical.SETS
 
 
 def pixels(frames: tables.Columns, k: int) -> np.ndarray:
@@ -73,7 +75,8 @@ def render(out_dir: str, frames: tables.Columns, k: int) -> str:
     """The native JPEG, downscaled, with the projected path drawn on it, as a data URL."""
     from PIL import Image, ImageDraw
 
-    with Image.open(os.path.join(out_dir, *str(frames["image_path"][k]).split("/"))) as image:
+    data = image_store.read_image(out_dir, str(frames["image_path"][k]), int(frames["source_archive"][k]))
+    with Image.open(io.BytesIO(data)) as image:  # the loose original, else its pack member
         image = image.convert("RGB")
         scale = RENDER_WIDTH / image.width
         image = image.resize((RENDER_WIDTH, round(image.height * scale)))
@@ -190,11 +193,8 @@ def build(out_dir: str, set_name: str = "smoke", n: int = 50, seed: int = 0) -> 
         points=f"{hc['points']:,}", checks=checks, charts=charts, cards="".join(cards))
     qa_dir = os.path.join(out_dir, "qa")
     os.makedirs(qa_dir, exist_ok=True)
-    with open(os.path.join(qa_dir, "report.html"), "w", encoding="utf-8") as f:
-        f.write(page)
-    with open(os.path.join(qa_dir, "summary.json"), "w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=1)
-        f.write("\n")
+    provenance.write_text(os.path.join(qa_dir, "report.html"), page)
+    provenance.write_text(os.path.join(qa_dir, "summary.json"), json.dumps(summary, indent=1) + "\n")  # last: done
     return summary
 
 
@@ -240,7 +240,7 @@ mirrored left/right, or bent the wrong way means a convention is wrong. Numeric 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Gate 1 QA report: renders and distributions of the canonical record.")
     parser.add_argument("--out", required=True, help="dataset directory, e.g. data/pretrain/v1.0-pilot")
-    parser.add_argument("--set", default="smoke", choices=("smoke", "v1-pilot", "v1-large"))
+    parser.add_argument("--set", default="smoke", choices=SETS)
     parser.add_argument("--n", type=int, default=50, help="number of renders")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args(argv)

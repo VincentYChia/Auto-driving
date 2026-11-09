@@ -1,4 +1,5 @@
 import json
+import os
 import re
 
 import numpy as np
@@ -67,7 +68,8 @@ def test_cruise_cap_holds_when_other_classes_suffice_and_is_reported_when_not():
 def test_gap_filling_packs_close_to_the_spacing_limit():
     cands = fake(400, ["train"])  # 200 s: at most 100 anchors 2 s apart
     rows, report = selection.select(cands, SelectionConfig("t", n_train=100, n_dev=0))
-    assert report["splits"]["train"]["selected"] >= 80  # random order alone reaches ~75
+    # random order alone reaches 83 (V, 2026-11-08); the fill pass then adds nothing
+    assert report["splits"]["train"]["selected"] >= 80 and report["splits"]["train"]["stages"]["fill"] == 0
     assert min(np.diff(sorted(cands["t_us"][rows]))) >= 1.95e6
 
 
@@ -112,6 +114,124 @@ def test_balanced_draw_favours_rare_city_and_manoeuvre_cells_in_train_only():
     assert weighted["splits"]["dev"] == plain["splits"]["dev"]  # dev keeps the natural mix
     again, _ = selection.select(cands, balanced)
     assert again.tolist() == selection.select(cands, balanced)[0].tolist()
+
+
+def test_fixed_none_and_no_fixed_rows_select_the_same_and_report_the_stages():
+    cands = fake(400, ["train"] * 4 + ["dev"])
+    cands["decision_lat"][::3] = "curve_left"
+    cands["city"] = np.where(cands["log_name"] == "log0", "sg-one-north", "us-nv-las-vegas-strip").astype(object)
+    config = SelectionConfig("t", n_train=150, n_dev=30, spacing_s=2.0, balance_alpha=0.5)
+    rows, report = selection.select(cands, config)
+    for fixed in ([], np.zeros(0, dtype=np.int64), {"train": [], "dev": []}):
+        again, other = selection.select(cands, config, fixed=fixed)
+        assert again.tolist() == rows.tolist() and other == report
+    split = report["splits"]["train"]
+    assert split["fixed"] == 0 and split["added"] == split["selected"] == 150
+    assert sum(split["stages"].values()) == 150 and split["stages"]["others_1"] == 150 - int(0.4 * 150)
+
+
+def test_fixed_rows_that_are_the_whole_draw_reproduce_it():
+    cands = fake(400, ["train"] * 3 + ["dev"])
+    cands["city"] = np.full(len(cands["t_us"]), "us-ma-boston", dtype=object)
+    config = SelectionConfig("t", n_train=120, n_dev=20, spacing_s=2.0, balance_alpha=0.5)
+    rows, _ = selection.select(cands, config)
+    again, report = selection.select(cands, config, fixed=rows)
+    assert again.tolist() == rows.tolist() and report["splits"]["train"]["added"] == 0
+
+
+def test_a_superset_at_closer_spacing_keeps_every_fixed_row_and_the_dev_set():
+    cands = fake(400, ["train"] * 4 + ["dev"] * 2)
+    cands["decision_lat"][::4] = "curve_left"
+    cands["city"] = np.where(cands["log_name"] == "log0", "sg-one-north", "us-nv-las-vegas-strip").astype(object)
+    small = SelectionConfig("small", n_train=200, n_dev=40, spacing_s=2.0, balance_alpha=0.5)
+    rows, _ = selection.select(cands, small)
+    split = cands["our_split"][rows]
+    fixed = {"train": rows[split == "train"], "dev": rows[split == "dev"]}
+    big = SelectionConfig("big", n_train=400, n_dev=40, spacing_s=1.0, balance_alpha=0.5)
+    sup, report = selection.select(cands, big, fixed=fixed)
+    train = report["splits"]["train"]
+    assert np.isin(rows, sup).all() and train["shortfall"] == 0 and train["fixed"] == 200 and train["added"] == 200
+    assert not train["cruise_cap_exceeded"] and sum(train["stages"].values()) == 200  # the quota counts fixed rows
+    dev = sup[cands["our_split"][sup] == "dev"]
+    assert dev.tolist() == fixed["dev"].tolist() and report["splits"]["dev"]["added"] == 0
+    for times in times_by_log(cands, sup).values():
+        assert min(np.diff(times)) >= 0.95e6
+
+
+@pytest.mark.parametrize("n_dev, added", [(20, 0), (24, 4)])
+def test_cruise_heavy_fixed_rows_never_push_a_split_past_its_target(n_dev, added):
+    cands = fake(400, ["train", "train", "dev"])
+    cands["decision_lat"][1::2] = "curve_left"  # odd rows other classes, even rows cruise
+    dev_rows = np.flatnonzero(cands["our_split"] == "dev")
+    fixed_dev = dev_rows[::4][:20]  # 20 cruise rows, 2 s apart: more than 40 % cruise
+    rows, report = selection.select(cands, SelectionConfig("t", n_train=40, n_dev=n_dev, spacing_s=1.0),
+                                    fixed={"dev": fixed_dev})
+    dev = report["splits"]["dev"]
+    assert dev["selected"] == n_dev and dev["shortfall"] == 0 and dev["added"] == added
+    assert set(fixed_dev) <= set(rows.tolist())
+
+
+def test_fixed_rows_that_break_a_rule_raise():
+    cands = fake(100, ["train", "dev"])
+    config = SelectionConfig("t", n_train=40, n_dev=10, spacing_s=2.0)
+    with pytest.raises(RuntimeError, match="closer than"):
+        selection.select(cands, config, fixed=[0, 2])  # 1.0 s apart in log0
+    cands["pose_ok"][5] = False
+    with pytest.raises(RuntimeError, match="rule 2, 3 or 5"):
+        selection.select(cands, config, fixed=[5])
+    with pytest.raises(RuntimeError, match="unavailable"):
+        selection.select(cands, config, available_logs=["log1"], fixed=[10])
+    cands["standstill"][:20] = True  # thinning keeps rows 0 and 10 of log0
+    with pytest.raises(RuntimeError, match="standstill thinning"):
+        selection.select(cands, config, fixed=[0, 4])
+    with pytest.raises(RuntimeError, match="not in the index's dev split"):
+        selection.select(cands, config, fixed={"dev": [30]})  # row 30 is in log0, a train log
+    with pytest.raises(ValueError, match="twice"):
+        selection.select(cands, config, fixed=[30, 30])
+    with pytest.raises(RuntimeError, match="exceed the target"):
+        selection.select(cands, SelectionConfig("t", n_train=1, n_dev=0, spacing_s=2.0), fixed=[30, 40])
+
+
+def test_check_raises_when_a_fixed_row_is_not_selected():
+    cands = fake(20, ["train"])
+    base = selection.eligible(cands)
+    codes = selection.log_codes(cands)
+    selection._check(cands, np.array([0, 4]), base, codes, 2.0, fixed=np.array([4]))
+    with pytest.raises(RuntimeError, match="fixed row"):
+        selection._check(cands, np.array([0, 4]), base, codes, 2.0, fixed=np.array([8]))
+
+
+REAL = os.path.join(os.path.dirname(__file__), "..", "..", "data", "pretrain")
+REAL_INDEX = os.path.join(REAL, "v1.0-large", "index", "candidates.parquet")
+
+
+@pytest.fixture(scope="module")
+def real():
+    """The real index and the committed token files (local only; skipped where the index is absent)."""
+    if not os.path.exists(REAL_INDEX):
+        pytest.skip("the real candidate index is not here")
+    from data_pipeline.v1 import openscene_images, tables
+
+    cands = tables.read(REAL_INDEX, openscene_images.PLAN_COLUMNS)
+    with open(os.path.join(REAL, "v1.0-large", "images", "archives.json"), encoding="utf-8") as f:
+        archives = json.load(f)
+    with open(os.path.join(REAL, "v1.0-pilot", "splits", "manifest.json"), encoding="utf-8") as f:
+        smoke_archives = json.load(f)["smoke_archives"]
+    return cands, archives, smoke_archives
+
+
+@pytest.mark.parametrize("config, folder, logs", [(selection.PILOT, "v1.0-pilot", "all"),
+                                                  (selection.LARGE, "v1.0-large", "all"),
+                                                  (selection.SMOKE, "v1.0-pilot", "smoke")])
+def test_fixed_none_reproduces_the_committed_token_files(real, config, folder, logs):
+    cands, archives, smoke_archives = real
+    numbers = list(archives) if logs == "all" else [str(n) for n in smoke_archives]
+    rows, _ = selection.select(cands, config, available_logs=[lg for n in numbers for lg in archives[n]["logs"]],
+                               fixed=None)
+    for split in ("train", "dev"):
+        with open(os.path.join(REAL, folder, "splits", f"{config.name}_tokens_{split}.txt"), encoding="utf-8") as f:
+            committed = f.read().split()
+        assert sorted(cands["token"][rows][cands["our_split"][rows] == split].tolist()) == committed
 
 
 def test_simulate_uses_an_archive_sized_share_of_logs():

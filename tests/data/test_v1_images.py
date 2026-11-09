@@ -2,6 +2,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import tarfile
 
 import pytest
@@ -181,6 +182,152 @@ def test_parallel_downloads_extract_in_plan_order_and_keep_the_same_images(tmp_p
     assert not list((indexed / "images" / "tmp").iterdir())  # every downloaded archive was deleted
 
 
+def pack_file(out, n):
+    return out / "images" / "packs" / f"{n}.zip"
+
+
+def test_fetch_pack_keeps_the_same_bytes_in_one_reproducible_zip_per_archive(tmp_path, indexed):
+    import zipfile
+
+    from data_pipeline.v1 import canonical, image_store
+
+    src, archive_map, archive_tree = write_archives(tmp_path, indexed)
+    openscene_images.plan(str(indexed), archive_map, archive_tree)
+    sources = {p.name: p.read_bytes() for p in src.iterdir()}
+    result = openscene_images.fetch(str(indexed), source_dir=str(src), storage="pack")
+    wanted = read_tokens(indexed, "v1-pilot") | read_tokens(indexed, "smoke")
+    assert result["failed"] == [] and sorted(result["done_now"]) == [0, 1] and result["images_kept"] == len(wanted)
+    assert result["archives_packed"] == 2 and result["pack_gb"] >= 0
+    assert not (indexed / "images" / "CAM_F0").exists()  # no file per frame
+    assert not list((indexed / "images").rglob("*.part"))
+    assert {p.name: p.read_bytes() for p in src.iterdir()} == sources  # source archives untouched, none deleted
+
+    first = {}
+    for n in (0, 1):
+        record = json.loads((indexed / "images" / "archives" / f"{n}.json").read_text())
+        path = pack_file(indexed, n)
+        data = path.read_bytes()
+        first[n] = data
+        assert record["pack"] == f"images/packs/{n}.zip" == image_store.pack_relpath(n)
+        assert record["pack_bytes"] == len(data) and record["pack_sha256"] == hashlib.sha256(data).hexdigest()
+        assert record["pack_members"] == record["kept"] == len(record["images"])
+        assert record["members"] > record["kept"]  # still the tar members streamed (it holds a CAM_B0 file too)
+        with zipfile.ZipFile(path) as z:
+            infos = z.infolist()
+            names = [i.filename for i in infos]
+            assert names == sorted(canonical.image_path(i["log"], i["token"]) for i in record["images"])
+            assert all(i.compress_type == zipfile.ZIP_STORED and i.date_time == (1980, 1, 1, 0, 0, 0)
+                       and i.create_system == 3 and i.external_attr >> 16 == 0o100644 for i in infos)
+            assert z.testzip() is None
+            by_name = {canonical.image_path(i["log"], i["token"]): i for i in record["images"]}
+            for name in names:  # byte for byte: the member's SHA-256 is the record's
+                assert hashlib.sha256(z.read(name)).hexdigest() == by_name[name]["sha256"]
+        for image in record["images"]:
+            got = image_store.read_image(str(indexed), canonical.image_path(image["log"], image["token"]), n)
+            assert hashlib.sha256(got).hexdigest() == image["sha256"]
+    image_store.close_all()
+
+    # Packing again gives the same bytes: once more in place, and in a second dataset folder.
+    for n in (0, 1):
+        (indexed / "images" / "archives" / f"{n}.json").unlink()
+    again = openscene_images.fetch(str(indexed), source_dir=str(src), storage="pack")
+    assert sorted(again["done_now"]) == [0, 1]
+    assert {n: pack_file(indexed, n).read_bytes() for n in (0, 1)} == first
+    other = tmp_path / "other"
+    (other / "images").mkdir(parents=True)
+    for part in ("index", "splits"):
+        shutil.copytree(indexed / part, other / part)
+    shutil.copyfile(indexed / "images" / "archives.json", other / "images" / "archives.json")
+    openscene_images.fetch(str(other), source_dir=str(src), storage="pack", shard="1/2")
+    openscene_images.fetch(str(other), source_dir=str(src), storage="pack", shard="0/2")
+    assert {n: pack_file(other, n).read_bytes() for n in (0, 1)} == first
+
+
+def test_pack_bytes_do_not_depend_on_member_order(tmp_path):
+    from data_pipeline.v1 import image_store
+
+    members = [(f"images/CAM_F0/log_a/t{k}.jpg", jpeg(k)) for k in range(5)]
+    a = image_store.write_pack(str(tmp_path / "a.zip"), members)
+    b = image_store.write_pack(str(tmp_path / "b.zip"), list(reversed(members)))
+    assert a == b and a["members"] == 5 and (tmp_path / "a.zip").read_bytes() == (tmp_path / "b.zip").read_bytes()
+    assert not list(tmp_path.glob("*.part"))
+    with pytest.raises(ValueError):
+        image_store.write_pack(str(tmp_path / "c.zip"), members + members[:1])
+
+
+def test_read_image_prefers_the_loose_file_and_reopens_packs_in_a_new_process(tmp_path, monkeypatch):
+    import zipfile
+
+    from data_pipeline.v1 import image_store
+
+    image_store.close_all()
+    name = "images/CAM_F0/log_a/t0.jpg"
+    image_store.write_pack(image_store.pack_path(str(tmp_path), 7), [(name, b"packed")])
+    assert image_store.read_image(str(tmp_path), name, 7) == b"packed"
+    handle = image_store._open[os.path.abspath(image_store.pack_path(str(tmp_path), 7))]
+    assert image_store.read_image(str(tmp_path), name, 7) == b"packed"  # one ZipFile per pack and process
+    assert image_store._open[os.path.abspath(image_store.pack_path(str(tmp_path), 7))] is handle
+    monkeypatch.setattr(image_store.os, "getpid", lambda: -1)  # as in a forked worker
+    assert image_store.read_image(str(tmp_path), name, 7) == b"packed"
+    assert image_store._open[os.path.abspath(image_store.pack_path(str(tmp_path), 7))] is not handle
+    monkeypatch.undo()
+    handle.close()
+    loose = tmp_path / "images" / "CAM_F0" / "log_a" / "t0.jpg"
+    loose.parent.mkdir(parents=True)
+    loose.write_bytes(b"loose")
+    assert image_store.read_image(str(tmp_path), name, 7) == b"loose"
+    with pytest.raises(FileNotFoundError, match=r"t1\.jpg is not in .*7\.zip \(archive 7\)"):
+        image_store.read_image(str(tmp_path), "images/CAM_F0/log_a/t1.jpg", 7)
+    with pytest.raises(FileNotFoundError):
+        image_store.read_image(str(tmp_path), "images/CAM_F0/log_a/t1.jpg", 8)
+    image_store.close_all()
+    assert zipfile.is_zipfile(image_store.pack_path(str(tmp_path), 7))
+
+
+def test_fetch_extract_workers_pack_the_same_bytes_as_one_process(tmp_path, indexed):
+    src, archive_map, archive_tree = write_archives(tmp_path, indexed)
+    openscene_images.plan(str(indexed), archive_map, archive_tree)
+    order = json.loads((indexed / "splits" / "manifest.json").read_text())["archive_order"]
+    serial = openscene_images.fetch(str(indexed), source_dir=str(src), storage="pack")
+    packs = {n: pack_file(indexed, n).read_bytes() for n in (0, 1)}
+    images = {n: json.loads((indexed / "images" / "archives" / f"{n}.json").read_text())["images"] for n in (0, 1)}
+    for n in (0, 1):
+        (indexed / "images" / "archives" / f"{n}.json").unlink()
+        pack_file(indexed, n).unlink()
+    pooled = openscene_images.fetch(str(indexed), source_dir=str(src), storage="pack", extract_workers=2)
+    assert pooled["failed"] == [] and pooled["done_now"] == order == sorted(serial["done_now"], key=order.index)
+    assert {n: pack_file(indexed, n).read_bytes() for n in (0, 1)} == packs
+    assert {n: json.loads((indexed / "images" / "archives" / f"{n}.json").read_text())["images"]
+            for n in (0, 1)} == images
+    assert sorted(p.name for p in src.iterdir()) == sorted(openscene_images.ARCHIVE_NAME.format(n=n) for n in (0, 1))
+    with pytest.raises(ValueError):
+        openscene_images.fetch(str(indexed), extract_workers=2)  # downloads extract one at a time
+
+
+def test_fetch_cli_takes_storage_and_shard_as_i_of_k(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_fetch(*args, **kwargs):
+        seen.update(kwargs)
+        return {"failed": []}
+
+    monkeypatch.setattr(openscene_images, "fetch", fake_fetch)
+    with pytest.raises(SystemExit) as stop:
+        openscene_images.main(["fetch", "--out", "o", "--source-dir", "s", "--storage", "pack", "--shard", "3/96",
+                               "--extract-workers", "4"])
+    assert stop.value.code == 0
+    assert (seen["storage"], seen["shard"], seen["num_shards"], seen["extract_workers"]) == ("pack", 3, 96, 4)
+    with pytest.raises(SystemExit):
+        openscene_images.main(["fetch", "--out", "o"])
+    assert (seen["storage"], seen["shard"], seen["num_shards"]) == ("loose", 0, 1)  # today's defaults
+    for bad in (["--shard", "96/96"], ["--shard", "1/2", "--num-shards", "3"], ["--storage", "tar"],
+                ["--extract-workers", "2"]):
+        with pytest.raises(SystemExit) as stop:
+            openscene_images.main(["fetch", "--out", "o", *bad])
+        assert stop.value.code == 2
+    assert openscene_images.parse_shard(1, 2) == (1, 2) and openscene_images.parse_shard("5/8") == (5, 8)
+
+
 def test_fetch_refuses_an_archive_whose_checksum_differs(tmp_path, indexed):
     src, archive_map, archive_tree = write_archives(tmp_path, indexed)
     openscene_images.plan(str(indexed), archive_map, archive_tree)
@@ -243,3 +390,22 @@ def test_download_drops_a_slow_connection_and_resumes_where_it_stopped(tmp_path,
 def test_fetch_needs_full_for_more_than_the_smoke_archives(tmp_path, indexed):
     with pytest.raises(SystemExit):
         openscene_images.main(["fetch", "--out", str(indexed), "--archives", str(openscene_images.SMOKE_ARCHIVES + 1)])
+
+
+def test_write_pack_refuses_a_part_file_damaged_while_it_was_written(tmp_path, monkeypatch):
+    from data_pipeline.v1 import image_store
+
+    members = [(f"images/CAM_F0/log_a/t{i}.jpg", bytes([i]) * 1000) for i in range(5)]
+    path = str(tmp_path / "packs" / "3.zip")
+    real_fsync = image_store.os.fsync
+
+    def truncated_by_another_job(fd):  # what a second job's open(part, "wb") does mid-write
+        real_fsync(fd)
+        with open(path + ".part", "r+b") as f:
+            f.seek(100)
+            f.write(b"\0" * 2000)
+
+    monkeypatch.setattr(image_store.os, "fsync", truncated_by_another_job)
+    with pytest.raises(RuntimeError, match="read"):
+        image_store.write_pack(path, members)
+    assert not os.path.exists(path)  # never renamed into place, so no record can follow

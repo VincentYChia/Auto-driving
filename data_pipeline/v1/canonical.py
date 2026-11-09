@@ -3,7 +3,9 @@ frame whose CAM_F0 image was kept in step 3, and the checks on it.
 
     python -m data_pipeline.v1.canonical --out data/pretrain/v1.0-pilot [--sets smoke v1-pilot]
 
-Inputs: ``index/`` (step 2), ``splits/<set>_tokens_<split>.txt`` and ``images/`` (step 3), and the
+Inputs: ``index/`` (step 2), ``splits/<set>_tokens_<split>.txt`` and ``images/`` (step 3: loose JPEGs
+or their packs ``images/packs/<n>.zip``, read through ``image_store``; ``image_path`` names the same
+bytes either way), and the
 metadata archive (``--metadata``, default ``data/pretrain/downloads/openscene_metadata_trainval.tgz``;
 only the selected logs are unpickled) for the other cameras' paths and the privileged data.
 
@@ -22,11 +24,13 @@ can run on the smoke set while the full fetch is still going.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
 import sys
 import time
+import zipfile
 from collections import Counter
 from glob import glob
 from typing import Any, Dict, List, Optional, Sequence, Set
@@ -34,10 +38,10 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 import numpy as np
 
 from data_pipeline import labels
-from data_pipeline.v1 import openscene_index, projection, provenance, safe_pickle, stats, tables
+from data_pipeline.v1 import image_store, openscene_index, projection, provenance, safe_pickle, stats, tables
 from data_pipeline.v1.openscene_index import ANCHOR, CAMERA, CORE, PATH_OFFSETS_S
 
-SETS = ("smoke", "v1-pilot", "v1-large")
+SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd")  # v1-xl-nd [proposed]: v1-xl spec §2.2
 METADATA = os.path.join("data", "pretrain", "downloads", "openscene_metadata_trainval.tgz")
 OTHER_CAMERAS = ("CAM_L0", "CAM_R0", "CAM_L1", "CAM_R1", "CAM_L2", "CAM_R2", "CAM_B0")
 LICENCE = "CC BY-NC-SA 4.0 (nuPlan, OpenScene)"
@@ -303,9 +307,7 @@ def build(out_dir: str, sets: Sequence[str] = ("smoke",), metadata: str = METADA
         tables.write(path, columns, metadata=meta[os.path.basename(name)])
         report["outputs"][name] = {"rows": n, "bytes": os.path.getsize(path), "sha256": provenance.sha256_file(path)}
     report["runtime_s"] = round(time.time() - started, 1)
-    with open(os.path.join(out_dir, "canonical.json"), "w", encoding="utf-8") as f:
-        json.dump(report, f, indent=1)
-        f.write("\n")
+    provenance.write_text(os.path.join(out_dir, "canonical.json"), json.dumps(report, indent=1) + "\n")  # last: done
     return report
 
 
@@ -356,11 +358,15 @@ def run_checks(out_dir: str, frames: tables.Columns, c: tables.Columns, x: List[
         "boxes_per_frame": stats.percentiles([len(e["gt_boxes"]) for e in x]),
     }))
     if verify_images:
-        def ok(p: str, sha: str) -> bool:
-            path = os.path.join(out_dir, *p.split("/"))
-            return os.path.exists(path) and provenance.sha256_file(path) == sha
+        def ok(p: str, sha: str, archive: int) -> bool:  # the loose file, else the pack member (image_store)
+            try:
+                data = image_store.read_image(out_dir, p, int(archive))
+            except (OSError, KeyError, zipfile.BadZipFile):  # absent, or a damaged member (CRC-32)
+                return False
+            return hashlib.sha256(data).hexdigest() == sha
 
-        bad = [p for p, sha in zip(frames["image_path"], frames["image_sha256"]) if not ok(p, sha)]
+        bad = [p for p, sha, a in zip(frames["image_path"], frames["image_sha256"], frames["source_archive"])
+               if not ok(p, sha, a)]
         out.append(_check(not bad, "every image file matches its step-3 SHA-256", len(bad)))
     return out
 

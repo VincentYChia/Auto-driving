@@ -8,16 +8,18 @@
   - **Step 4 ran on the smoke set:** 11,000 frames, every check passed; the Gate 1 report is in `qa/report.html`, and Claude looked at its renders (the path lies on the road and follows the lane). **Gate 1 still needs your look** at the 50 renders.
   - **Step 5 started before that look:** the full fetch is running. The selection was fixed at Gate 0, and Gate 1 changes the record, not which images are kept.
   - **Steps 6 and 7 are coded**; step 7 ran on the smoke set. The fine-tuning code is in `pilot_sft/` (its README has the platforms and costs). Step 6b is not needed for the first test model, which writes its path as text.
+- **v1-large, 2026-11-03/04:** v1-pilot's rules and seed with 100,000 train + v1-pilot's 2,000 dev, built on Anvil; every canonical check passes (V). Not released (§10).
+- **v1-xl, 2026-11-08 [agreed]:** train anchors ≥ 1.0 s apart, about 2× v1-large, same rules and dev, images packed into archive files. Plan, build job and checks are written; the build runs on Anvil next. A nested subset, v1-xl-nd, is [proposed] for an A/B (§10). Gate 1 and Gate 2 are still open for both sets.
 
 **Researcher decisions, 2026-10-27 [agreed]:**
 - **Source:** OpenScene trainval only for the first build. Other sources come later, once access is confirmed.
 - **Images:** native, not rectified.
   - Aim: a general-purpose model that learns every camera.
   - Rectify only if results are poor.
-- **Size:** a small first test, 10k–100k samples.
+- **Size:** a small first test, 10k–100k samples. **Changed [agreed 2026-11-08]:** v1-large has 100k and v1-xl 200k train samples (§10).
 - **Cameras:** the front camera only.
-- **Storage:** local only, inside the repo (`data/pretrain/`). No persistent storage for now (§5).
-- **Compute (2026-10-29):** the data build runs on your own computer [agreed]. Fine-tuning compute is [open]: perhaps a rented cloud GPU, or Anvil (§6).
+- **Storage:** local only, inside the repo (`data/pretrain/`). No persistent storage for now (§5). **Changed [agreed 2026-11-08]:** v1-large and v1-xl live on Anvil scratch, outside the repo, and v1-xl's images are packed into uncompressed archive files (§10). Their ID lists are still committed.
+- **Compute (2026-10-29):** the data build runs on your own computer [agreed]. Fine-tuning compute is [open]: perhaps a rented cloud GPU, or Anvil (§6). **Changed [agreed 2026-11-08]:** v1-large and v1-xl are built on Anvil, on CPU (§10).
 
 **Gate 0, 2026-10-31 [agreed]:** "more variety", and about **10 GB** of training data on the local computer.
 - **v1-pilot = 45,000 train + 2,000 dev** samples, ~9.9 GB of CAM_F0 JPEGs (D, at the measured 211 KB each).
@@ -77,7 +79,7 @@ Applied in this order. Everything except image decoding runs on the metadata, so
 | 4 | **Split** | **dev = NAVSIM's official val logs; train = its train logs.** Logs in neither go to train (count reported) | Standard NAVSIM practice; dev never leaks into training or fine-tuning |
 | 5 | **Leakage guard** | Assert that no log appears in NAVSIM's test list (navtest / navhard) | NAVSIM rule |
 | 6 | **Standstill thinning** | During continuous standstill (speed < 0.3 m/s, < 0.5 m of movement over the window), keep at most 1 anchor per 5 s | Standstill would otherwise dominate |
-| 7 | **Spacing** | ≥ 2 s between kept anchors in a log (smoke set: ≥ 1 s) | Neighbouring 0.5 s frames are near-duplicates |
+| 7 | **Spacing** | ≥ 2 s between kept anchors in a log (smoke set: ≥ 1 s). **v1-xl train ≥ 1.0 s [agreed 2026-11-08]; dev = v1-pilot's 2 s draw, pinned by token [proposed mechanics]** (§10) | Neighbouring 0.5 s frames are near-duplicates |
 | 8 | **Balance** | Cap "keep speed + straight" at 40% of the sample. **Train [agreed 2026-10-31]:** draw anchors in a weighted random order, weight n^−α, where n counts the pool anchors with the same city and lateral decision (α = 0.5 [proposed]). Dev keeps the natural mix | Imitation data is mostly cruising, and 76% Las Vegas |
 | 9 | **Keep, but flag** | No route (command unknown); windows that cross a nuPlan scene boundary; frames that are in navtrain | Still valid driving; the flags let you filter later |
 
@@ -93,7 +95,7 @@ Files are Parquet. One row per kept anchor.
 | `nuplan_split`, `our_split` | str | train / val → train / dev |
 | `city`, `traffic_side` | str | e.g. `us-nv-las-vegas-strip`, `right`; Singapore is `left` |
 | `in_navtrain` | bool | Token is in navtrain |
-| `image_path`, `image_sha256`, `image_w`, `image_h` | str / int | Native JPEG, copied byte-for-byte |
+| `image_path`, `image_sha256`, `image_w`, `image_h` | str / int | Native JPEG, copied byte-for-byte. v1-xl: the same bytes, stored in an archive file as the member named `image_path` [proposed format, §10] |
 | `cam_name`, `lens_model` | str | `CAM_F0`, `opencv5` |
 | `K` | float[4] | fx, fy, cx, cy |
 | `dist` | float[5] | k1, k2, p1, p2, k3 |
@@ -158,9 +160,11 @@ data/pretrain/v1.0-pilot/
 ├── frames.parquet, privileged.parquet, labels/decision_rules_v0.1.parquet   # step 4
 ├── canonical.json                          # (git) step 4: counts, checks, table checksums
 ├── images/CAM_F0/<log>/<token>.jpg         # steps 3–4: native JPEGs
+├── images/packs/<n>.zip                    # v1-xl instead (`--storage pack`): one uncompressed archive per camera archive (§10)
 ├── qa/report.html                          # step 4: renders real images, so it stays local
 ├── qa/summary.json                         # (git) step 4: the report's aggregate numbers
 ├── views/pilot_v1/<set>/                   # step 7: {train,dev}.jsonl, images/ at 640 px, view.json, chat_*.jsonl
+│                                           #   v1-xl views (`--storage zip`): images.zip instead of images/ (§10)
 └── manifest.json, DATA_CARD.md             # (git) step 6: release manifest and data card; images/SHA256SUMS stays local
 data/pretrain/smoke/                        # smoke tests (first 20 logs); never committed
 data/pretrain/downloads/                    # metadata archive (6.6 GB) and NAVSIM's split lists; never committed
@@ -194,7 +198,7 @@ All figures are estimates (D), revised 2026-10-31.
 All resource figures in the table are estimates (D). Download times use the speeds measured on 2026-10-31: 1.6–16 MB/s (§2).
 
 **Where it runs (2026-10-29):**
-- **Data build, steps 1–7 [agreed]:** your own computer, CPU only; no GPU is needed.
+- **Data build, steps 1–7 [agreed]:** your own computer, CPU only; no GPU is needed. **Changed [agreed 2026-11-08]:** v1-large and v1-xl are built on Anvil's CPU partitions (§10).
   - Disk: ~7 GB for steps 1–2, and up to ~31 GB while the v1-pilot images are being built: ~11.9 GB of images plus one archive (§5).
 - **Fine-tuning [open]:** perhaps a rented cloud GPU, or Anvil.
   - The finished samples to upload are ~2 GB for the smoke set and ~9 GB for the v1-pilot.
@@ -301,6 +305,9 @@ Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs wi
 | Release (manifest, checksums, card) | `data_pipeline/v1/release.py` | **Written 2026-11-01**, tested on synthetic data. Runs after step 5; refuses while a check fails or images are missing |
 | Pilot view + chat export (step 7) | `data_pipeline/v1/pilot_view.py` | **Written 2026-11-01**, tested; ran on the smoke set |
 | Fine-tuning and evaluation of the pilot | `pilot_sft/` (reads only the view), `scripts/anvil/pilot_sft/train_lora.sbatch` | **Written 2026-11-01**. See `pilot_sft/README.md` |
+| v1-xl selection: superset of fixed rows; v1-xl-nd filter and label-conflict list | `selection.py` (`XL`, `select(..., fixed=)`), `data_pipeline/v1/novelty.py`, `openscene_images.py plan --extends` | **Written 2026-11-08** [proposed]. `fixed=None` keeps every earlier selection byte-identical |
+| Packed images: originals and views | `openscene_images.py fetch --storage pack`, `data_pipeline/v1/image_store.py`; `pilot_view.py build --storage zip`, `pilot_sft/view_images.py` | **Written 2026-11-08** [proposed format]. Default `loose` keeps today's layout; readers take the loose file first |
+| Anvil build and checks of v1-xl | `scripts/anvil/data_pipeline/build_v1_xl.{sh,sbatch}`, `verify_v1_xl.py` | **Written 2026-11-08**; not yet run on Anvil (§10) |
 | Tests | `tests/data/test_v1_index.py`, `tests/data/test_v1_select_audit.py`, `test_v1_images.py`, `test_v1_canonical.py` | Pass on Python 3.9 + numpy 1.23.4 (NAVSIM's pins) + pyarrow 16, and on Python 3.13 + numpy 2 |
 
 **Facts checked while writing the code (V):**
@@ -334,9 +341,106 @@ Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs wi
 
 ## 9. Defaults (confirmed by the researcher's "Yes", 2026-10-27; change any time)
 1. **Dev split** = NAVSIM's official val logs. 214 of navtrain's logs; final fine-tuning would then use the 978 train logs.
-2. **Balance:** cap "keep speed + straight" at 40%; thin standstills to 1 anchor per 5 s; space anchors ≥ 2 s apart.
+2. **Balance:** cap "keep speed + straight" at 40%; thin standstills to 1 anchor per 5 s; space anchors ≥ 2 s apart. **Changed for v1-xl [agreed 2026-11-08]:** train anchors ≥ 1.0 s apart; dev unchanged (§10).
 3. **Wide window:** store −4 … +6 s per anchor, although the pilot uses −1.5 … +4.0.
 4. **Privileged table:** keep boxes and lights for later teacher labels.
-5. **Sizes:** smoke set 10k, then 50k. **Changed at Gate 0 [agreed 2026-10-31]:** v1-pilot 45k + 2k dev (~10 GB), from all 200 archives.
-6. **Storage [agreed 2026-10-27]:** local, inside the repo (`data/pretrain/`). No persistent storage for now (§5).
-7. **Compute [agreed 2026-10-29]:** the data build runs on your own computer. Fine-tuning compute is still open: a cloud GPU or Anvil (§6).
+5. **Sizes:** smoke set 10k, then 50k. **Changed at Gate 0 [agreed 2026-10-31]:** v1-pilot 45k + 2k dev (~10 GB), from all 200 archives. **Changed [agreed 2026-11-08]:** v1-large 100k and v1-xl 200k train, each with v1-pilot's 2k dev (§10).
+6. **Storage [agreed 2026-10-27]:** local, inside the repo (`data/pretrain/`). No persistent storage for now (§5). **Changed [agreed 2026-11-08]:** v1-large and v1-xl on Anvil scratch; v1-xl's images packed (§10).
+7. **Compute [agreed 2026-10-29]:** the data build runs on your own computer. Fine-tuning compute is still open: a cloud GPU or Anvil (§6). **Changed [agreed 2026-11-08]:** the v1-large and v1-xl builds run on Anvil (§10).
+
+## 10. Anvil builds: v1-large and v1-xl
+Evidence marks: **V** measured, **R** reported and not re-checked, **D** derived.
+
+### v1-large [agreed 2026-11-03: a larger set, on Anvil; proposed: parameters]
+- **Selection:** `selection.LARGE` uses v1-pilot's rules and seed with `n_train` 100,000. At 2.0 s spacing, train is capped at 103,382 (V). Dev is v1-pilot's 2,000, byte-identical (V).
+- **Build, 2026-11-03/04 (V):** `build_v1_large.{sh,sbatch}` into `$TRAINING_DATA_ROOT/v1.0-large`. All 200 archives were streamed: 102,000 frames kept, 0 missing, 0 undecodable. Every canonical check passes. The view is `pilot_v1/v1-large` with prompt `pilot_v1.1`. Not released.
+- **Never run `build_v1_large.sbatch` again.** Its archive loop deletes the downloaded camera archives, which v1-xl now reads (re-downloaded 2026-11-08, V).
+
+### v1-xl [agreed 2026-11-08: 1.0 s spacing, about 2×, same rules and dev, packed images]
+- **The one rule change:** rule 7 for train becomes ≥ 1.0 s (−50 ms tolerance). Rules 1–6, 8 and 9 stay as they are, and so do α = 0.5, the 40% cruise cap, 1 standstill anchor per 5 s and seed 20261027.
+- **Superset and dev pinning [proposed mechanics]:**
+  - `XL = SelectionConfig("v1-xl", n_train=200_000, n_dev=2_000, spacing_s=1.0, balance_alpha=0.5)`.
+  - `select(..., fixed=…)` puts all 102,000 v1-large rows into the per-log picker first, in (log, time) order. They count against the quotas. A fixed row that is ineligible, thinned, too close to another or in the wrong split stops the plan.
+  - The 2,000 fixed dev rows fill `n_dev`, so no dev draw happens. Dev is v1-pilot's file (SHA-256 79090629…, V). Without pinning, a 1.0 s dev draw keeps only 1,901 of the 2,000 (V).
+- **v1-xl-nd [proposed]:** a subset of v1-xl train for an A/B against v1-xl at equal steps. It needs no extra extraction.
+  - It keeps every v1-large row.
+  - It drops an *added* Las Vegas row when a kept row of the same log within 1.5 s (+50 ms) is a near-duplicate: the same `decision_lon` and `decision_lat`, |Δspeed| < 0.5 m/s, |Δheading| < 2°, and a mean distance under 0.6 m between the two 4 s targets (`novelty.py`).
+  - Given v1-xl, it is deterministic. The thresholds are recorded in `splits/manifest.json`.
+- **Label conflicts [proposed, report only]:** `splits/v1-xl_label_conflicts.tsv` (token, set, reasons) lists the rows that fail the hard-bad label tests:
+  - the command contradicts the turn;
+  - speed is inconsistent;
+  - acceleration disagrees with the path by > 3 m/s², or exceeds 8 m/s²;
+  - slip > 20°;
+  - the heading turns > 0.1 rad in 0.5 s while moving < 0.2 m.
+
+  The plan flags 54 rows of v1-xl train and 1 of dev (V); the command contradictions alone are 37 (V). Nothing is dropped. A view option to exclude them is [proposed] and off.
+
+| (V, 2026-11-08) | v1-large | v1-xl | v1-xl-nd |
+|---|---|---|---|
+| Train / dev | 100,000 / 2,000 | 200,000 / the same 2,000 | 176,232 / the same 2,000 |
+| Contains all of v1-large train | yes | yes | yes |
+| Las Vegas | 76.08% | 75.21% | 71.87% |
+| Cruise ("keep speed + straight") | 34.12% | 39.96% | 33.15% |
+| Standstill | 16.66% | 9.66% | 10.76% |
+| Turns / lane changes | 8,176 / 2,280 | 18,734 / 3,439 | 18,728 / 3,431 |
+| Unknown command | 12.3% | 12.09% | 12.5% |
+| Near-duplicates within 1 s / 2 s | 0 / 14.6% | 42.2% / 47.0% | 23.9% / 34.1% |
+| Frames to extract | 102,000 | 202,000 with dev (100,000 new, in all 200 archives) | 0 extra |
+
+The 23,768 rows v1-xl-nd drops are all Las Vegas and 90.45% cruise, and include only 6 turns and 8 lane changes (V). Train token files: v1-xl SHA-256 d29d2426… (three independent scripts agree, V), v1-xl-nd f74bdbcd… (V).
+
+**Packed images [agreed 2026-11-08: packing; proposed: format]:**
+- **Why:** loose files would add ~415K files, taking scratch to ~1.33M against the 1.0M file quota. Packed, the build adds ~0.6K (D). Scratch held 919.4K files on 2026-11-08 (V).
+- **Originals:** `images/packs/<source_archive>.zip`, one per camera archive.
+  - Uncompressed (ZIP_STORED); Zip64 is automatic.
+  - Member name = canonical `image_path`, and the JPEG bytes are copied unchanged, so `image_path` and `image_sha256` keep their meaning.
+  - Members are sorted, with fixed 1980 timestamps, so a rebuild is byte-identical.
+  - Each pack is written as `.part`, read back against the frames it should hold, and renamed before the archive's record is written, so a run still resumes per archive and a pack damaged while it was written never gets a record.
+  - The record gains `pack`, `pack_members`, `pack_bytes` and `pack_sha256`. Its `members` key keeps its meaning, the number of tar members streamed.
+- **Views:** `<view>/images.zip`. Member = the jsonl `image` field (`images/<log>/<token>.jpg`), so `train.jsonl` and `dev.jsonl` are unchanged.
+- **Readers:** `image_store.py` (originals) and `pilot_sft/view_images.py` (views) read the loose file if it exists, else the zip member. Older loose builds and views keep working. A loose view build refuses a view folder that already holds `images.zip`, since the readers would serve the zip.
+
+**How to run (Anvil, from the repo root):**
+```bash
+python -m data_pipeline.v1.openscene_images plan --out data/pretrain/v1.0-xl --set v1-xl \
+    --extends data/pretrain/v1.0-large/splits/v1-large        # locally, seconds; commit splits/, git pull on Anvil
+bash scripts/anvil/data_pipeline/build_v1_xl.sh setup         # login node: copies index/, splits/, archives.json, SHA-checked
+OUT=$TRAINING_DATA_ROOT/v1.0-xl-smoke bash scripts/anvil/data_pipeline/build_v1_xl.sh setup     # smoke test first:
+OUT=$TRAINING_DATA_ROOT/v1.0-xl-smoke ARCHIVES=2 sbatch -A cis220051 -p debug --gpus-per-node=0 \
+    scripts/anvil/data_pipeline/build_v1_xl.sbatch            #   2 archives, pack reproducibility, canonical, views
+sbatch -A cis220051 -p debug --gpus-per-node=0 scripts/anvil/data_pipeline/build_v1_xl.sbatch  # repeat until "done"
+```
+- **The job:**
+  - fetch with `--storage pack`, 96 processes;
+  - cross-check the 102,000 shared frames' SHA-256 against v1.0-large's records;
+  - canonical for `v1-xl v1-xl-nd v1-large`;
+  - QA summary;
+  - the two zip views;
+  - the links `$TRAINING_DATA_ROOT/pilot_v1/{v1-xl,v1-xl-nd}`;
+  - `verify_v1_xl.py all`.
+- **Resuming across 30-minute debug slots:** each step is skipped once its output exists or its check passes. A step that would not fit in the time left stops the job cleanly ("RESUBMIT"). Fetch resumes per archive. The files a step takes as done (records, `canonical.json`, `qa/summary.json`, `view.json`) are written whole (`.part`, fsync, rename), so a job killed mid-write leaves no truncated marker.
+- **One job at a time:** two jobs on one `OUT` would write the same `.part` files. `#SBATCH --dependency=singleton` holds a second `v1-xl` job until the first ends, and a `flock` on `$OUT/.build_v1_xl.lock` refuses a second copy of the job script on the same `OUT` (e.g. one run with `bash`). A job submitted while another runs waits for it; do not run the pipeline commands by hand while a job runs.
+- **Quota guard:** before every step, `myquota` must show at least 20,000 files free on scratch, or the job stops. It also stops if `myquota` cannot be read. `myquota` reports a cached count, so it can lag by minutes.
+- **Nothing is deleted or moved.** The archives are read in place from `v1.0-large/archives_hf/openscene-v1.1/openscene_sensor_trainval_camera`, a path set in the script, not derived from `OUT`. v1.0-large is only read.
+- **What `verify_v1_xl.py` checks** (each step also writes `verify/<step>.json`):
+  - dev SHA-256 79090629… in all three sets;
+  - v1-large ⊂ v1-xl-nd ⊂ v1-xl, with the counts and train SHA-256 above;
+  - no token or log in NAVSIM's guarded sets, by the index's `our_split` (and the devkit's lists when present);
+  - train and dev logs disjoint;
+  - every pack holds exactly its record's frames, and 202,000 in total;
+  - the 102,000 shared frames match v1.0-large;
+  - every canonical check passes;
+  - the view zips hold exactly the jsonl images;
+  - each view's `dev.jsonl` is byte-identical to the v1-large view's;
+  - 50 dev images are byte-identical to the v1-large view's.
+
+  `DEEP=1` also runs `testzip` and re-hashes every zip (~55 GB read, D).
+- **Sizes (D):** packed originals ~41.6 GB, the v1-xl view ~10.1 GB, the v1-xl-nd view ~8.9 GB.
+
+**Open questions for the researcher [open]:**
+1. **NAVSIM-mix tilt.** Turns are 9.4% of v1-xl train (V) against 23.6% of navtrain, and cruise 40% against 15% (R). Tilt a later view towards navtrain's mix? A tilt needs no re-extraction.
+2. **Unknown-command rows:** 12.1% of v1-xl train (V), against 0% in navtrain (R). Keep them, as rule 9 does now, or leave them out of a view?
+3. **Standstill depth.** v1-xl keeps rule 6 (1 anchor per 5 s); standstill is 9.66% of train (V). 60.2% of its stopped samples stay within 0.5 m over 4 s (V), against 0.9% in navtrain (R). Keep this, or thin further?
+4. **Dev overlaps navtrain:** 475 of the 2,000 dev samples are navtrain tokens (R). This matters only for a fine-tune on navtrain.
+5. **Gate 1 and Gate 2:** the look at the 50 renders (v1-xl's `qa/report.html`), and the release sign-off. `release.py` takes only smoke and v1-pilot today (V). Training on the unreleased views follows v1-large's precedent.
+6. **After Nov 16:** scratch is flushed in the Nov 16–23 reservation (R). Where should a copy be kept?

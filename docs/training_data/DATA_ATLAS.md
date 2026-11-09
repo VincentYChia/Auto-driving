@@ -56,7 +56,7 @@ One record per kept front image. Every source is converted to this; nothing down
 | **motion** | speed, longitudinal and lateral acceleration, yaw rate at t, and whether each is measured or differenced | m/s, m/s², rad/s |
 | **command** | left / straight / right / unknown, and **how it was obtained** (route rule, native intent, turn signal, or derived from the path) | — |
 | **text** | each existing text item: kind (narration, reasoning, QA, caption, causal chain, instruction), author (human, model name, rules), source licence | — |
-| **flags** | pose jump, image–pose sync, path-projection check, standstill, near-duplicate group, traffic side (left- or right-hand) | — |
+| **flags** | pose jump, image–pose sync, path-projection check, standstill, near-duplicate group, traffic side (left- or right-hand). The near-duplicate test is implemented for OpenScene in `data_pipeline/v1/novelty.py` [proposed]: same longitudinal and lateral decisions, \|Δspeed\| < 0.5 m/s, \|Δheading\| < 2°, mean 4 s target distance < 0.6 m. It defines v1-xl-nd (`PRETRAIN_V1_PLAN.md` §10) and is not stored as a column | — |
 
 ## 2. What one moment looks like in each source
 

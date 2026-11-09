@@ -1,4 +1,6 @@
+import hashlib
 import json
+import zipfile
 
 import numpy as np
 import pytest
@@ -7,16 +9,15 @@ pytest.importorskip("pyarrow")
 pytest.importorskip("yaml")
 pytest.importorskip("PIL.Image")
 
-from data_pipeline.v1 import audit, canonical, navsim_splits, openscene_images, pilot_view, qa_report, release, tables  # noqa: E402
+from data_pipeline.v1 import audit, canonical, image_store, navsim_splits, openscene_images, pilot_view, qa_report, release, tables  # noqa: E402
 from data_pipeline.v1 import openscene_index as oi  # noqa: E402
 from data_pipeline.v1.openscene_index import PATH_OFFSETS_S  # noqa: E402
 from tests.data import v1_synthetic as v1  # noqa: E402
 from tests.data.test_v1_images import write_archives  # noqa: E402
 
 
-@pytest.fixture
-def fetched(tmp_path):
-    """Steps 2–3 on three synthetic logs: index, plan, and every archive fetched."""
+def build_dataset(tmp_path, storage="loose"):
+    """Steps 2–3 on three synthetic logs: index, plan, and every archive fetched with ``storage``."""
     logs = [v1.make_log(name, 60) for name in ("log_a", "log_b", "log_c")]
     for frames in logs:
         for frame in frames:
@@ -29,8 +30,14 @@ def fetched(tmp_path):
     audit.main(["--out", str(out)])
     src, archive_map, archive_tree = write_archives(tmp_path, out)
     openscene_images.plan(str(out), archive_map, archive_tree)
-    openscene_images.fetch(str(out), source_dir=str(src))
+    openscene_images.fetch(str(out), source_dir=str(src), storage=storage)
     return out, metadata
+
+
+@pytest.fixture
+def fetched(tmp_path):
+    """Steps 2–3 on three synthetic logs: index, plan, and every archive fetched."""
+    return build_dataset(tmp_path)
 
 
 def test_canonical_record_holds_every_selected_frame_once_with_its_image(fetched):
@@ -74,6 +81,40 @@ def test_canonical_catches_changed_images_and_leaves_out_unfetched_frames(fetche
     report = canonical.build(str(out), ("smoke",), str(metadata), verify_images=False)
     frames = tables.read(str(out / "frames.parquet"), ["log_name"])
     assert set(frames["log_name"]) == {"log_a"} and report["sets"]["smoke"]["missing_image"] == full - report["frames"]
+
+
+@pytest.fixture
+def packed(tmp_path):
+    """As ``fetched``, with ``fetch --storage pack``: no file per frame, one pack per archive."""
+    out, metadata = build_dataset(tmp_path, storage="pack")
+    yield out, metadata
+    image_store.close_all()  # Windows cannot delete an open pack
+
+
+def test_canonical_reads_packed_images_and_catches_a_damaged_member(packed):
+    out, metadata = packed
+    assert not (out / "images" / "CAM_F0").exists()
+    report = canonical.build(str(out), ("smoke", "v1-pilot"), str(metadata))
+    assert [c["check"] for c in report["checks"] if not c["ok"]] == []
+    frames = tables.read(str(out / "frames.parquet"), ["image_path", "image_sha256", "source_archive", "log_name",
+                                                       "token"])
+    k = 0
+    assert frames["image_path"][k] == f"images/CAM_F0/{frames['log_name'][k]}/{frames['token'][k]}.jpg"
+    with zipfile.ZipFile(out / "images" / "packs" / f"{frames['source_archive'][k]}.zip") as z:
+        assert hashlib.sha256(z.read(frames["image_path"][k])).hexdigest() == frames["image_sha256"][k]
+        info = z.getinfo(frames["image_path"][k])
+    summary = qa_report.build(str(out), "smoke", n=3)  # renders read the pack too
+    assert summary["canonical_checks_failed"] == [] and summary["renders"]["n"] == 3
+
+    image_store.close_all()
+    pack = out / "images" / "packs" / f"{frames['source_archive'][k]}.zip"
+    data = bytearray(pack.read_bytes())
+    start = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)  # the member's JPEG bytes
+    data[start + info.file_size // 2] ^= 0xFF
+    pack.write_bytes(bytes(data))
+    report = canonical.build(str(out), ("smoke", "v1-pilot"), str(metadata))
+    failed = [c for c in report["checks"] if not c["ok"]]
+    assert [c["check"] for c in failed] == ["every image file matches its step-3 SHA-256"] and failed[0]["value"] == 1
 
 
 def test_hfov_through_the_lens_model():
