@@ -1,0 +1,122 @@
+{
+ "v1-xl-nd": {
+  "boston": {
+   "turn left (>20 deg)": 1181,
+   "turn right (>20 deg)": 1332,
+   "sideways shift (>2 m, lane change or curve)": 1292,
+   "brake to a stop": 902,
+   "start from a stop": 1293,
+   "stay stopped": 2033,
+   "keep going": 14851
+  },
+  "las": {
+   "turn left (>20 deg)": 10740,
+   "turn right (>20 deg)": 4371,
+   "sideways shift (>2 m, lane change or curve)": 3847,
+   "brake to a stop": 3978,
+   "start from a stop": 7846,
+   "stay stopped": 19715,
+   "keep going": 77026
+  },
+  "pittsburgh": {
+   "turn left (>20 deg)": 1464,
+   "turn right (>20 deg)": 1011,
+   "sideways shift (>2 m, lane change or curve)": 1487,
+   "brake to a stop": 839,
+   "start from a stop": 1128,
+   "stay stopped": 1699,
+   "keep going": 11419
+  },
+  "singapore": {
+   "turn left (>20 deg)": 923,
+   "turn right (>20 deg)": 657,
+   "sideways shift (>2 m, lane change or curve)": 808,
+   "brake to a stop": 196,
+   "start from a stop": 262,
+   "stay stopped": 439,
+   "keep going": 3613
+  },
+  "_unknown_command": 22468,
+  "_total": 176352
+ },
+ "extra (0.5 s offsets, not in v1-xl)": {
+  "boston": {
+   "turn left (>20 deg)": 1437,
+   "turn right (>20 deg)": 1614,
+   "sideways shift (>2 m, lane change or curve)": 1542,
+   "brake to a stop": 1150,
+   "start from a stop": 1594,
+   "stay stopped": 719,
+   "keep going": 18047
+  },
+  "las": {
+   "turn left (>20 deg)": 13130,
+   "turn right (>20 deg)": 5396,
+   "sideways shift (>2 m, lane change or curve)": 4823,
+   "brake to a stop": 5353,
+   "start from a stop": 11249,
+   "stay stopped": 6325,
+   "keep going": 124702
+  },
+  "pittsburgh": {
+   "turn left (>20 deg)": 1776,
+   "turn right (>20 deg)": 1217,
+   "sideways shift (>2 m, lane change or curve)": 1771,
+   "brake to a stop": 1020,
+   "start from a stop": 1359,
+   "stay stopped": 642,
+   "keep going": 13849
+  },
+  "singapore": {
+   "turn left (>20 deg)": 1125,
+   "turn right (>20 deg)": 815,
+   "sideways shift (>2 m, lane change or curve)": 967,
+   "brake to a stop": 234,
+   "start from a stop": 315,
+   "stay stopped": 151,
+   "keep going": 4399
+  },
+  "_unknown_command": 27096,
+  "_total": 226721
+ },
+ "pool (all eligible)": {
+  "boston": {
+   "turn left (>20 deg)": 2618,
+   "turn right (>20 deg)": 2946,
+   "sideways shift (>2 m, lane change or curve)": 2834,
+   "brake to a stop": 2052,
+   "start from a stop": 2887,
+   "stay stopped": 2752,
+   "keep going": 32898
+  },
+  "las": {
+   "turn left (>20 deg)": 23903,
+   "turn right (>20 deg)": 9785,
+   "sideways shift (>2 m, lane change or curve)": 8867,
+   "brake to a stop": 9338,
+   "start from a stop": 19616,
+   "stay stopped": 27351,
+   "keep going": 223289
+  },
+  "pittsburgh": {
+   "turn left (>20 deg)": 3240,
+   "turn right (>20 deg)": 2228,
+   "sideways shift (>2 m, lane change or curve)": 3258,
+   "brake to a stop": 1859,
+   "start from a stop": 2487,
+   "stay stopped": 2341,
+   "keep going": 25268
+  },
+  "singapore": {
+   "turn left (>20 deg)": 2048,
+   "turn right (>20 deg)": 1472,
+   "sideways shift (>2 m, lane change or curve)": 1775,
+   "brake to a stop": 430,
+   "start from a stop": 577,
+   "stay stopped": 590,
+   "keep going": 8012
+  },
+  "_unknown_command": 51703,
+  "_total": 426721
+ }
+}

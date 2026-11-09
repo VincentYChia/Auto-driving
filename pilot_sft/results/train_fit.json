@@ -1,0 +1,158 @@
+{
+ "what": "ADE/FDE of each finished pilot on 1,000 of its own training samples against the same 1,000 dev samples (full input)",
+ "evidence": "V (measured on Anvil, jobs 22085187 on H100 for train; dev from each run's eval.json)",
+ "runs": {
+  "qwen35-0.8b-v1pilot-egodrop50": {
+   "view": "v1-pilot",
+   "model": "Qwen/Qwen3.5-0.8B",
+   "train_samples_scored": 1000,
+   "train_parse_failures": 0,
+   "train": {
+    "ade_m": 0.621,
+    "fde_m": 1.608
+   },
+   "dev": {
+    "ade_m": 0.661,
+    "fde_m": 1.737
+   },
+   "dev_minus_train_ade_m": 0.04,
+   "constant_velocity_train": {
+    "ade_m": 1.73,
+    "fde_m": 4.125
+   }
+  },
+  "qwen35-0.8b-drop80": {
+   "view": "v1-pilot",
+   "model": "Qwen/Qwen3.5-0.8B",
+   "train_samples_scored": 1000,
+   "train_parse_failures": 0,
+   "train": {
+    "ade_m": 0.648,
+    "fde_m": 1.652
+   },
+   "dev": {
+    "ade_m": 0.705,
+    "fde_m": 1.817
+   },
+   "dev_minus_train_ade_m": 0.057,
+   "constant_velocity_train": {
+    "ade_m": 1.73,
+    "fde_m": 4.125
+   }
+  },
+  "qwen35-0.8b-rank128": {
+   "view": "v1-pilot",
+   "model": "Qwen/Qwen3.5-0.8B",
+   "train_samples_scored": 1000,
+   "train_parse_failures": 0,
+   "train": {
+    "ade_m": 0.612,
+    "fde_m": 1.567
+   },
+   "dev": {
+    "ade_m": 0.668,
+    "fde_m": 1.729
+   },
+   "dev_minus_train_ade_m": 0.056,
+   "constant_velocity_train": {
+    "ade_m": 1.73,
+    "fde_m": 4.125
+   }
+  },
+  "qwen35-0.8b-lr5e4": {
+   "view": "v1-pilot",
+   "model": "Qwen/Qwen3.5-0.8B",
+   "train_samples_scored": 1000,
+   "train_parse_failures": 0,
+   "train": {
+    "ade_m": 0.633,
+    "fde_m": 1.622
+   },
+   "dev": {
+    "ade_m": 0.719,
+    "fde_m": 1.871
+   },
+   "dev_minus_train_ade_m": 0.086,
+   "constant_velocity_train": {
+    "ade_m": 1.73,
+    "fde_m": 4.125
+   }
+  },
+  "qwen35-0.8b-ep6": {
+   "view": "v1-pilot",
+   "model": "Qwen/Qwen3.5-0.8B",
+   "train_samples_scored": 1000,
+   "train_parse_failures": 0,
+   "train": {
+    "ade_m": 0.367,
+    "fde_m": 0.872
+   },
+   "dev": {
+    "ade_m": 0.689,
+    "fde_m": 1.769
+   },
+   "dev_minus_train_ade_m": 0.322,
+   "constant_velocity_train": {
+    "ade_m": 1.73,
+    "fde_m": 4.125
+   }
+  },
+  "qwen35-0.8b-large-ep3": {
+   "view": "v1-large",
+   "model": "Qwen/Qwen3.5-0.8B",
+   "train_samples_scored": 1000,
+   "train_parse_failures": 0,
+   "train": {
+    "ade_m": 0.456,
+    "fde_m": 1.13
+   },
+   "dev": {
+    "ade_m": 0.629,
+    "fde_m": 1.636
+   },
+   "dev_minus_train_ade_m": 0.173,
+   "constant_velocity_train": {
+    "ade_m": 1.478,
+    "fde_m": 3.478
+   }
+  },
+  "qwen35-2b-v1pilot-egodrop50": {
+   "view": "v1-pilot",
+   "model": "Qwen/Qwen3.5-2B",
+   "train_samples_scored": 1000,
+   "train_parse_failures": 0,
+   "train": {
+    "ade_m": 0.607,
+    "fde_m": 1.562
+   },
+   "dev": {
+    "ade_m": 0.655,
+    "fde_m": 1.708
+   },
+   "dev_minus_train_ade_m": 0.048,
+   "constant_velocity_train": {
+    "ade_m": 1.73,
+    "fde_m": 4.125
+   }
+  },
+  "Qwen3.5-2B-v1-large-21928579": {
+   "view": "v1-large",
+   "model": "Qwen/Qwen3.5-2B",
+   "train_samples_scored": 1000,
+   "train_parse_failures": 0,
+   "train": {
+    "ade_m": 0.544,
+    "fde_m": 1.365
+   },
+   "dev": {
+    "ade_m": 0.657,
+    "fde_m": 1.708
+   },
+   "dev_minus_train_ade_m": 0.113,
+   "constant_velocity_train": {
+    "ade_m": 1.478,
+    "fde_m": 3.478
+   }
+  }
+ }
+}

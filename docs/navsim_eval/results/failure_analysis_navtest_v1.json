@@ -1,0 +1,1473 @@
+{
+ "what": "NAVSIM v1.1 navtest: where scenes score zero and how far plans lie from the human path",
+ "evidence": "V (measured on Anvil)",
+ "scenes": 12146,
+ "definitions": {
+  "share_zero": "share of scenes with PDMS 0 (a collision or leaving the drivable area zeroes it)",
+  "share_collision": "share of scenes with no_at_fault_collisions = 0",
+  "share_off_road": "share of scenes with drivable_area_compliance = 0",
+  "ade_m": "mean distance from the human path over the 8 poses (0.5-4 s), metres",
+  "along_m / across_m": "4 s endpoint error along / across the human path's final heading: along > 0 ends ahead of the human (too fast), across > 0 ends left of it",
+  "human_next_4s": "from the recorded path, in priority order: turn (heading change > 0.35 rad), stay stopped / start from a stop (speed now < 0.5 m/s; moves < or >= 1 m), brake to a stop (>= 2 m/s now, < 0.5 m/s at 4 s), sideways shift (> 2 m lateral), keep going"
+ },
+ "group_sizes": {
+  "command": {
+   "left": 2501,
+   "right": 1575,
+   "straight": 8070
+  },
+  "ego_speed": {
+   "fast (8-12)": 2282,
+   "medium (4-8)": 4906,
+   "slow (0.5-4)": 3803,
+   "stopped (<0.5 m/s)": 848,
+   "very fast (>12)": 307
+  },
+  "human_next_4s": {
+   "brake to a stop": 815,
+   "keep going": 5902,
+   "sideways shift (>2 m, lane change or curve)": 1605,
+   "start from a stop": 668,
+   "stay stopped": 8,
+   "turn left (>20 deg)": 1971,
+   "turn right (>20 deg)": 1177
+  },
+  "map": {
+   "sg-one-north": 1914,
+   "us-ma-boston": 3731,
+   "us-nv-las-vegas-strip": 4064,
+   "us-pa-pittsburgh-hazelwood": 2437
+  }
+ },
+ "models": {
+  "0.8B pilot": {
+   "all": {
+    "scenes": 12146,
+    "pdms": 0.7524,
+    "share_zero": 0.1615,
+    "share_collision": 0.0343,
+    "share_off_road": 0.1305,
+    "ade_m": 0.7746,
+    "median_ade_m": 0.6024,
+    "fde_m": 1.9766
+   },
+   "zero_causes": {
+    "collision only": 0.031,
+    "off road only": 0.1271,
+    "both": 0.0034,
+    "other": 0.0
+   },
+   "error_on_zero_vs_rest": {
+    "zero": {
+     "ade_m": 0.9555,
+     "fde_m": 2.4301,
+     "along_m_mean": 0.1582,
+     "along_m_abs": 1.9069,
+     "across_m_abs": 1.0816,
+     "share_ending_ahead_by_over_2m": 0.1856,
+     "share_ending_behind_by_over_2m": 0.156,
+     "share_ending_aside_by_over_1m": 0.385
+    },
+    "rest": {
+     "ade_m": 0.7398,
+     "fde_m": 1.8893,
+     "along_m_mean": -0.3916,
+     "along_m_abs": 1.6886,
+     "across_m_abs": 0.4913,
+     "share_ending_ahead_by_over_2m": 0.1133,
+     "share_ending_behind_by_over_2m": 0.1823,
+     "share_ending_aside_by_over_1m": 0.154
+    }
+   },
+   "by": {
+    "command": {
+     "left": {
+      "scenes": 2501,
+      "pdms": 0.7318,
+      "share_zero": 0.1883,
+      "share_collision": 0.0264,
+      "share_off_road": 0.1671,
+      "ade_m": 0.8856,
+      "median_ade_m": 0.6865,
+      "fde_m": 2.2472
+     },
+     "right": {
+      "scenes": 1575,
+      "pdms": 0.7156,
+      "share_zero": 0.1835,
+      "share_collision": 0.0279,
+      "share_off_road": 0.16,
+      "ade_m": 0.8989,
+      "median_ade_m": 0.7108,
+      "fde_m": 2.3131
+     },
+     "straight": {
+      "scenes": 8070,
+      "pdms": 0.7659,
+      "share_zero": 0.1488,
+      "share_collision": 0.038,
+      "share_off_road": 0.1134,
+      "ade_m": 0.7159,
+      "median_ade_m": 0.5545,
+      "fde_m": 1.8271
+     }
+    },
+    "ego_speed": {
+     "fast (8-12)": {
+      "scenes": 2282,
+      "pdms": 0.6771,
+      "share_zero": 0.2485,
+      "share_collision": 0.0263,
+      "share_off_road": 0.2274,
+      "ade_m": 0.7692,
+      "median_ade_m": 0.6135,
+      "fde_m": 1.9161
+     },
+     "medium (4-8)": {
+      "scenes": 4906,
+      "pdms": 0.7152,
+      "share_zero": 0.202,
+      "share_collision": 0.0477,
+      "share_off_road": 0.1586,
+      "ade_m": 0.7399,
+      "median_ade_m": 0.616,
+      "fde_m": 1.8662
+     },
+     "slow (0.5-4)": {
+      "scenes": 3803,
+      "pdms": 0.8286,
+      "share_zero": 0.0886,
+      "share_collision": 0.0279,
+      "share_off_road": 0.0628,
+      "ade_m": 0.7196,
+      "median_ade_m": 0.53,
+      "fde_m": 1.8373
+     },
+     "stopped (<0.5 m/s)": {
+      "scenes": 848,
+      "pdms": 0.8267,
+      "share_zero": 0.0094,
+      "share_collision": 0.0059,
+      "share_off_road": 0.0035,
+      "ade_m": 1.2576,
+      "median_ade_m": 1.0181,
+      "fde_m": 3.4883
+     },
+     "very fast (>12)": {
+      "scenes": 307,
+      "pdms": 0.7567,
+      "share_zero": 0.1889,
+      "share_collision": 0.0391,
+      "share_off_road": 0.1498,
+      "ade_m": 0.7167,
+      "median_ade_m": 0.534,
+      "fde_m": 1.7421
+     }
+    },
+    "human_next_4s": {
+     "brake to a stop": {
+      "scenes": 815,
+      "pdms": 0.822,
+      "share_zero": 0.1117,
+      "share_collision": 0.0933,
+      "share_off_road": 0.0184,
+      "ade_m": 0.5812,
+      "median_ade_m": 0.3997,
+      "fde_m": 1.3294
+     },
+     "keep going": {
+      "scenes": 5902,
+      "pdms": 0.7698,
+      "share_zero": 0.1445,
+      "share_collision": 0.0378,
+      "share_off_road": 0.11,
+      "ade_m": 0.684,
+      "median_ade_m": 0.5282,
+      "fde_m": 1.7546
+     },
+     "sideways shift (>2 m, lane change or curve)": {
+      "scenes": 1605,
+      "pdms": 0.6981,
+      "share_zero": 0.2336,
+      "share_collision": 0.028,
+      "share_off_road": 0.2106,
+      "ade_m": 0.7255,
+      "median_ade_m": 0.6166,
+      "fde_m": 1.7564
+     },
+     "start from a stop": {
+      "scenes": 668,
+      "pdms": 0.8312,
+      "share_zero": 0.0105,
+      "share_collision": 0.0075,
+      "share_off_road": 0.003,
+      "ade_m": 1.23,
+      "median_ade_m": 1.0206,
+      "fde_m": 3.4276
+     },
+     "stay stopped": {
+      "scenes": 8,
+      "pdms": 1.0,
+      "share_zero": 0.0,
+      "share_collision": 0.0,
+      "share_off_road": 0.0,
+      "ade_m": 0.0826,
+      "median_ade_m": 0.0808,
+      "fde_m": 0.1686
+     },
+     "turn left (>20 deg)": {
+      "scenes": 1971,
+      "pdms": 0.7327,
+      "share_zero": 0.1913,
+      "share_collision": 0.0188,
+      "share_off_road": 0.1755,
+      "ade_m": 0.8975,
+      "median_ade_m": 0.7106,
+      "fde_m": 2.2831
+     },
+     "turn right (>20 deg)": {
+      "scenes": 1177,
+      "pdms": 0.6774,
+      "share_zero": 0.2192,
+      "share_collision": 0.0263,
+      "share_off_road": 0.1997,
+      "ade_m": 0.9699,
+      "median_ade_m": 0.7725,
+      "fde_m": 2.5141
+     }
+    },
+    "map": {
+     "sg-one-north": {
+      "scenes": 1914,
+      "pdms": 0.6908,
+      "share_zero": 0.2027,
+      "share_collision": 0.0104,
+      "share_off_road": 0.1944,
+      "ade_m": 0.6318,
+      "median_ade_m": 0.5254,
+      "fde_m": 1.6156
+     },
+     "us-ma-boston": {
+      "scenes": 3731,
+      "pdms": 0.7384,
+      "share_zero": 0.167,
+      "share_collision": 0.0515,
+      "share_off_road": 0.1228,
+      "ade_m": 0.7894,
+      "median_ade_m": 0.616,
+      "fde_m": 2.0176
+     },
+     "us-nv-las-vegas-strip": {
+      "scenes": 4064,
+      "pdms": 0.8328,
+      "share_zero": 0.0979,
+      "share_collision": 0.0312,
+      "share_off_road": 0.0679,
+      "ade_m": 0.7397,
+      "median_ade_m": 0.5776,
+      "fde_m": 1.8577
+     },
+     "us-pa-pittsburgh-hazelwood": {
+      "scenes": 2437,
+      "pdms": 0.6879,
+      "share_zero": 0.2265,
+      "share_collision": 0.032,
+      "share_off_road": 0.1966,
+      "ade_m": 0.9223,
+      "median_ade_m": 0.7006,
+      "fde_m": 2.396
+     }
+    }
+   },
+   "zero_where_human_agent_also_zero": 0.0
+  },
+  "2B pilot": {
+   "all": {
+    "scenes": 12146,
+    "pdms": 0.7513,
+    "share_zero": 0.1606,
+    "share_collision": 0.0342,
+    "share_off_road": 0.1292,
+    "ade_m": 0.757,
+    "median_ade_m": 0.5852,
+    "fde_m": 1.9284
+   },
+   "zero_causes": {
+    "collision only": 0.0315,
+    "off road only": 0.1264,
+    "both": 0.0028,
+    "other": 0.0
+   },
+   "error_on_zero_vs_rest": {
+    "zero": {
+     "ade_m": 0.908,
+     "fde_m": 2.303,
+     "along_m_mean": 0.1576,
+     "along_m_abs": 1.7562,
+     "across_m_abs": 1.0701,
+     "share_ending_ahead_by_over_2m": 0.1727,
+     "share_ending_behind_by_over_2m": 0.142,
+     "share_ending_aside_by_over_1m": 0.3839
+    },
+    "rest": {
+     "ade_m": 0.7281,
+     "fde_m": 1.8567,
+     "along_m_mean": -0.4664,
+     "along_m_abs": 1.6645,
+     "across_m_abs": 0.4758,
+     "share_ending_ahead_by_over_2m": 0.1037,
+     "share_ending_behind_by_over_2m": 0.181,
+     "share_ending_aside_by_over_1m": 0.1465
+    }
+   },
+   "by": {
+    "command": {
+     "left": {
+      "scenes": 2501,
+      "pdms": 0.738,
+      "share_zero": 0.1771,
+      "share_collision": 0.024,
+      "share_off_road": 0.1571,
+      "ade_m": 0.859,
+      "median_ade_m": 0.6768,
+      "fde_m": 2.1639
+     },
+     "right": {
+      "scenes": 1575,
+      "pdms": 0.6954,
+      "share_zero": 0.2032,
+      "share_collision": 0.0292,
+      "share_off_road": 0.1797,
+      "ade_m": 0.8946,
+      "median_ade_m": 0.7303,
+      "fde_m": 2.2975
+     },
+     "straight": {
+      "scenes": 8070,
+      "pdms": 0.7663,
+      "share_zero": 0.1472,
+      "share_collision": 0.0384,
+      "share_off_road": 0.1107,
+      "ade_m": 0.6985,
+      "median_ade_m": 0.5334,
+      "fde_m": 1.7834
+     }
+    },
+    "ego_speed": {
+     "fast (8-12)": {
+      "scenes": 2282,
+      "pdms": 0.6794,
+      "share_zero": 0.2476,
+      "share_collision": 0.0263,
+      "share_off_road": 0.2239,
+      "ade_m": 0.7415,
+      "median_ade_m": 0.5857,
+      "fde_m": 1.8389
+     },
+     "medium (4-8)": {
+      "scenes": 4906,
+      "pdms": 0.7141,
+      "share_zero": 0.202,
+      "share_collision": 0.0495,
+      "share_off_road": 0.1567,
+      "ade_m": 0.7157,
+      "median_ade_m": 0.5934,
+      "fde_m": 1.8014
+     },
+     "slow (0.5-4)": {
+      "scenes": 3803,
+      "pdms": 0.828,
+      "share_zero": 0.0841,
+      "share_collision": 0.025,
+      "share_off_road": 0.061,
+      "ade_m": 0.697,
+      "median_ade_m": 0.5149,
+      "fde_m": 1.7782
+     },
+     "stopped (<0.5 m/s)": {
+      "scenes": 848,
+      "pdms": 0.8126,
+      "share_zero": 0.0142,
+      "share_collision": 0.0094,
+      "share_off_road": 0.0047,
+      "ade_m": 1.325,
+      "median_ade_m": 1.0308,
+      "fde_m": 3.6737
+     },
+     "very fast (>12)": {
+      "scenes": 307,
+      "pdms": 0.7586,
+      "share_zero": 0.2052,
+      "share_collision": 0.0326,
+      "share_off_road": 0.1726,
+      "ade_m": 0.7067,
+      "median_ade_m": 0.5126,
+      "fde_m": 1.6624
+     }
+    },
+    "human_next_4s": {
+     "brake to a stop": {
+      "scenes": 815,
+      "pdms": 0.8099,
+      "share_zero": 0.1202,
+      "share_collision": 0.1043,
+      "share_off_road": 0.016,
+      "ade_m": 0.5574,
+      "median_ade_m": 0.384,
+      "fde_m": 1.2922
+     },
+     "keep going": {
+      "scenes": 5902,
+      "pdms": 0.7709,
+      "share_zero": 0.1428,
+      "share_collision": 0.0361,
+      "share_off_road": 0.1093,
+      "ade_m": 0.6605,
+      "median_ade_m": 0.5093,
+      "fde_m": 1.6921
+     },
+     "sideways shift (>2 m, lane change or curve)": {
+      "scenes": 1605,
+      "pdms": 0.7062,
+      "share_zero": 0.2231,
+      "share_collision": 0.0249,
+      "share_off_road": 0.2019,
+      "ade_m": 0.705,
+      "median_ade_m": 0.597,
+      "fde_m": 1.6992
+     },
+     "start from a stop": {
+      "scenes": 668,
+      "pdms": 0.8183,
+      "share_zero": 0.015,
+      "share_collision": 0.009,
+      "share_off_road": 0.006,
+      "ade_m": 1.2736,
+      "median_ade_m": 1.0047,
+      "fde_m": 3.5598
+     },
+     "stay stopped": {
+      "scenes": 8,
+      "pdms": 0.875,
+      "share_zero": 0.125,
+      "share_collision": 0.125,
+      "share_off_road": 0.0,
+      "ade_m": 0.5156,
+      "median_ade_m": 0.0808,
+      "fde_m": 1.022
+     },
+     "turn left (>20 deg)": {
+      "scenes": 1971,
+      "pdms": 0.7386,
+      "share_zero": 0.1811,
+      "share_collision": 0.0178,
+      "share_off_road": 0.1659,
+      "ade_m": 0.8735,
+      "median_ade_m": 0.6936,
+      "fde_m": 2.1969
+     },
+     "turn right (>20 deg)": {
+      "scenes": 1177,
+      "pdms": 0.6559,
+      "share_zero": 0.2413,
+      "share_collision": 0.0306,
+      "share_off_road": 0.2175,
+      "ade_m": 0.9628,
+      "median_ade_m": 0.7877,
+      "fde_m": 2.4971
+     }
+    },
+    "map": {
+     "sg-one-north": {
+      "scenes": 1914,
+      "pdms": 0.69,
+      "share_zero": 0.2027,
+      "share_collision": 0.0068,
+      "share_off_road": 0.197,
+      "ade_m": 0.6059,
+      "median_ade_m": 0.5058,
+      "fde_m": 1.5465
+     },
+     "us-ma-boston": {
+      "scenes": 3731,
+      "pdms": 0.7378,
+      "share_zero": 0.1646,
+      "share_collision": 0.0525,
+      "share_off_road": 0.1198,
+      "ade_m": 0.7861,
+      "median_ade_m": 0.6092,
+      "fde_m": 2.001
+     },
+     "us-nv-las-vegas-strip": {
+      "scenes": 4064,
+      "pdms": 0.8283,
+      "share_zero": 0.1029,
+      "share_collision": 0.0305,
+      "share_off_road": 0.0728,
+      "ade_m": 0.7062,
+      "median_ade_m": 0.5496,
+      "fde_m": 1.7746
+     },
+     "us-pa-pittsburgh-hazelwood": {
+      "scenes": 2437,
+      "pdms": 0.6914,
+      "share_zero": 0.2179,
+      "share_collision": 0.0341,
+      "share_off_road": 0.1842,
+      "ade_m": 0.9157,
+      "median_ade_m": 0.6957,
+      "fde_m": 2.3738
+     }
+    }
+   },
+   "zero_where_human_agent_also_zero": 0.0
+  },
+  "MVLAD-AD": {
+   "all": {
+    "scenes": 12146,
+    "pdms": 0.3616,
+    "share_zero": 0.5106,
+    "share_collision": 0.2125,
+    "share_off_road": 0.3479,
+    "ade_m": 2.3373,
+    "median_ade_m": 2.1041,
+    "fde_m": 5.6241
+   },
+   "zero_causes": {
+    "collision only": 0.1628,
+    "off road only": 0.2981,
+    "both": 0.0497,
+    "other": 0.0
+   },
+   "error_on_zero_vs_rest": {
+    "zero": {
+     "ade_m": 2.5102,
+     "fde_m": 6.1622,
+     "along_m_mean": 1.2719,
+     "along_m_abs": 4.667,
+     "across_m_abs": 2.7234,
+     "share_ending_ahead_by_over_2m": 0.4361,
+     "share_ending_behind_by_over_2m": 0.2762,
+     "share_ending_aside_by_over_1m": 0.6132
+    },
+    "rest": {
+     "ade_m": 2.1568,
+     "fde_m": 5.0627,
+     "along_m_mean": -1.5885,
+     "along_m_abs": 4.6127,
+     "across_m_abs": 1.155,
+     "share_ending_ahead_by_over_2m": 0.2614,
+     "share_ending_behind_by_over_2m": 0.4447,
+     "share_ending_aside_by_over_1m": 0.3309
+    }
+   },
+   "by": {
+    "command": {
+     "left": {
+      "scenes": 2501,
+      "pdms": 0.3518,
+      "share_zero": 0.513,
+      "share_collision": 0.1076,
+      "share_off_road": 0.4534,
+      "ade_m": 2.4721,
+      "median_ade_m": 2.2527,
+      "fde_m": 6.2444
+     },
+     "right": {
+      "scenes": 1575,
+      "pdms": 0.3732,
+      "share_zero": 0.4902,
+      "share_collision": 0.1117,
+      "share_off_road": 0.4375,
+      "ade_m": 2.3431,
+      "median_ade_m": 2.1178,
+      "fde_m": 5.7099
+     },
+     "straight": {
+      "scenes": 8070,
+      "pdms": 0.3624,
+      "share_zero": 0.5139,
+      "share_collision": 0.2647,
+      "share_off_road": 0.2976,
+      "ade_m": 2.2943,
+      "median_ade_m": 2.0329,
+      "fde_m": 5.4151
+     }
+    },
+    "ego_speed": {
+     "fast (8-12)": {
+      "scenes": 2282,
+      "pdms": 0.3099,
+      "share_zero": 0.5784,
+      "share_collision": 0.145,
+      "share_off_road": 0.4755,
+      "ade_m": 2.0617,
+      "median_ade_m": 1.645,
+      "fde_m": 4.9746
+     },
+     "medium (4-8)": {
+      "scenes": 4906,
+      "pdms": 0.292,
+      "share_zero": 0.6086,
+      "share_collision": 0.2487,
+      "share_off_road": 0.4283,
+      "ade_m": 2.3607,
+      "median_ade_m": 2.1657,
+      "fde_m": 5.7042
+     },
+     "slow (0.5-4)": {
+      "scenes": 3803,
+      "pdms": 0.4484,
+      "share_zero": 0.4176,
+      "share_collision": 0.2204,
+      "share_off_road": 0.2411,
+      "ade_m": 2.456,
+      "median_ade_m": 2.2719,
+      "fde_m": 5.9258
+     },
+     "stopped (<0.5 m/s)": {
+      "scenes": 848,
+      "pdms": 0.5582,
+      "share_zero": 0.1226,
+      "share_collision": 0.1179,
+      "share_off_road": 0.0047,
+      "ade_m": 2.5831,
+      "median_ade_m": 2.4387,
+      "fde_m": 6.2002
+     },
+     "very fast (>12)": {
+      "scenes": 307,
+      "pdms": 0.2393,
+      "share_zero": 0.6645,
+      "share_collision": 0.2997,
+      "share_off_road": 0.3844,
+      "ade_m": 1.862,
+      "median_ade_m": 1.5244,
+      "fde_m": 3.8421
+     }
+    },
+    "human_next_4s": {
+     "brake to a stop": {
+      "scenes": 815,
+      "pdms": 0.1739,
+      "share_zero": 0.784,
+      "share_collision": 0.7276,
+      "share_off_road": 0.1423,
+      "ade_m": 3.0564,
+      "median_ade_m": 3.1012,
+      "fde_m": 7.3536
+     },
+     "keep going": {
+      "scenes": 5902,
+      "pdms": 0.3965,
+      "share_zero": 0.4734,
+      "share_collision": 0.2335,
+      "share_off_road": 0.2821,
+      "ade_m": 2.1781,
+      "median_ade_m": 1.9157,
+      "fde_m": 5.1151
+     },
+     "sideways shift (>2 m, lane change or curve)": {
+      "scenes": 1605,
+      "pdms": 0.24,
+      "share_zero": 0.6953,
+      "share_collision": 0.1433,
+      "share_off_road": 0.6386,
+      "ade_m": 2.2992,
+      "median_ade_m": 1.8816,
+      "fde_m": 5.3965
+     },
+     "start from a stop": {
+      "scenes": 668,
+      "pdms": 0.5551,
+      "share_zero": 0.1332,
+      "share_collision": 0.1302,
+      "share_off_road": 0.003,
+      "ade_m": 2.5643,
+      "median_ade_m": 2.3787,
+      "fde_m": 6.1322
+     },
+     "stay stopped": {
+      "scenes": 8,
+      "pdms": 1.0,
+      "share_zero": 0.0,
+      "share_collision": 0.0,
+      "share_off_road": 0.0,
+      "ade_m": 1.3036,
+      "median_ade_m": 1.3732,
+      "fde_m": 1.2092
+     },
+     "turn left (>20 deg)": {
+      "scenes": 1971,
+      "pdms": 0.3558,
+      "share_zero": 0.5074,
+      "share_collision": 0.0974,
+      "share_off_road": 0.4576,
+      "ade_m": 2.494,
+      "median_ade_m": 2.2738,
+      "fde_m": 6.3725
+     },
+     "turn right (>20 deg)": {
+      "scenes": 1177,
+      "pdms": 0.3775,
+      "share_zero": 0.4792,
+      "share_collision": 0.0858,
+      "share_off_road": 0.4376,
+      "ade_m": 2.3052,
+      "median_ade_m": 2.1173,
+      "fde_m": 5.7776
+     }
+    },
+    "map": {
+     "sg-one-north": {
+      "scenes": 1914,
+      "pdms": 0.3271,
+      "share_zero": 0.5778,
+      "share_collision": 0.0617,
+      "share_off_road": 0.5491,
+      "ade_m": 1.8137,
+      "median_ade_m": 1.6503,
+      "fde_m": 4.5379
+     },
+     "us-ma-boston": {
+      "scenes": 3731,
+      "pdms": 0.3671,
+      "share_zero": 0.5012,
+      "share_collision": 0.2712,
+      "share_off_road": 0.3098,
+      "ade_m": 2.2686,
+      "median_ade_m": 2.0018,
+      "fde_m": 5.3268
+     },
+     "us-nv-las-vegas-strip": {
+      "scenes": 4064,
+      "pdms": 0.3861,
+      "share_zero": 0.4724,
+      "share_collision": 0.2591,
+      "share_off_road": 0.2448,
+      "ade_m": 2.549,
+      "median_ade_m": 2.4179,
+      "fde_m": 6.1985
+     },
+     "us-pa-pittsburgh-hazelwood": {
+      "scenes": 2437,
+      "pdms": 0.3393,
+      "share_zero": 0.5359,
+      "share_collision": 0.1633,
+      "share_off_road": 0.4198,
+      "ade_m": 2.5005,
+      "median_ade_m": 2.2319,
+      "fde_m": 5.9744
+     }
+    }
+   },
+   "zero_where_human_agent_also_zero": 0.0
+  },
+  "2B-large": {
+   "all": {
+    "scenes": 12146,
+    "pdms": 0.7478,
+    "share_zero": 0.1676,
+    "share_collision": 0.033,
+    "share_off_road": 0.1377,
+    "ade_m": 0.7597,
+    "median_ade_m": 0.588,
+    "fde_m": 1.9342
+   },
+   "zero_causes": {
+    "collision only": 0.0299,
+    "off road only": 0.1346,
+    "both": 0.0031,
+    "other": 0.0
+   },
+   "error_on_zero_vs_rest": {
+    "zero": {
+     "ade_m": 0.9114,
+     "fde_m": 2.3224,
+     "along_m_mean": 0.1452,
+     "along_m_abs": 1.7441,
+     "across_m_abs": 1.1189,
+     "share_ending_ahead_by_over_2m": 0.1749,
+     "share_ending_behind_by_over_2m": 0.14,
+     "share_ending_aside_by_over_1m": 0.4126
+    },
+    "rest": {
+     "ade_m": 0.7291,
+     "fde_m": 1.856,
+     "along_m_mean": -0.4144,
+     "along_m_abs": 1.6499,
+     "across_m_abs": 0.4996,
+     "share_ending_ahead_by_over_2m": 0.1057,
+     "share_ending_behind_by_over_2m": 0.1758,
+     "share_ending_aside_by_over_1m": 0.1552
+    }
+   },
+   "by": {
+    "command": {
+     "left": {
+      "scenes": 2501,
+      "pdms": 0.7254,
+      "share_zero": 0.1927,
+      "share_collision": 0.0216,
+      "share_off_road": 0.1751,
+      "ade_m": 0.8658,
+      "median_ade_m": 0.6841,
+      "fde_m": 2.1802
+     },
+     "right": {
+      "scenes": 1575,
+      "pdms": 0.6968,
+      "share_zero": 0.2076,
+      "share_collision": 0.0298,
+      "share_off_road": 0.1835,
+      "ade_m": 0.9381,
+      "median_ade_m": 0.7586,
+      "fde_m": 2.4127
+     },
+     "straight": {
+      "scenes": 8070,
+      "pdms": 0.7646,
+      "share_zero": 0.152,
+      "share_collision": 0.0372,
+      "share_off_road": 0.1172,
+      "ade_m": 0.692,
+      "median_ade_m": 0.5278,
+      "fde_m": 1.7645
+     }
+    },
+    "ego_speed": {
+     "fast (8-12)": {
+      "scenes": 2282,
+      "pdms": 0.6709,
+      "share_zero": 0.2533,
+      "share_collision": 0.0228,
+      "share_off_road": 0.2331,
+      "ade_m": 0.7452,
+      "median_ade_m": 0.6012,
+      "fde_m": 1.8476
+     },
+     "medium (4-8)": {
+      "scenes": 4906,
+      "pdms": 0.71,
+      "share_zero": 0.2106,
+      "share_collision": 0.0503,
+      "share_off_road": 0.1655,
+      "ade_m": 0.7226,
+      "median_ade_m": 0.6048,
+      "fde_m": 1.8201
+     },
+     "slow (0.5-4)": {
+      "scenes": 3803,
+      "pdms": 0.8251,
+      "share_zero": 0.0912,
+      "share_collision": 0.0237,
+      "share_off_road": 0.0692,
+      "ade_m": 0.7065,
+      "median_ade_m": 0.5168,
+      "fde_m": 1.8026
+     },
+     "stopped (<0.5 m/s)": {
+      "scenes": 848,
+      "pdms": 0.8158,
+      "share_zero": 0.0212,
+      "share_collision": 0.0083,
+      "share_off_road": 0.013,
+      "ade_m": 1.2647,
+      "median_ade_m": 1.028,
+      "fde_m": 3.5071
+     },
+     "very fast (>12)": {
+      "scenes": 307,
+      "pdms": 0.7764,
+      "share_zero": 0.1954,
+      "share_collision": 0.0163,
+      "share_off_road": 0.1792,
+      "ade_m": 0.7229,
+      "median_ade_m": 0.4991,
+      "fde_m": 1.6866
+     }
+    },
+    "human_next_4s": {
+     "brake to a stop": {
+      "scenes": 815,
+      "pdms": 0.8191,
+      "share_zero": 0.1141,
+      "share_collision": 0.0969,
+      "share_off_road": 0.0184,
+      "ade_m": 0.5405,
+      "median_ade_m": 0.3836,
+      "fde_m": 1.2464
+     },
+     "keep going": {
+      "scenes": 5902,
+      "pdms": 0.7763,
+      "share_zero": 0.1386,
+      "share_collision": 0.0335,
+      "share_off_road": 0.1079,
+      "ade_m": 0.6545,
+      "median_ade_m": 0.4982,
+      "fde_m": 1.6733
+     },
+     "sideways shift (>2 m, lane change or curve)": {
+      "scenes": 1605,
+      "pdms": 0.6757,
+      "share_zero": 0.2598,
+      "share_collision": 0.0287,
+      "share_off_road": 0.2361,
+      "ade_m": 0.7382,
+      "median_ade_m": 0.6308,
+      "fde_m": 1.7838
+     },
+     "start from a stop": {
+      "scenes": 668,
+      "pdms": 0.8263,
+      "share_zero": 0.021,
+      "share_collision": 0.009,
+      "share_off_road": 0.012,
+      "ade_m": 1.1879,
+      "median_ade_m": 0.9852,
+      "fde_m": 3.3247
+     },
+     "stay stopped": {
+      "scenes": 8,
+      "pdms": 1.0,
+      "share_zero": 0.0,
+      "share_collision": 0.0,
+      "share_off_road": 0.0,
+      "ade_m": 0.0824,
+      "median_ade_m": 0.0792,
+      "fde_m": 0.1698
+     },
+     "turn left (>20 deg)": {
+      "scenes": 1971,
+      "pdms": 0.7236,
+      "share_zero": 0.1984,
+      "share_collision": 0.0173,
+      "share_off_road": 0.1837,
+      "ade_m": 0.8832,
+      "median_ade_m": 0.6903,
+      "fde_m": 2.2289
+     },
+     "turn right (>20 deg)": {
+      "scenes": 1177,
+      "pdms": 0.6474,
+      "share_zero": 0.2574,
+      "share_collision": 0.0323,
+      "share_off_road": 0.2311,
+      "ade_m": 1.0224,
+      "median_ade_m": 0.8338,
+      "fde_m": 2.6531
+     }
+    },
+    "map": {
+     "sg-one-north": {
+      "scenes": 1914,
+      "pdms": 0.6531,
+      "share_zero": 0.2445,
+      "share_collision": 0.0063,
+      "share_off_road": 0.2403,
+      "ade_m": 0.6381,
+      "median_ade_m": 0.5433,
+      "fde_m": 1.6326
+     },
+     "us-ma-boston": {
+      "scenes": 3731,
+      "pdms": 0.7372,
+      "share_zero": 0.1691,
+      "share_collision": 0.0501,
+      "share_off_road": 0.1262,
+      "ade_m": 0.7821,
+      "median_ade_m": 0.616,
+      "fde_m": 1.9948
+     },
+     "us-nv-las-vegas-strip": {
+      "scenes": 4064,
+      "pdms": 0.8434,
+      "share_zero": 0.0915,
+      "share_collision": 0.0258,
+      "share_off_road": 0.0667,
+      "ade_m": 0.6936,
+      "median_ade_m": 0.5329,
+      "fde_m": 1.7342
+     },
+     "us-pa-pittsburgh-hazelwood": {
+      "scenes": 2437,
+      "pdms": 0.6787,
+      "share_zero": 0.2318,
+      "share_collision": 0.0398,
+      "share_off_road": 0.1933,
+      "ade_m": 0.9308,
+      "median_ade_m": 0.7025,
+      "fde_m": 2.4116
+     }
+    }
+   },
+   "zero_where_human_agent_also_zero": 0.0
+  },
+  "constant velocity": {
+   "all": {
+    "scenes": 12146,
+    "pdms": 0.2065,
+    "share_zero": 0.6694,
+    "share_collision": 0.2929,
+    "share_off_road": 0.4216,
+    "ade_m": 2.7969,
+    "median_ade_m": 2.6113,
+    "fde_m": 6.7523
+   },
+   "zero_causes": {
+    "collision only": 0.2477,
+    "off road only": 0.3764,
+    "both": 0.0452,
+    "other": 0.0
+   },
+   "error_on_zero_vs_rest": {
+    "zero": {
+     "ade_m": 2.8353,
+     "fde_m": 6.7561,
+     "along_m_mean": 0.9461,
+     "along_m_abs": 5.2598,
+     "across_m_abs": 2.8802,
+     "share_ending_ahead_by_over_2m": 0.4429,
+     "share_ending_behind_by_over_2m": 0.3054,
+     "share_ending_aside_by_over_1m": 0.6053
+    },
+    "rest": {
+     "ade_m": 2.7193,
+     "fde_m": 6.7445,
+     "along_m_mean": -2.5759,
+     "along_m_abs": 6.4313,
+     "across_m_abs": 1.0062,
+     "share_ending_ahead_by_over_2m": 0.2976,
+     "share_ending_behind_by_over_2m": 0.5904,
+     "share_ending_aside_by_over_1m": 0.2993
+    }
+   },
+   "by": {
+    "command": {
+     "left": {
+      "scenes": 2501,
+      "pdms": 0.1868,
+      "share_zero": 0.7201,
+      "share_collision": 0.1627,
+      "share_off_road": 0.6433,
+      "ade_m": 3.3739,
+      "median_ade_m": 3.0825,
+      "fde_m": 8.2001
+     },
+     "right": {
+      "scenes": 1575,
+      "pdms": 0.2186,
+      "share_zero": 0.6775,
+      "share_collision": 0.1917,
+      "share_off_road": 0.5657,
+      "ade_m": 3.1486,
+      "median_ade_m": 3.0388,
+      "fde_m": 7.6765
+     },
+     "straight": {
+      "scenes": 8070,
+      "pdms": 0.2103,
+      "share_zero": 0.652,
+      "share_collision": 0.353,
+      "share_off_road": 0.3248,
+      "ade_m": 2.5495,
+      "median_ade_m": 2.3434,
+      "fde_m": 6.1232
+     }
+    },
+    "ego_speed": {
+     "fast (8-12)": {
+      "scenes": 2282,
+      "pdms": 0.1218,
+      "share_zero": 0.7673,
+      "share_collision": 0.1753,
+      "share_off_road": 0.6402,
+      "ade_m": 2.3462,
+      "median_ade_m": 1.8495,
+      "fde_m": 5.576
+     },
+     "medium (4-8)": {
+      "scenes": 4906,
+      "pdms": 0.0979,
+      "share_zero": 0.8216,
+      "share_collision": 0.3302,
+      "share_off_road": 0.564,
+      "ade_m": 3.0748,
+      "median_ade_m": 2.9814,
+      "fde_m": 7.4375
+     },
+     "slow (0.5-4)": {
+      "scenes": 3803,
+      "pdms": 0.3378,
+      "share_zero": 0.5146,
+      "share_collision": 0.3355,
+      "share_off_road": 0.2006,
+      "ade_m": 2.7222,
+      "median_ade_m": 2.6084,
+      "fde_m": 6.5037
+     },
+     "stopped (<0.5 m/s)": {
+      "scenes": 848,
+      "pdms": 0.485,
+      "share_zero": 0.2111,
+      "share_collision": 0.2075,
+      "share_off_road": 0.0035,
+      "ade_m": 3.1128,
+      "median_ade_m": 3.0006,
+      "fde_m": 8.0994
+     },
+     "very fast (>12)": {
+      "scenes": 307,
+      "pdms": 0.1772,
+      "share_zero": 0.6906,
+      "share_collision": 0.2801,
+      "share_off_road": 0.4137,
+      "ade_m": 1.7588,
+      "median_ade_m": 1.4496,
+      "fde_m": 3.905
+     }
+    },
+    "human_next_4s": {
+     "brake to a stop": {
+      "scenes": 815,
+      "pdms": 0.0313,
+      "share_zero": 0.9448,
+      "share_collision": 0.919,
+      "share_off_road": 0.0748,
+      "ade_m": 3.63,
+      "median_ade_m": 3.5531,
+      "fde_m": 8.5165
+     },
+     "keep going": {
+      "scenes": 5902,
+      "pdms": 0.2433,
+      "share_zero": 0.6018,
+      "share_collision": 0.326,
+      "share_off_road": 0.2968,
+      "ade_m": 2.41,
+      "median_ade_m": 2.1634,
+      "fde_m": 5.7521
+     },
+     "sideways shift (>2 m, lane change or curve)": {
+      "scenes": 1605,
+      "pdms": 0.0553,
+      "share_zero": 0.8947,
+      "share_collision": 0.1769,
+      "share_off_road": 0.7907,
+      "ade_m": 2.1237,
+      "median_ade_m": 1.8672,
+      "fde_m": 4.8697
+     },
+     "start from a stop": {
+      "scenes": 668,
+      "pdms": 0.4769,
+      "share_zero": 0.2246,
+      "share_collision": 0.2231,
+      "share_off_road": 0.0015,
+      "ade_m": 3.118,
+      "median_ade_m": 2.9672,
+      "fde_m": 8.1825
+     },
+     "stay stopped": {
+      "scenes": 8,
+      "pdms": 0.2083,
+      "share_zero": 0.625,
+      "share_collision": 0.375,
+      "share_off_road": 0.25,
+      "ade_m": 0.5009,
+      "median_ade_m": 0.4665,
+      "fde_m": 0.8658
+     },
+     "turn left (>20 deg)": {
+      "scenes": 1971,
+      "pdms": 0.1908,
+      "share_zero": 0.721,
+      "share_collision": 0.1431,
+      "share_off_road": 0.6626,
+      "ade_m": 3.6702,
+      "median_ade_m": 3.3727,
+      "fde_m": 9.0101
+     },
+     "turn right (>20 deg)": {
+      "scenes": 1177,
+      "pdms": 0.2223,
+      "share_zero": 0.6763,
+      "share_collision": 0.1419,
+      "share_off_road": 0.6202,
+      "ade_m": 3.4494,
+      "median_ade_m": 3.3695,
+      "fde_m": 8.5605
+     }
+    },
+    "map": {
+     "sg-one-north": {
+      "scenes": 1914,
+      "pdms": 0.1755,
+      "share_zero": 0.7482,
+      "share_collision": 0.059,
+      "share_off_road": 0.7027,
+      "ade_m": 2.0251,
+      "median_ade_m": 1.8523,
+      "fde_m": 4.8811
+     },
+     "us-ma-boston": {
+      "scenes": 3731,
+      "pdms": 0.2064,
+      "share_zero": 0.6513,
+      "share_collision": 0.3806,
+      "share_off_road": 0.3342,
+      "ade_m": 2.7998,
+      "median_ade_m": 2.637,
+      "fde_m": 6.7149
+     },
+     "us-nv-las-vegas-strip": {
+      "scenes": 4064,
+      "pdms": 0.2114,
+      "share_zero": 0.6543,
+      "share_collision": 0.3627,
+      "share_off_road": 0.3406,
+      "ade_m": 3.0128,
+      "median_ade_m": 2.95,
+      "fde_m": 7.3036
+     },
+     "us-pa-pittsburgh-hazelwood": {
+      "scenes": 2437,
+      "pdms": 0.223,
+      "share_zero": 0.6602,
+      "share_collision": 0.2261,
+      "share_off_road": 0.4698,
+      "ade_m": 3.0387,
+      "median_ade_m": 2.7976,
+      "fde_m": 7.3597
+     }
+    }
+   },
+   "zero_where_human_agent_also_zero": 0.0
+  }
+ },
+ "shared_zero_scenes": {
+  "0.8B pilot & 2B pilot": {
+   "both_zero": 1465,
+   "share_of_0.8B pilot_zeros": 0.7471
+  },
+  "0.8B pilot & MVLAD-AD": {
+   "both_zero": 1561,
+   "share_of_0.8B pilot_zeros": 0.796
+  },
+  "0.8B pilot & 2B-large": {
+   "both_zero": 1448,
+   "share_of_0.8B pilot_zeros": 0.7384
+  },
+  "0.8B pilot & constant velocity": {
+   "both_zero": 1832,
+   "share_of_0.8B pilot_zeros": 0.9342
+  },
+  "2B pilot & MVLAD-AD": {
+   "both_zero": 1569,
+   "share_of_2B pilot_zeros": 0.8042
+  },
+  "2B pilot & 2B-large": {
+   "both_zero": 1596,
+   "share_of_2B pilot_zeros": 0.818
+  },
+  "2B pilot & constant velocity": {
+   "both_zero": 1856,
+   "share_of_2B pilot_zeros": 0.9513
+  },
+  "MVLAD-AD & 2B-large": {
+   "both_zero": 1582,
+   "share_of_MVLAD-AD_zeros": 0.2551
+  },
+  "MVLAD-AD & constant velocity": {
+   "both_zero": 5531,
+   "share_of_MVLAD-AD_zeros": 0.8918
+  },
+  "2B-large & constant velocity": {
+   "both_zero": 1898,
+   "share_of_2B-large_zeros": 0.9322
+  }
+ },
+ "human_agent_zero_scenes": 0,
+ "mix": {
+  "navtest": {
+   "command": {
+    "left": 0.2059,
+    "right": 0.1297,
+    "straight": 0.6644
+   },
+   "ego_speed": {
+    "fast (8-12)": 0.1879,
+    "medium (4-8)": 0.4039,
+    "slow (0.5-4)": 0.3131,
+    "stopped (<0.5 m/s)": 0.0698,
+    "very fast (>12)": 0.0253
+   },
+   "human_next_4s": {
+    "brake to a stop": 0.0671,
+    "keep going": 0.4859,
+    "sideways shift (>2 m, lane change or curve)": 0.1321,
+    "start from a stop": 0.055,
+    "stay stopped": 0.0007,
+    "turn left (>20 deg)": 0.1623,
+    "turn right (>20 deg)": 0.0969
+   },
+   "map": {
+    "sg-one-north": 0.1576,
+    "us-ma-boston": 0.3072,
+    "us-nv-las-vegas-strip": 0.3346,
+    "us-pa-pittsburgh-hazelwood": 0.2006
+   }
+  },
+  "v1-pilot train": {
+   "command": {
+    "left": 0.1413,
+    "right": 0.0851,
+    "straight": 0.6428,
+    "unknown": 0.1308
+   },
+   "ego_speed": {
+    "fast (8-12)": 0.2432,
+    "medium (4-8)": 0.2847,
+    "slow (0.5-4)": 0.2388,
+    "stopped (<0.5 m/s)": 0.1608,
+    "very fast (>12)": 0.0725
+   },
+   "human_next_4s": {
+    "brake to a stop": 0.0231,
+    "keep going": 0.6072,
+    "sideways shift (>2 m, lane change or curve)": 0.0637,
+    "start from a stop": 0.0483,
+    "stay stopped": 0.1054,
+    "turn left (>20 deg)": 0.0945,
+    "turn right (>20 deg)": 0.0577
+   },
+   "map": {
+    "sg-one-north": 0.0629,
+    "us-ma-boston": 0.1617,
+    "us-nv-las-vegas-strip": 0.6347,
+    "us-pa-pittsburgh-hazelwood": 0.1407
+   }
+  },
+  "v1-large train": {
+   "command": {
+    "left": 0.1149,
+    "right": 0.0612,
+    "straight": 0.7008,
+    "unknown": 0.123
+   },
+   "ego_speed": {
+    "fast (8-12)": 0.2144,
+    "medium (4-8)": 0.2432,
+    "slow (0.5-4)": 0.2153,
+    "stopped (<0.5 m/s)": 0.2553,
+    "very fast (>12)": 0.0718
+   },
+   "human_next_4s": {
+    "brake to a stop": 0.0264,
+    "keep going": 0.5853,
+    "sideways shift (>2 m, lane change or curve)": 0.0392,
+    "start from a stop": 0.0525,
+    "stay stopped": 0.1983,
+    "turn left (>20 deg)": 0.0654,
+    "turn right (>20 deg)": 0.033
+   },
+   "map": {
+    "sg-one-north": 0.0344,
+    "us-ma-boston": 0.1119,
+    "us-nv-las-vegas-strip": 0.7608,
+    "us-pa-pittsburgh-hazelwood": 0.093
+   }
+  },
+  "v1-xl train": {
+   "command": {
+    "left": 0.1151,
+    "right": 0.0616,
+    "straight": 0.7004,
+    "unknown": 0.123
+   },
+   "ego_speed": {
+    "fast (8-12)": 0.236,
+    "medium (4-8)": 0.2648,
+    "slow (0.5-4)": 0.2334,
+    "stopped (<0.5 m/s)": 0.1864,
+    "very fast (>12)": 0.0794
+   },
+   "human_next_4s": {
+    "brake to a stop": 0.0296,
+    "keep going": 0.6424,
+    "sideways shift (>2 m, lane change or curve)": 0.0381,
+    "start from a stop": 0.0552,
+    "stay stopped": 0.126,
+    "turn left (>20 deg)": 0.0717,
+    "turn right (>20 deg)": 0.0369
+   },
+   "map": {
+    "sg-one-north": 0.0345,
+    "us-ma-boston": 0.1144,
+    "us-nv-las-vegas-strip": 0.7559,
+    "us-pa-pittsburgh-hazelwood": 0.0952
+   }
+  },
+  "v1-xl-nd train": {
+   "command": {
+    "left": 0.1251,
+    "right": 0.0669,
+    "straight": 0.6806,
+    "unknown": 0.1274
+   },
+   "ego_speed": {
+    "fast (8-12)": 0.2173,
+    "medium (4-8)": 0.2801,
+    "slow (0.5-4)": 0.2442,
+    "stopped (<0.5 m/s)": 0.2009,
+    "very fast (>12)": 0.0575
+   },
+   "human_next_4s": {
+    "brake to a stop": 0.0335,
+    "keep going": 0.6063,
+    "sideways shift (>2 m, lane change or curve)": 0.0421,
+    "start from a stop": 0.0597,
+    "stay stopped": 0.1354,
+    "turn left (>20 deg)": 0.0811,
+    "turn right (>20 deg)": 0.0418
+   },
+   "map": {
+    "sg-one-north": 0.0391,
+    "us-ma-boston": 0.1298,
+    "us-nv-las-vegas-strip": 0.7231,
+    "us-pa-pittsburgh-hazelwood": 0.108
+   }
+  },
+  "dev": {
+   "command": {
+    "left": 0.132,
+    "right": 0.0935,
+    "straight": 0.701,
+    "unknown": 0.0735
+   },
+   "ego_speed": {
+    "fast (8-12)": 0.284,
+    "medium (4-8)": 0.3615,
+    "slow (0.5-4)": 0.192,
+    "stopped (<0.5 m/s)": 0.112,
+    "very fast (>12)": 0.0505
+   },
+   "human_next_4s": {
+    "brake to a stop": 0.0325,
+    "keep going": 0.625,
+    "sideways shift (>2 m, lane change or curve)": 0.088,
+    "start from a stop": 0.0485,
+    "stay stopped": 0.055,
+    "turn left (>20 deg)": 0.0885,
+    "turn right (>20 deg)": 0.0625
+   },
+   "map": {
+    "sg-one-north": 0.276,
+    "us-ma-boston": 0.217,
+    "us-nv-las-vegas-strip": 0.34,
+    "us-pa-pittsburgh-hazelwood": 0.167
+   }
+  }
+ }
+}

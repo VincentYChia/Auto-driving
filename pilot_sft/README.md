@@ -127,10 +127,51 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (n
 - **The 0.8B pilot is far ahead of MVLAD-AD:** paired MVLAD − 0.8B over all 12,146 scenes is −0.391 PDMS (95% bootstrap CI −0.399 to −0.383); MVLAD scores higher on 12% of scenes, lower on 68%. MVLAD runs here with its nuScenes-trained adapter, no route command and history padded to 5 s (`../docs/navsim_eval/RUNBOOK.md` §2), so this is not a verdict on masked diffusion.
 - **More data did not move the 2B on NAVSIM (2026-11-09):** 2B on v1-large (100,000 samples, 1 epoch) against 2B on v1-pilot, paired: −0.004 PDMS (95% bootstrap CI −0.008 to +0.001); against the 0.8B: −0.005 (−0.010 to +0.001). Dev agreed (0.657 vs 0.655 m ADE): one pass over 100,000 samples is worth two over 45,000, at the same number of steps.
 - **The human path never scores 0** (our run of NAVSIM's human agent: 0.946, published 0.948), so every zero a pilot gets is the plan's fault, not the metric's.
-- **The hard scenes are shared:** 12% of scenes score 0 for both models; each fails about 4% more that the other passes.
+- **The hard scenes are shared:** 12% of scenes score 0 for both models; each fails about 4% more that the other passes. 93% of the 0.8B's zero scenes are also zeros for constant velocity: the pilot fails where driving straight on fails.
 - **Published bars on the same split** (from the papers, not rerun here): ego-status MLP 0.656, TransFuser 0.840, human 0.948. Our constant velocity (0.207) and human (0.946) runs match the published 0.206 and 0.948.
 - **Most of the zeros come from leaving the drivable area** (13% of scenes); at-fault collisions zero 3%.
 - **Comfort is 0.9998, not a constant:** MVLAD's raw paths score 0.75 on it, so the metric is live and the pilot's paths are smooth.
+
+### Where the NAVSIM zeros come from, and how navtest differs from our training data (2026-11-09, V)
+`../navsim_eval/failure_analysis.py` joins each scene's score with the human's recorded path and the agent input. Aggregates in `../docs/navsim_eval/results/failure_analysis_navtest_v1.json`; counts of unused training frames in `../docs/training_data/v1_xl_pool_mix_0p5s.json`. "What the human did" is read from the recorded 4 s path: a turn is a heading change over 20°, a sideways shift is over 2 m of lateral offset.
+
+| | navtest share | 0.8B PDMS | 0.8B scenes scoring 0 | v1-xl-nd train share |
+|---|---|---|---|---|
+| Turn left / right | 16% / 10% | 0.733 / 0.677 | 19% / 22% | 8% / 4% |
+| Sideways shift (lane change, curve) | 13% | 0.698 | 23% | 4% |
+| Brake to a stop | 7% | 0.822 | 11% | 3% |
+| Keep going | 49% | 0.770 | 14% | 61% |
+| Stay stopped | 0.1% | 1.000 | 0% | 13.5% |
+| Las Vegas | 34% | 0.833 | 10% | 72% |
+| Boston | 31% | 0.738 | 17% | 13% |
+| Pittsburgh | 20% | 0.688 | 23% | 11% |
+| Singapore (drives on the left) | 16% | 0.691 | 20% | 4% |
+| Route command "unknown" | 0% | | | 13% |
+
+- **The zeros are lateral misses:** 81% of the 0.8B's zero scenes leave the drivable area, and 39% of them end over 1 m to the side of the human path at 4 s, against 15% of the other scenes. Along-track error is about the same on both.
+- **The city effect is not just the maneuver mix:** on "keep going" scenes alone, the 0.8B scores 0 on 7.8% of Las Vegas scenes and 18–20% in the other three cities.
+- **Training mix trades off on NAVSIM:** 2B on v1-large (more Las Vegas, more standstill) against 2B on v1-pilot, paired by city: Las Vegas +0.015 (+0.009 to +0.021), Pittsburgh −0.013 (−0.024 to −0.001), Singapore −0.037 (−0.050 to −0.024); sideways shifts −0.030 (−0.046 to −0.015), turns −0.013 (−0.022 to −0.003). The overall tie is a gain and a loss cancelling.
+- **The mix cannot be steered by weighting at this size:** v1-xl takes about every anchor the 1.0 s spacing allows (the draw tops out near 200,000), so the city × lateral balance weights have almost nothing to choose from and the pool's 76% Las Vegas comes through. OpenScene's 0.5 s frames that v1-xl does not use (after standstill thinning and the warm-up window) number 226,721: 55,743 outside Las Vegas, and 28,702 Las Vegas turns, sideways shifts and stops.
+- MVLAD and constant velocity follow the same pattern; MVLAD fails 78% of brake-to-a-stop scenes.
+
+### Fit on training samples against dev (2026-11-09, V)
+Each run scored on 1,000 of its own training samples (full input) next to its dev result. The instinctual layer's target is a near-exact fit on training data without memorization, so both numbers and the gap matter. Aggregates in `results/train_fit.json`.
+
+| ADE (m) | Train | Dev | Dev − train |
+|---|---|---|---|
+| 0.8B, v1-pilot, 2 epochs | 0.621 | 0.661 | +0.040 |
+| 0.8B, `--ego-dropout 0.8` | 0.648 | 0.705 | +0.057 |
+| 0.8B, rank 128 | 0.612 | 0.668 | +0.056 |
+| 0.8B, lr 5e-4 | 0.633 | 0.719 | +0.086 |
+| 0.8B, v1-pilot, 6 epochs | **0.367** | 0.689 | **+0.322** |
+| **0.8B, v1-large, 3 epochs** | 0.456 | **0.629** | +0.173 |
+| 2B, v1-pilot, 2 epochs | 0.607 | 0.655 | +0.048 |
+| 2B, v1-large, 1 epoch | 0.544 | 0.657 | +0.113 |
+| Constant velocity on the train samples | 1.73 | | |
+
+- **Two epochs over 45,000 samples underfit:** train is barely better than dev (0.62 vs 0.66). Nothing here comes close to a near-exact fit.
+- **Repetition fits train by memorizing:** 6 epochs takes train from 0.62 to 0.37 while dev gets worse (0.66 to 0.69).
+- **More distinct data fits train and improves dev together:** `large-ep3` reaches 0.46 on train and the best dev, 0.63. This is the direction for the instinctual layer; the v1-xl-nd runs extend it with per-epoch train and dev numbers.
 
 ### v1-large: 100,000 samples, 1 epoch, `--ego-dropout 0.5` (2026-11-05, V)
 Qwen3.5-2B on the same 1,000 dev samples. Aggregates in `results/qwen35-2b-v1large-egodrop50.json`.
