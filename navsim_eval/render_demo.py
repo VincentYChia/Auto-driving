@@ -113,8 +113,9 @@ def main() -> None:
         rng = np.random.default_rng(args.seed + 1)
         pool_tokens += [t for t in rng.choice(common, 400, replace=False) if t not in pool_tokens]
     loader = SceneLoader(data / "navsim_logs" / "test", data / "sensor_blobs" / "test",
-                         SceneFilter(tokens=pool_tokens), SensorConfig(cam_f0=[3], **no_cam))
-    available = set(loader.tokens)
+                         SceneFilter(tokens=pool_tokens, frame_interval=1), SensorConfig(cam_f0=[3], **no_cam))
+    available = set(loader.tokens)  # frame_interval=1: navtest tokens sit on every frame, not a 14-frame grid
+    print(f"[render] {len(available)} of {len(pool_tokens)} candidate scenes loaded", flush=True)
     picked = [(t, why) for t, why in picked if t in available]
 
     def command_of(scene) -> str:
