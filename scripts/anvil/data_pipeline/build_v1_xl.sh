@@ -1,5 +1,6 @@
 #!/bin/bash
-# v1-xl (selection.XL: 200k train at >= 1.0 s, a superset of v1-large, v1-pilot's 2k dev pinned) and its nested
+# v1-xl (selection.XL: 200k train at >= 1.0 s, v1-large minus its 1,727 train rows within 7 s of a NAVSIM v1.1
+# warm-up scene, v1-pilot's 2k dev pinned) and its nested
 # subset v1-xl-nd, built on Anvil with packed images (PRETRAIN_V1_PLAN.md §10) [proposed mechanics].
 # The plan is committed in data/pretrain/v1.0-xl/splits/; the build lives in $TRAINING_DATA_ROOT/v1.0-xl.
 #
@@ -9,8 +10,10 @@
 #
 # setup copies, never moves: index/{candidates,logs}.parquet, index/manifest.json and images/archives.json from
 # FROM (default: the v1.0-large build, whose files are identical, V 2026-11-08), and splits/ from the repo checkout
-# (git pull after the plan is committed). Each copy must match its expected SHA-256, then verify_v1_xl.py checks the
-# splits (dev = v1-pilot's, v1-large inside v1-xl-nd inside v1-xl, counts) and leakage against the index.
+# (git pull after the plan is committed; it includes the NAVSIM v1.1 warmup_test_e2e token list). Each copy must
+# match its expected SHA-256, then verify_v1_xl.py checks the splits (dev = v1-pilot's, v1-large minus the warm-up
+# window inside v1-xl-nd inside v1-xl, counts) and leakage against the index, including the warm-up exclusion
+# (no train anchor within 7 s of a warmup_test_e2e scene; with NAVSIM_DEVKIT_ROOT also against the devkit's lists).
 # The camera archives are read in place from SRC (below); nothing here or in the sbatch deletes or moves them.
 # NEVER run build_v1_large.sbatch: its archive loop deletes the downloaded archives.
 #
@@ -133,7 +136,8 @@ setup)
     else
         echo "[v1-xl] NAVSIM_DEVKIT_ROOT is not a folder: leakage is checked against the index's splits only"
     fi
-    python "$VERIFY" leakage --out "$OUT" ${navsim[@]+"${navsim[@]}"}
+    # --metadata (required): locate the warm-up tokens that are not index rows, independently of the plan (~1 min, D)
+    python "$VERIFY" leakage --out "$OUT" --metadata "$V1XL_METADATA" ${navsim[@]+"${navsim[@]}"}
     echo "ready: $OUT (next: sbatch -A cis220051 -p debug --gpus-per-node=0 scripts/anvil/data_pipeline/build_v1_xl.sbatch)"
     ;;
 quota)

@@ -23,8 +23,9 @@ the full set. The two overlap: 1,472 frames are in both (11,000 + 47,000 − 56,
 
 **Larger sets, built on Anvil** (`docs/training_data/PRETRAIN_V1_PLAN.md` §10). All three use v1-pilot's 2,000 dev samples, with the same dev file:
 - **v1-large:** 100,000 train.
-- **v1-xl:** 200,000 train, anchors ≥ 1.0 s apart, containing all of v1-large [agreed 2026-11-08].
-- **v1-xl-nd:** 176,232 of v1-xl's train, without the added Las Vegas near-duplicates [proposed].
+- **v1-xl:** 200,000 train, anchors ≥ 1.0 s apart [agreed 2026-11-08]. It contains v1-large except 1,727 train rows: no v1-xl train anchor is within 7 s of a NAVSIM v1.1 warm-up (`warmup_test_e2e`) scene [proposed 2026-11-09].
+- **v1-xl-nd:** 176,352 of v1-xl's train, without the added Las Vegas near-duplicates [proposed].
+- **Warm-up flag (V, 2026-11-09):** the v1-pilot and v1-large train sets contain 36 and 57 warm-up tokens, and 692 and 1,312 rows within 5 s of a warm-up scene. `CLAUDE.md` forbids training on warm-up splits, so the runs below on those sets carry this caveat. Whether to retrain them is open (`docs/training_data/PRETRAIN_V1_PLAN.md` §10, question 7).
 
 `SET=v1-xl` or `SET=v1-xl-nd` in `train_lora.sbatch` reads `$TRAINING_DATA_ROOT/pilot_v1/<set>`. Compare the two at equal steps [proposed]. Their views keep the images in one `images.zip`, whose members are named by the jsonl `image` field. `pilot_sft/view_images.py` reads the zip member, or the loose file in older views.
 

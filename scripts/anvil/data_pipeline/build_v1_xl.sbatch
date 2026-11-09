@@ -1,6 +1,7 @@
 #!/bin/bash
 # v1-xl steps 4-9 on Anvil (PRETRAIN_V1_PLAN.md §10), after `build_v1_xl.sh setup`: pack the selected CAM_F0 JPEGs
-# of all 200 archives (202,000 frames), cross-check the 102,000 shared with v1-large, canonical tables for
+# of all 200 archives (203,727 frames: v1-xl's 202,000 and the 1,727 v1-large train rows it leaves out near NAVSIM
+# warm-up scenes), cross-check the 102,000 v1-large frames against v1.0-large, canonical tables for
 # v1-xl, v1-xl-nd and v1-large, QA summary, the two zip views and their pilot_v1 links, then verify_v1_xl.py.
 # CPU only. Account and partition come from the command line; a 30-minute debug slot does part of the work and
 # the next submission resumes (each step is skipped once its output exists or its check passes):
@@ -147,5 +148,5 @@ need_minutes 10 verify
 extra=(--archives "$ARCHIVES" ${SMOKE[@]+"${SMOKE[@]}"})
 [ "${#SMOKE[@]}" -gt 0 ] || extra+=(--links "$TRAINING_DATA_ROOT/pilot_v1")
 [ "${DEEP:-0}" != 1 ] || extra+=(--deep)  # DEEP=1: also testzip and re-hash every pack and view zip (~55 GB read)
-python "$VERIFY" all --out "$OUT" --large "$LARGE" ${extra[@]+"${extra[@]}"}
+python "$VERIFY" all --out "$OUT" --large "$LARGE" --metadata "$METADATA" ${extra[@]+"${extra[@]}"}
 echo "done: SET=v1-xl (or v1-xl-nd) sbatch scripts/anvil/pilot_sft/train_lora.sbatch"

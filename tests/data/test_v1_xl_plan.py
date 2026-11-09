@@ -261,6 +261,8 @@ DEV_SHA = "79090629e278705a066890efbfc8271acd9204e2085c3f3ddd8d668316ab7205"  # 
 
 
 def test_real_xl_plan_counts_and_hashes(tmp_path):
+    """Without --exclude-scenes: the first v1-xl plan (2026-11-08), byte for byte, so the new options change nothing
+    by default. The committed plan has the warm-up exclusion: test_v1_scene_exclusion.py."""
     index = os.path.join(REAL, "v1.0-large", "index", "candidates.parquet")
     if not os.path.exists(index):
         pytest.skip("the real candidate index is not here")

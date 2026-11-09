@@ -313,3 +313,106 @@ def test_verify_reports_a_missing_record_as_not_yet(tiny):
     with pytest.raises(SystemExit) as stop:
         v.main(["fetched", "--out", out, "--archives", "2", "--smoke", "--quiet"])
     assert stop.value.code == v.NOT_YET
+
+
+# --- verify_v1_xl.py: the warm-up exclusion ------------------------------------------------------
+
+
+@pytest.fixture
+def warm(tmp_path):
+    """Logs T (train) and D (dev), anchors every 1 s; warm-up scenes at T 20 s and D 5 s."""
+    pytest.importorskip("pyarrow")
+    import numpy as np
+    from data_pipeline.v1 import tables
+
+    out = str(tmp_path / "xl")
+    t = [f"T{k:02d}" for k in range(40)] + [f"D{k:02d}" for k in range(10)]
+    cols = {"token": np.array(t, dtype=object), "log_name": np.array([x[0] for x in t], dtype=object),
+            "t_us": np.array([int(x[1:]) * 1_000_000 for x in t], dtype=np.int64),
+            "our_split": np.array(["train" if x[0] == "T" else "dev" for x in t], dtype=object),
+            "guard_reason": np.array([""] * len(t), dtype=object)}
+    os.makedirs(os.path.join(out, "index"))
+    tables.write(os.path.join(out, "index", "candidates.parquet"), cols)
+    tables.write(os.path.join(out, "index", "logs.parquet"),
+                 {"log_name": np.array(["T", "D"], dtype=object), "our_split": np.array(["train", "dev"], dtype=object),
+                  "guard_reason": np.array(["", ""], dtype=object), "nuplan_split": np.array(["train", "val"], dtype=object)})
+    sets = {"v1-large": (["T10", "T13", "T20", "T27", "T28"], ["D00", "D05"]),  # T13, T20, T27 are within 7 s of T20
+            "v1-xl": (["T00", "T05", "T10", "T28", "T35"], ["D00", "D05"]),
+            "v1-xl-nd": (["T05", "T10", "T28"], ["D00", "D05"])}
+    for name, (train, dev) in sets.items():
+        for split, ts in (("train", train), ("dev", dev)):
+            write(os.path.join(out, "splits", f"{name}_tokens_{split}.txt"), "".join(f"{x}\n" for x in sorted(ts)))
+    write(os.path.join(out, "splits", "navsim_v1.1_warmup_test_e2e_tokens.txt"), "D05\nT20\n")
+    write(os.path.join(out, "splits", "manifest.json"), json.dumps({"scene_exclusion": {"window_s": 7.0}}))
+    return out
+
+
+def test_verify_warmup_train_is_clean_and_dev_is_reported(warm):
+    v = load_verify()
+    checks = v.check_leakage(warm)
+    assert not failed(checks)
+    info = next(c for c in checks if c["check"].startswith("information"))["value"]
+    assert info["tokens"]["v1-xl dev"] == 1 and info["within_window"]["v1-large train"] == 3
+    left = next(c for c in checks if c["check"].startswith("every v1-large train row left out"))["value"]
+    assert left == {"left_out": 3, "inside": 3, "near_frames_placed_only_with_metadata": 0}
+
+
+@pytest.mark.parametrize("token, what", [("T13", "within"), ("T20", "is a")])
+def test_verify_warmup_fails_on_a_train_anchor_near_or_at_a_scene(warm, token, what):
+    v = load_verify()
+    path = os.path.join(warm, "splits", "v1-xl_tokens_train.txt")
+    write(path, "".join(f"{x}\n" for x in sorted(["T00", "T05", "T10", "T28", "T35", token])))
+    names = failed(v.check_leakage(warm))
+    assert any(what in n and "v1-xl" in n for n in names), names
+    write(path, "T00\nT05\nT10\nT28\nT35\n")
+    write(os.path.join(warm, "splits", "v1-xl_tokens_train.txt"), "T00\nT05\nT10\nT35\n")  # T28 left out, outside
+    assert any(n.startswith("every v1-large train row left out") for n in failed(v.check_leakage(warm)))
+
+
+def test_verify_locates_unindexed_warmup_frames_itself_and_fails_without_metadata(warm, tmp_path):
+    """Review 2026-11-09: the frames are found here, not taken from the plan's manifest."""
+    import pickle
+
+    v = load_verify()
+    write(os.path.join(warm, "splits", "navsim_v1.1_warmup_test_e2e_tokens.txt"), "D05\nT20\ngap\n")
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    with open(meta / "T.pkl", "wb") as f:  # "gap": a frame of log T at 1.5 s, not an index row; T00 is 1.5 s away
+        pickle.dump([{"token": "gap", "log_name": "T", "timestamp": 1_500_000}], f)
+
+    def unindexed(checks):
+        return next(c for c in checks if "not index rows" in c["check"])
+
+    checks = v.check_leakage(warm)  # no --metadata: the window cannot be fully checked, so fail
+    assert not unindexed(checks)["ok"] and "NOT located" in unindexed(checks)["check"]
+    checks = v.check_leakage(warm, metadata=str(meta))  # the plan recorded nothing: it skipped the metadata
+    names = failed(checks)
+    assert any("not index rows" in n for n in names) and any("within" in n and "v1-xl" in n for n in names), names
+    assert unindexed(checks)["value"]["differ"] == [("gap", "T")]
+    write(os.path.join(warm, "splits", "manifest.json"),
+          json.dumps({"scene_exclusion": {"window_s": 7.0, "located_in_metadata": {"gap": "T"}}}))
+    names = failed(v.check_leakage(warm, metadata=str(meta)))  # recorded now, but T00 and T05 are still near it
+    assert not any("not index rows" in n for n in names) and any("within" in n for n in names), names
+    for name in ("v1-xl", "v1-xl-nd"):  # T05 is 3.5 s away too; T10 is 8.5 s away
+        path = os.path.join(warm, "splits", f"{name}_tokens_train.txt")
+        write(path, "".join(f"{x}\n" for x in read(path).split() if x not in ("T00", "T05")))
+    assert not failed(v.check_leakage(warm, metadata=str(meta)))
+
+
+def test_verify_devkit_holds_warmup_by_scene_and_every_other_list_at_zero(warm, tmp_path):
+    pytest.importorskip("yaml")
+    from tests.data import v1_synthetic
+
+    v = load_verify()
+    root = v1_synthetic.write_navsim_root(tmp_path / "navsim", train=["T"], val=["D"], filters={
+        "warmup_test_e2e": {"log_names": ["T", "D"], "tokens": ["D05", "T20"]},
+        "navtest": {"log_names": [], "tokens": ["nothing_selected"]}})
+    assert not failed(v.check_leakage(warm, str(root)))  # warm-up logs are not guarded as a whole
+    root = v1_synthetic.write_navsim_root(tmp_path / "navsim2", train=["T"], val=["D"], filters={
+        "warmup_test_e2e": {"log_names": ["T", "D"], "tokens": ["D05", "T20"]},
+        "private_test_e2e": {"log_names": [], "tokens": ["D00"]}})  # a dev hit in another list fails
+    assert any("other guarded lists" in n for n in failed(v.check_leakage(warm, str(root))))
+    root = v1_synthetic.write_navsim_root(tmp_path / "navsim3", train=["T"], val=["D"], filters={
+        "warmup_test_e2e": {"log_names": ["T"], "tokens": ["T20", "T05"]}})  # not the committed list, and T05 is train
+    names = failed(v.check_leakage(warm, str(root)))
+    assert any("= the committed list" in n for n in names) and any("devkit warmup_test_e2e" in n for n in names)

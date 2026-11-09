@@ -27,6 +27,14 @@ that is ineligible, thinned, in the wrong split or closer than the spacing to an
 The first draw of other classes is capped at the room the fixed rows leave, so fixed rows that are
 more than ``cruise_cap`` cruise never push a split past its target. With ``fixed=None`` the selected rows are exactly those of the draw without it.
 
+``train_excluded`` (v1-xl: the rows near a NAVSIM warm-up scene, ``scene_exclusion.window_mask``)
+[proposed 2026-11-09] is a boolean mask over the rows; a masked row is never selected for TRAIN. Dev
+ignores it (dev stays pinned, evaluation only). It is applied after standstill thinning, so thinning
+and therefore every unmasked fixed row stay valid, and the draw order and balance weights are those
+of the full pool, with masked rows skipped as they come up: an all-False mask selects exactly what
+``train_excluded=None`` selects. A fixed train row inside the mask raises; the caller drops such rows
+from ``fixed`` and reports them (``openscene_images.plan --exclude-scenes``).
+
 With ``balance_alpha`` > 0 the train split is drawn in a weighted random order instead: an anchor's
 weight is ``n ** -balance_alpha``, where n counts the split's pool anchors with its city and lateral
 decision. Rare combinations (a Singapore lane change) come up earlier than common ones (a Las Vegas
@@ -69,6 +77,8 @@ PILOT = SelectionConfig("v1-pilot", n_train=45_000, n_dev=2_000, balance_alpha=0
 LARGE = SelectionConfig("v1-large", n_train=100_000, n_dev=2_000, balance_alpha=0.5)
 # v1-large's rules with train anchors >= 1.0 s apart, about 2x [agreed 2026-11-08]. Planned with every v1-large
 # row fixed, so it is a superset of v1-large with v1-pilot's dev set [proposed mechanics]: 200,000 train (V).
+# Since 2026-11-09 the 1,727 v1-large train rows within 7 s of a NAVSIM v1.1 warm-up scene are not fixed and no
+# train row in that window is drawn (train_excluded; PRETRAIN_V1_PLAN.md §10) [proposed]: still 200,000 (V).
 XL = SelectionConfig("v1-xl", n_train=200_000, n_dev=2_000, spacing_s=1.0, balance_alpha=0.5)
 
 
@@ -183,12 +193,15 @@ def select(
     config: SelectionConfig,
     available_logs: Optional[Iterable[str]] = None,
     fixed: Optional[Fixed] = None,
+    train_excluded: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, Dict[str, Any]]:
     """Sorted indices of the selected rows, and statistics per split.
 
     ``fixed``: rows that must be selected (row indices, or a mapping split → row indices, which also
     checks the split). They are accepted first and count against each split's target and cruise
     quota (see the module docstring). ``None`` selects exactly what the draw alone selects.
+    ``train_excluded``: boolean mask over the rows that may not be selected for train (module
+    docstring); a fixed train row inside it raises. ``None`` changes nothing.
     """
     codes = log_codes(cands)
     n_logs = int(codes.max()) + 1 if len(codes) else 0
@@ -197,6 +210,14 @@ def select(
     cruise = is_cruise(cands)
     picker = _SpacedPicker(codes, cands["t_us"], config.spacing_s)
     fixed_rows = _fixed_rows(cands, fixed)
+    excluded = None
+    if train_excluded is not None:
+        excluded = np.asarray(train_excluded)
+        if excluded.dtype != bool or excluded.shape != (len(codes),):
+            raise ValueError(f"train_excluded must be a boolean mask of {len(codes)} rows")
+        masked_fixed = int((excluded[fixed_rows] & (cands["our_split"][fixed_rows] == "train")).sum())
+        if masked_fixed:
+            raise RuntimeError(f"{masked_fixed} fixed train rows are in train_excluded: drop them from fixed first")
     if not base[fixed_rows].all():
         raise RuntimeError(f"{int((~base[fixed_rows]).sum())} fixed rows fail rule 2, 3 or 5, or their log is unavailable")
     if not pool[fixed_rows].all():
@@ -232,6 +253,10 @@ def select(
         rows_cruise = np.flatnonzero(pool & in_split & cruise & ~is_fixed)
         others = iter(_draw_order(rng, rows_other, None if weights is None else weights[rows_other]))
         cruisers = iter(_draw_order(rng, rows_cruise, None if weights is None else weights[rows_cruise]))
+        skip = excluded if split == "train" and excluded is not None else None
+        if skip is not None:  # the same draw order, masked rows skipped as they come up
+            others = (r for r in others if not skip[r])
+            cruisers = (r for r in cruisers if not skip[r])
         cruise_quota = int(np.floor(config.cruise_cap * target))
         stages: Dict[str, int] = {}
         # others_1 is capped at the room left: fixed rows that are mostly cruise would otherwise push it past the
@@ -244,7 +269,7 @@ def select(
             picked += new
         n_before_fill = len(picked)
         if len(picked) < target:  # offer what is left log by log in time order (adds 0 rows, see the module docstring)
-            left = pool & in_split
+            left = pool & in_split if skip is None else pool & in_split & ~skip
             left[picked] = False
             log_order = rng.permutation(n_logs)
             for group in (left & ~cruise, left & cruise):
@@ -275,9 +300,16 @@ def select(
             "decision_lat": stats.value_counts(cands["decision_lat"][rows]),
             "standstill_share": round(float(cands["standstill"][rows].mean()), 4) if len(rows) else None,
         }
+        if skip is not None:  # only with a mask, so the reports of earlier selections are unchanged
+            report["splits"][split]["train_excluded"] = {
+                "candidates": int((in_split & skip).sum()), "eligible": int((base & in_split & skip).sum()),
+                "after_thinning": int((pool & in_split & skip).sum()),
+                "pool_left": int((pool & in_split & ~skip).sum())}
         chosen += picked
     selected = np.sort(np.array(chosen, dtype=np.int64))
     _check(cands, selected, base, codes, config.spacing_s, fixed=fixed_rows)
+    if excluded is not None and (excluded[selected] & (cands["our_split"][selected] == "train")).any():  # a bug
+        raise RuntimeError("selected a train row that is in train_excluded")
     return selected, report
 
 

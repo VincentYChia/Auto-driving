@@ -3,7 +3,7 @@
 Run from the repo root; ``build_v1_xl.sh setup`` and ``build_v1_xl.sbatch`` call it between steps:
 
     python scripts/anvil/data_pipeline/verify_v1_xl.py splits     --out <v1.0-xl> --large <v1.0-large>
-    python scripts/anvil/data_pipeline/verify_v1_xl.py leakage    --out <v1.0-xl> [--navsim-root <devkit>]
+    python scripts/anvil/data_pipeline/verify_v1_xl.py leakage    --out <v1.0-xl> [--navsim-root <devkit>] [--metadata <tgz>]
     python scripts/anvil/data_pipeline/verify_v1_xl.py fetched    --out <v1.0-xl> [--archives 200]
     python scripts/anvil/data_pipeline/verify_v1_xl.py repro      --out <smoke dir> --other <smoke dir>/repro
     python scripts/anvil/data_pipeline/verify_v1_xl.py crosscheck --out <v1.0-xl> --large <v1.0-large>
@@ -13,12 +13,23 @@ Run from the repo root; ``build_v1_xl.sh setup`` and ``build_v1_xl.sbatch`` call
 
 What is checked:
 * ``splits``: the token files are sorted, unique, LF-terminated; dev is v1-pilot's (SHA-256 79090629…) in all
-  three sets and equals v1.0-large's; v1-large ⊂ v1-xl-nd ⊂ v1-xl (train); the counts and train SHA-256 of the
-  spec (§3, V); the copies of v1-large's files are byte-identical; the manifest's checksums and frame count;
-  the label-conflict list (report only).
+  three sets and equals v1.0-large's; (v1-large minus the warm-up window) ⊂ v1-xl-nd ⊂ v1-xl (train), with
+  exactly ``BASE_DROPPED`` v1-large train rows outside v1-xl; the counts and train SHA-256 (§10, V); the copies
+  of v1-large's files are byte-identical; the manifest's checksums and frame count; the committed warm-up
+  token list (``WARMUP_FILE``); the label-conflict list (report only).
 * ``leakage``: every selected token is in the index with the same split, no NAVSIM guard reason, no excluded
-  log (the index's ``our_split``); train and dev logs disjoint; dev logs are nuPlan val. With
-  ``--navsim-root``, also against NAVSIM's own lists.
+  log (the index's ``our_split``); train and dev logs disjoint; dev logs are nuPlan val. The warm-up
+  exclusion [proposed 2026-11-09]: no v1-xl / v1-xl-nd TRAIN token is a ``warmup_test_e2e`` token or within
+  the manifest's window (±7.0 s, same log) of one, located by the index and, for listed tokens that are not
+  index rows, by OpenScene's metadata (``--metadata``: scanned here over the logs of every train row and listed
+  row, and the result must equal the plan's ``located_in_metadata``; without ``--metadata`` that check fails,
+  since the window cannot be fully checked); every v1-large train row left out of
+  v1-xl is inside the window; dev's warm-up tokens (3) and v1-large's (57) are reported, not failed (dev is
+  evaluation only and pinned; v1-large is an earlier set, kept as committed). With ``--navsim-root``, also
+  against NAVSIM's own lists: ``warmup_test_e2e`` (NAVSIM v1.1) is held to the same scene-level rule (train
+  clean, dev hits reported, its logs not guarded as a whole) and must equal the committed list; every other
+  guarded list (nuPlan test logs, navtest, navhard, private_test_e2e, competition_private_tokens, …) must have
+  0 tokens and 0 logs in train and dev of all three sets.
 * ``fetched``: a clean record for each of the first ``--archives`` archives of the plan (no missing or
   undecodable frame, logs match the map) and its pack ``images/packs/<n>.zip`` holding exactly the record's
   frames, named by canonical ``image_path``, in sorted order.
@@ -39,6 +50,7 @@ It only reads the build; it deletes, moves and rewrites nothing.
 from __future__ import annotations
 
 import argparse
+import bisect
 import hashlib
 import json
 import os
@@ -55,16 +67,25 @@ SETS = ("v1-xl", "v1-xl-nd", "v1-large")
 VIEWS = ("v1-xl", "v1-xl-nd")
 SPLITS = ("train", "dev")
 DEV_SHA256 = "79090629e278705a066890efbfc8271acd9204e2085c3f3ddd8d668316ab7205"  # v1-pilot's = v1-large's dev (V)
-EXPECTED = {  # spec §3 (V: design_faithful.py and judge_nested.py, 2026-11-08; v1-large as committed)
+EXPECTED = {  # V: the plan with the warm-up exclusion, 2026-11-09 (PRETRAIN_V1_PLAN.md §10); v1-large as committed
     "v1-xl": {"train": 200_000, "dev": 2_000,
-              "train_sha256": "d29d242611447c67c7a03e1305f4fa9458f45404efa68e5d54818a1ad7e2cdf4"},
-    "v1-xl-nd": {"train": 176_232, "dev": 2_000,
-                 "train_sha256": "f74bdbcded2d3c98f56e53663326f77886601e70eda021211274e6a1d6bdf94e"},
+              "train_sha256": "7f6eb97653c690c54a6a0e0a6101e8123efcea9a62f13989bec4c71fedec7643"},
+    "v1-xl-nd": {"train": 176_352, "dev": 2_000,
+                 "train_sha256": "5cb194088089ae1b997ef499cb58377e87fe778558ad5cd0e1cd9d9b455a0923"},
     "v1-large": {"train": 100_000, "dev": 2_000,
                  "train_sha256": "e6e6e7d320298ee71d8ae8bea03aa525042884cfa4e0bdc92541acf2ed6601ab"},
 }
-FRAMES_TO_KEEP = 202_000  # union of the three sets
+FRAMES_TO_KEEP = 203_727  # union of the three sets: v1-xl's 202,000 and the 1,727 v1-large train rows it leaves out
 LARGE_FRAMES = 102_000
+BASE_DROPPED = 1_727  # v1-large train rows inside the warm-up window, so not in v1-xl or v1-xl-nd (V, 2026-11-09)
+WARMUP_FILE = "navsim_v1.1_warmup_test_e2e_tokens.txt"  # committed ID list of NAVSIM v1.1 warmup_test_e2e
+WARMUP_SHA256 = "f5fdc4a169e53f0369d41f946125d7113cd208e4b8fac60a2d65a21353f0cea4"
+WARMUP_TOKENS = 563
+WARMUP_FILTER = "warmup_test_e2e"  # the devkit's scene filter held to the scene-level rule, not guarded by log
+SCENE_LEVEL_FILTERS = (WARMUP_FILTER,)
+WINDOW_S = 7.0  # default when the manifest does not say
+MIN_WINDOW_S = 6.5  # our window [t - 1.5, t + 4] overlaps a v1.1 scene's [tw - 1.5, tw + 5] iff t - tw in [-5.5, 6.5]
+TRAINED = ("v1-xl", "v1-xl-nd")  # the sets built here to be trained on
 CAMERA = "CAM_F0"
 VIEW = "pilot_v1"
 NOT_YET = 2  # exit code: the step's output is not there yet
@@ -187,6 +208,32 @@ def _manifest_shas(entry: Any) -> Dict[str, str]:
     return found
 
 
+def warmup_path(out_dir: str) -> str:
+    return os.path.join(out_dir, "splits", WARMUP_FILE)
+
+
+def check_warmup_list(out_dir: str, exclusion: Dict[str, Any]) -> List[Check]:
+    """The committed warm-up token list and the manifest's record of the exclusion."""
+    path = warmup_path(out_dir)
+    if not os.path.exists(path):
+        return [_check(False, f"warm-up token list splits/{WARMUP_FILE} exists")]
+    with open(path, "rb") as f:
+        data = f.read()
+    lines = read_tokens(path)
+    sha = hashlib.sha256(data).hexdigest()
+    window = exclusion.get("window_s")
+    return [
+        _check(b"\r" not in data and data.endswith(b"\n") and lines == sorted(set(lines)) and len(lines) == WARMUP_TOKENS
+               and sha == WARMUP_SHA256, f"{WARMUP_FILE}: {WARMUP_TOKENS} tokens, sorted, unique, LF, "
+               f"SHA-256 {WARMUP_SHA256[:8]}…", {"tokens": len(lines), "sha256": sha}),
+        _check(exclusion.get("name") == WARMUP_FILE and exclusion.get("sha256") == sha
+               and (exclusion.get("source") or {}).get("filter") == WARMUP_FILTER,
+               "manifest scene_exclusion records this list and its source", exclusion.get("source")),
+        _check(isinstance(window, (int, float)) and window >= MIN_WINDOW_S,
+               f"exclusion window >= {MIN_WINDOW_S} s (the two sample windows overlap up to 6.5 s apart)", window),
+    ]
+
+
 def check_splits(out_dir: str, large_dir: Optional[str]) -> List[Check]:
     out: List[Check] = []
     tokens: Dict[Tuple[str, str], List[str]] = {}
@@ -211,10 +258,20 @@ def check_splits(out_dir: str, large_dir: Optional[str]) -> List[Check]:
         return out
     train = {name: set(tokens[(name, "train")]) for name in SETS}
     dev = {name: set(tokens[(name, "dev")]) for name in SETS}
-    out.append(_check(train["v1-large"] <= train["v1-xl-nd"] <= train["v1-xl"],
-                      "train: v1-large ⊂ v1-xl-nd ⊂ v1-xl",
-                      {"v1-large not in v1-xl-nd": len(train["v1-large"] - train["v1-xl-nd"]),
+    kept_large = train["v1-large"] & train["v1-xl"]
+    out.append(_check(kept_large <= train["v1-xl-nd"] <= train["v1-xl"],
+                      "train: (v1-large minus the warm-up window) ⊂ v1-xl-nd ⊂ v1-xl",
+                      {"v1-large in v1-xl, not in v1-xl-nd": len(kept_large - train["v1-xl-nd"]),
                        "v1-xl-nd not in v1-xl": len(train["v1-xl-nd"] - train["v1-xl"])}))
+    m = manifest(out_dir)
+    exclusion = m.get("scene_exclusion") if isinstance(m.get("scene_exclusion"), dict) else {}
+    left_out = len(train["v1-large"] - train["v1-xl"])
+    out.append(_check(left_out == BASE_DROPPED == exclusion.get("base_train_dropped"),
+                      f"{BASE_DROPPED:,} v1-large train rows are left out of v1-xl (= manifest scene_exclusion), "
+                      "the same in v1-xl-nd", {"left_out": left_out, "manifest": exclusion.get("base_train_dropped"),
+                                               "left_out_of_nd": len(train["v1-large"] - train["v1-xl-nd"])}))
+    out.append(_check(train["v1-large"] - train["v1-xl"] == train["v1-large"] - train["v1-xl-nd"],
+                      "v1-xl-nd leaves out the same v1-large rows as v1-xl"))
     out.append(_check(dev["v1-xl"] == dev["v1-xl-nd"] == dev["v1-large"], "dev is the same 2,000 in all three sets"))
     out.append(_check(not (train["v1-xl"] & dev["v1-xl"]), "no token is in both train and dev"))
     union = set().union(*train.values(), *dev.values())
@@ -227,7 +284,7 @@ def check_splits(out_dir: str, large_dir: Optional[str]) -> List[Check]:
             same[split] = os.path.exists(theirs) and sha256_file(theirs) == sha256_file(token_file(out_dir, "v1-large", split))
         out.append(_check(all(same.values()), "v1-large token files are byte-identical to v1.0-large's", same))
 
-    m = manifest(out_dir)
+    out.extend(check_warmup_list(out_dir, exclusion))
     out.append(_check(set(SETS) <= set(m.get("selections", {})), "manifest selections list v1-xl, v1-xl-nd, v1-large",
                       sorted(m.get("selections", {}))))
     out.append(_check(m.get("frames_to_keep") == FRAMES_TO_KEEP, f"manifest frames_to_keep = {FRAMES_TO_KEEP:,}",
@@ -271,7 +328,96 @@ def selected(out_dir: str) -> Dict[str, Dict[str, str]]:
             for name in SETS}
 
 
-def check_leakage(out_dir: str, navsim_root: Optional[str] = None) -> List[Check]:
+def _nearest_s(times: Dict[str, List[int]], log: str, t_us: int) -> Optional[float]:
+    """Seconds from ``t_us`` to the nearest warm-up scene of ``log`` (None: the log has none)."""
+    centre = times.get(log)
+    if not centre:
+        return None
+    k = bisect.bisect_left(centre, t_us)
+    return min(abs(t_us - centre[j]) for j in (k - 1, k) if 0 <= j < len(centre)) / 1e6
+
+
+def check_warmup(out_dir: str, sel: Dict[str, Dict[str, str]], cands: Dict[str, Any], row_of: Dict[str, int],
+                 metadata: Optional[str] = None) -> List[Check]:
+    """The scene-level warm-up exclusion, from the committed list and the index (module docstring)."""
+    path = warmup_path(out_dir)
+    if not os.path.exists(path):
+        return [_check(False, f"warm-up token list splits/{WARMUP_FILE} exists")]
+    listed = set(read_tokens(path))
+    exclusion = manifest(out_dir).get("scene_exclusion") or {}
+    window_s = float(exclusion.get("window_s", WINDOW_S))
+    times: Dict[str, List[int]] = {}
+    for t in listed:
+        r = row_of.get(t)
+        if r is not None:
+            times.setdefault(str(cands["log_name"][r]), []).append(int(cands["t_us"][r]))
+    by_metadata = exclusion.get("located_in_metadata") or {}  # token -> log, placed by the plan from the metadata
+    missing = sorted(listed - set(row_of))  # listed tokens that are not index rows
+    placed: Dict[str, Tuple[str, int]] = {}
+    scanned = 0
+    if metadata and missing:
+        # Located here, not taken from the manifest: every log with a train row of any set or a listed row
+        # (a frame in a log with no train row cannot be near one). ~1,100 logs, ~1 min locally (V, 2026-11-09).
+        from data_pipeline.v1 import scene_exclusion
+
+        logs = {str(cands["log_name"][row_of[t]]) for n in SETS for t, s in sel[n].items()
+                if s == "train" and t in row_of}
+        logs |= {str(cands["log_name"][row_of[t]]) for t in listed if t in row_of}
+        scanned = len(logs)
+        placed = scene_exclusion.locate_in_metadata(metadata, missing, logs)
+        for t, (log, ts) in placed.items():
+            times.setdefault(log, []).append(ts)
+    for v in times.values():
+        v.sort()
+
+    def near(tokens: Iterable[str]) -> List[str]:
+        out = []
+        for t in tokens:
+            r = row_of.get(t)
+            if r is None:
+                continue
+            d = _nearest_s(times, str(cands["log_name"][r]), int(cands["t_us"][r]))
+            if d is not None and d <= window_s + 1e-9:
+                out.append(t)
+        return out
+
+    split_tokens = {(n, s): [t for t, sp in sel[n].items() if sp == s] for n in SETS for s in SPLITS}
+    exact = {f"{n} {s}": sum(t in listed for t in ts) for (n, s), ts in split_tokens.items()}
+    inside = {f"{n} {s}": len(near(ts)) for (n, s), ts in split_tokens.items()}
+    left_out = set(sel["v1-large"]) - set(sel["v1-xl"])
+    left_out_inside = set(near(left_out))
+    unplaced_logs = set() if placed else set(by_metadata.values())  # windows this run cannot place
+    unchecked = {t for t in left_out - left_out_inside if str(cands["log_name"][row_of[t]]) in unplaced_logs}
+    trained = {n: inside[f"{n} train"] for n in TRAINED}
+    out = [
+        _check(all(exact[f"{n} train"] == 0 for n in TRAINED),
+               f"no v1-xl / v1-xl-nd train token is a {WARMUP_FILTER} token (CLAUDE.md: never train on warmup)",
+               {n: exact[f"{n} train"] for n in TRAINED}),
+        _check(all(v == 0 for v in trained.values()),
+               f"no v1-xl / v1-xl-nd train anchor within ±{window_s} s of a {WARMUP_FILTER} scene in its log",
+               {n: inside[f"{n} train"] for n in TRAINED}),
+        _check(len(left_out_inside) + len(unchecked) == len(left_out),
+               "every v1-large train row left out of v1-xl is inside the window",
+               {"left_out": len(left_out), "inside": len(left_out_inside),
+                "near_frames_placed_only_with_metadata": len(unchecked)}),
+        _check(True, f"information: {WARMUP_FILTER} tokens and rows within ±{window_s} s per set and split (dev is "
+                     "evaluation only and pinned; v1-large is an earlier set kept as committed)",
+               {"tokens": exact, "within_window": inside, "expected_dev_tokens": 3}),
+    ]
+    if missing:  # without --metadata they cannot be placed, so the window checks above are incomplete: fail
+        found = {t: log for t, (log, _) in placed.items()}
+        out.append(_check(bool(metadata) and found == dict(by_metadata),
+                          f"{len(missing)} listed tokens that are not index rows: "
+                          + ("located independently in the metadata (logs of every train row and listed row), "
+                             "included above, and = the plan's located_in_metadata" if metadata else
+                             "NOT located, so the window is not fully checked (pass --metadata)"),
+                          {"not_in_index": len(missing), "logs_scanned": scanned, "placed": len(found),
+                           "listed_by_plan": len(by_metadata),
+                           "differ": sorted(set(found.items()) ^ set(by_metadata.items()))}))
+    return out
+
+
+def check_leakage(out_dir: str, navsim_root: Optional[str] = None, metadata: Optional[str] = None) -> List[Check]:
     from data_pipeline.v1 import tables
 
     sel = selected(out_dir)
@@ -279,7 +425,7 @@ def check_leakage(out_dir: str, navsim_root: Optional[str] = None) -> List[Check
     for name in SETS:
         split_of.update(sel[name])
     cands = tables.read(os.path.join(out_dir, "index", "candidates.parquet"),
-                        ["token", "log_name", "our_split", "guard_reason"])
+                        ["token", "log_name", "our_split", "guard_reason", "t_us"])
     row_of = {str(t): k for k, t in enumerate(cands["token"])}
     rows = [row_of.get(t) for t in split_of]
     absent = sum(r is None for r in rows)
@@ -310,15 +456,50 @@ def check_leakage(out_dir: str, navsim_root: Optional[str] = None) -> List[Check
         _check(all(log_info.get(l, ("", "", ""))[2] == "val" for l in log_split["dev"]), "dev logs are nuPlan val logs",
                {"train_logs": len(log_split["train"]), "dev_logs": len(log_split["dev"])}),
     ]
+    out += check_warmup(out_dir, sel, cands, row_of, metadata)
     if navsim_root:
-        from data_pipeline.v1 import navsim_splits
+        out += check_devkit(out_dir, sel, log_split, cands, row_of, navsim_root)
+    return out
 
-        guard = navsim_splits.load(navsim_root)
-        out.append(_check(not (set(split_of) & set(guard.guarded_tokens)) and not (all_logs & set(guard.guarded_logs)),
-                          "no token or log is in NAVSIM's guarded lists (devkit)",
-                          {"guarded_logs": len(guard.guarded_logs), "guarded_tokens": len(guard.guarded_tokens),
-                           "tokens_hit": len(set(split_of) & set(guard.guarded_tokens)),
-                           "logs_hit": len(all_logs & set(guard.guarded_logs))}))
+
+def check_devkit(out_dir: str, sel: Dict[str, Dict[str, str]], log_split: Dict[str, Set[str]],
+                 cands: Dict[str, Any], row_of: Dict[str, int], navsim_root: str) -> List[Check]:
+    """NAVSIM's own lists: scene-level filters (warm-up) by the window rule, every other guarded list at 0 hits."""
+    from data_pipeline.v1 import navsim_splits
+
+    guard = navsim_splits.load(navsim_root)
+
+    def strict(reason: str) -> bool:  # guarded by something other than a scene-level filter
+        return any(r not in SCENE_LEVEL_FILTERS for r in reason.split("+"))
+
+    strict_tokens = {t for t, r in guard.guarded_tokens.items() if strict(r)}
+    strict_logs = {l for l, r in guard.guarded_logs.items() if strict(r)}
+    all_tokens = {t for name in SETS for t in sel[name]}
+    all_logs = log_split["train"] | log_split["dev"]
+    hits: Dict[str, int] = {}
+    for t in all_tokens & strict_tokens:
+        for r in guard.guarded_tokens[t].split("+"):
+            hits[f"token:{r}"] = hits.get(f"token:{r}", 0) + 1
+    for l in all_logs & strict_logs:
+        for r in guard.guarded_logs[l].split("+"):
+            hits[f"log:{r}"] = hits.get(f"log:{r}", 0) + 1
+    out = [_check(not hits, "no token or log of any set is in NAVSIM's other guarded lists (devkit: nuPlan test, "
+                            "navtest, navhard, private tests, ...), train or dev",
+                  {"guarded_logs": len(strict_logs), "guarded_tokens": len(strict_tokens), "hits": hits,
+                   "devkit_commit": guard.devkit_commit})]
+    warm = {t for t, r in guard.guarded_tokens.items() if WARMUP_FILTER in r.split("+")}
+    if warm:
+        committed = set(read_tokens(warmup_path(out_dir))) if os.path.exists(warmup_path(out_dir)) else set()
+        train_hits = {n: sum(t in warm for t, s in sel[n].items() if s == "train") for n in TRAINED}
+        out.append(_check(warm == committed, f"the devkit's {WARMUP_FILTER} tokens = the committed list",
+                          {"devkit": len(warm), "committed": len(committed)}))
+        out.append(_check(not any(train_hits.values()),
+                          f"devkit {WARMUP_FILTER}: no v1-xl / v1-xl-nd train token (dev and v1-large reported)",
+                          {"train": train_hits,
+                           "v1-large train": sum(t in warm for t, s in sel["v1-large"].items() if s == "train"),
+                           "dev": sum(t in warm for t, s in sel["v1-xl"].items() if s == "dev"),
+                           "logs_listed_not_guarded_by_log": sum(WARMUP_FILTER in r.split("+")
+                                                                 for r in guard.guarded_logs.values())}))
     return out
 
 
@@ -551,6 +732,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             p.add_argument("--large", required=name != "splits", help="the v1.0-large dataset directory")
         if name in ("leakage", "all"):
             p.add_argument("--navsim-root", help="NAVSIM devkit: also check against its own split lists")
+            p.add_argument("--metadata", help="openscene_metadata_trainval.tgz: locate the listed warm-up tokens that "
+                                              "are not index rows (required when there are any, else leakage fails)")
         if name in ("fetched", "all"):
             p.add_argument("--archives", type=int, default=200, help="the first N archives of the plan")
             p.add_argument("--deep", action="store_true", help="testzip and re-hash every pack (and view zip)")
@@ -567,7 +750,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     if args.command == "splits":
         checks = check_splits(args.out, args.large)
     elif args.command == "leakage":
-        checks = check_leakage(args.out, args.navsim_root)
+        checks = check_leakage(args.out, args.navsim_root, args.metadata)
     elif args.command == "fetched":
         checks, complete = check_fetched(args.out, args.archives, full, args.deep)
         status = 0 if complete else NOT_YET
@@ -580,7 +763,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         status = 0 if present else NOT_YET
     else:
         large_view = args.large_view or view_dir(args.large, "v1-large")
-        checks = check_splits(args.out, args.large) + check_leakage(args.out, args.navsim_root)
+        checks = check_splits(args.out, args.large) + check_leakage(args.out, args.navsim_root, args.metadata)
         checks += check_fetched(args.out, args.archives, full, args.deep)[0]
         checks += check_crosscheck(args.out, args.large, full) + check_canonical(args.out, full)[0]
         for name in VIEWS:

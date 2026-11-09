@@ -6,3 +6,7 @@
 # Shell and Slurm scripts run on Linux (Anvil): keep LF even in Windows checkouts.
 *.sh     text eol=lf
 *.sbatch text eol=lf
+
+# Committed ID lists: their SHA-256 is pinned (manifests, verify_v1_xl.py, tests), so keep LF everywhere.
+data/pretrain/**/splits/*.txt text eol=lf
+data/pretrain/**/splits/*.tsv text eol=lf

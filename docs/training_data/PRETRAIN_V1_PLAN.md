@@ -240,6 +240,7 @@ ALLOW_FULL_RUN=1 sbatch scripts/anvil/data_pipeline/pretrain_v1_index.sbatch   #
 **Safety built in:**
 - **Restricted loading:** log pickles are loaded with a restricted unpickler that accepts only numpy arrays and plain containers. Anything else stops the run, and the error names the refused type.
 - **Evaluation logs excluded:** a log is excluded if it is in nuPlan's test list or in any NAVSIM evaluation split (navtest, navhard, warmup, navsafe, private tests). Tokens those splits list are excluded too. The audit counts both; 0 is expected.
+  - The lists are NAVSIM main's. NAVSIM v1.1's `warmup_test_e2e` is not among them. From v1-xl on, its scenes are kept out of train by a ±7 s window instead (§10, 2026-11-09).
 
 ### How to run step 3
 From the repo root. `fetch` needs Pillow (`python -m pip install pillow`) to check that each JPEG decodes.
@@ -306,6 +307,7 @@ Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs wi
 | Pilot view + chat export (step 7) | `data_pipeline/v1/pilot_view.py` | **Written 2026-11-01**, tested; ran on the smoke set |
 | Fine-tuning and evaluation of the pilot | `pilot_sft/` (reads only the view), `scripts/anvil/pilot_sft/train_lora.sbatch` | **Written 2026-11-01**. See `pilot_sft/README.md` |
 | v1-xl selection: superset of fixed rows; v1-xl-nd filter and label-conflict list | `selection.py` (`XL`, `select(..., fixed=)`), `data_pipeline/v1/novelty.py`, `openscene_images.py plan --extends` | **Written 2026-11-08** [proposed]. `fixed=None` keeps every earlier selection byte-identical |
+| Warm-up exclusion: no train anchor within ±7 s of a NAVSIM v1.1 `warmup_test_e2e` scene | `data_pipeline/v1/scene_exclusion.py`, `select(..., train_excluded=)`, `openscene_images.py plan --exclude-scenes --exclude-window-s --exclude-metadata` | **Written 2026-11-09** [proposed], §10. `train_excluded=None` changes nothing |
 | Packed images: originals and views | `openscene_images.py fetch --storage pack`, `data_pipeline/v1/image_store.py`; `pilot_view.py build --storage zip`, `pilot_sft/view_images.py` | **Written 2026-11-08** [proposed format]. Default `loose` keeps today's layout; readers take the loose file first |
 | Anvil build and checks of v1-xl | `scripts/anvil/data_pipeline/build_v1_xl.{sh,sbatch}`, `verify_v1_xl.py` | **Written 2026-11-08**; not yet run on Anvil (§10) |
 | Tests | `tests/data/test_v1_index.py`, `tests/data/test_v1_select_audit.py`, `test_v1_images.py`, `test_v1_canonical.py` | Pass on Python 3.9 + numpy 1.23.4 (NAVSIM's pins) + pyarrow 16, and on Python 3.13 + numpy 2 |
@@ -326,6 +328,7 @@ Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs wi
   | navsafe_two_stage | 36 |
 
   The private test filters list tokens only. All of them are guarded anyway.
+  NAVSIM v1.1 (commit 3e8291bf, on Anvil) has a `warmup_test_e2e` filter that main does not have. Its 62 logs are navmini's; the 52 in our index are nuPlan train and val logs. It is kept out of v1-xl's train by a time window instead (§10, V 2026-11-08).
 
 ## 8. How this addresses the v0.1 prototype's limitations (`README.md` §3)
 | Limitation | Fix |
@@ -362,6 +365,27 @@ Evidence marks: **V** measured, **R** reported and not re-checked, **D** derived
   - `XL = SelectionConfig("v1-xl", n_train=200_000, n_dev=2_000, spacing_s=1.0, balance_alpha=0.5)`.
   - `select(..., fixed=…)` puts all 102,000 v1-large rows into the per-log picker first, in (log, time) order. They count against the quotas. A fixed row that is ineligible, thinned, too close to another or in the wrong split stops the plan.
   - The 2,000 fixed dev rows fill `n_dev`, so no dev draw happens. Dev is v1-pilot's file (SHA-256 79090629…, V). Without pinning, a 1.0 s dev draw keeps only 1,901 of the 2,000 (V).
+  - Since 2026-11-09 the fixed train rows are v1-large's minus the 1,727 inside the warm-up window (next item). So v1-xl is "v1-large minus the warm-up window" plus 101,727 drawn rows.
+- **Warm-up exclusion [finding V 2026-11-08; scene-level rule proposed 2026-11-09]:**
+  - **Finding.** NAVSIM v1.1 has a scene filter `warmup_test_e2e`, the 2024 challenge warm-up split. It lists 563 tokens in 62 logs (the navmini logs). NAVSIM's own navtrain contains 446 of the 563 tokens (V). Our guard (`navsim_splits.py`) read NAVSIM main (commit 0a380a9), which has no such filter, so the index does not guard these tokens. Source: Anvil's devkit `/home/x-vchia/navsim-v1.1`, commit 3e8291bf…, file SHA-256 4d41f0be… (V).
+  - **Why exclude although navtrain contains them:** `CLAUDE.md` says never train on warm-up splits, and that rule wins over navtrain's overlap.
+  - **The rule (lead's decision):** from v1-xl on, no TRAIN anchor whose sample window could overlap a warm-up scene's window. It works per scene with a time window, not by whole log.
+    - Our sample at anchor t spans [t − 1.5 s, t + 4 s].
+    - A v1.1 scene at token time tw spans [tw − 1.5 s, tw + 5 s] (4 history and 10 future frames at 0.5 s).
+    - So the two overlap iff t − tw is in [−5.5 s, +6.5 s].
+    - We exclude a symmetric ±7.0 s in the same log, inclusive at exactly 7.0 s (`scene_exclusion.window_mask`; `--exclude-window-s`).
+  - **The list:** `splits/navsim_v1.1_warmup_test_e2e_tokens.txt` (563 tokens, SHA-256 f5fdc4a1…), an ID list. The manifest's `scene_exclusion` records its source (repo, commit, path, SHA-256), the window and the counts.
+  - **Placing the scenes in time (V, 2026-11-09):**
+    - 448 of the 563 tokens are index rows, in 52 logs (368 train rows, 80 dev rows). The 52 logs are 43 nuPlan train and 9 val logs.
+    - 6 more are frames of 3 indexed logs that fail rule 1, so they are not rows. Two of them have v1-large and v1-xl train rows within 7 s. `--exclude-metadata <openscene_metadata_trainval.tgz>` finds them in OpenScene's metadata by scanning the 52 logs (~30 s, V). It is required: `plan --exclude-scenes` refuses a list with tokens that are not index rows unless it is given (or `--allow-unlocated`, which only reports them and is not for the committed plan), since a plan without it leaves 12 v1-xl train rows within 7 s of these frames (V, 2026-11-09).
+    - The other 109 are found in neither. The 10 warm-up logs without a located token are not in the index at all. A token that is not a row cannot be selected.
+  - **Effect:**
+    - 9,093 train rows of the index are in the window. 8,580 of them survive standstill thinning and are taken out of the train pool.
+    - 1,727 v1-large train rows are in the window. 57 of them are warm-up tokens and 1,312 are within 5 s. They are dropped from the fixed rows, with a report, so they are not in v1-xl or v1-xl-nd.
+    - v1-xl still reaches 200,000 train, with no shortfall. Its train rows within 7 s of a warm-up scene: 0. Warm-up tokens in it: 0 (V; `verify_v1_xl.py leakage`).
+    - 167,617 of the first plan's 200,000 v1-xl train rows stay (V). Only 3,725 of the 32,383 that changed were in the window. The rest moved because the picker's seeds and quotas changed.
+  - **Dev is unchanged** (evaluation only, never trained on; byte-identical, SHA-256 79090629…). It holds 3 warm-up tokens (18cf7d6f96f45847, 65f1aecfc27158a7, e6acce4cea5152e2) and 49 rows within 7 s (V). They are reported, not removed.
+  - **Earlier sets are unchanged and flagged.** The smoke, v1-pilot and v1-large token files stay as committed, because results were already reported on them. Their train sets hold warm-up tokens: smoke 9, v1-pilot 36, v1-large 57. Rows within 5 s of a warm-up scene: smoke 210, v1-pilot 692, v1-large 1,312 (V, 2026-11-09, counting the 6 frames found in the metadata). Runs trained on them broke the rule for those rows; see open question 7.
 - **v1-xl-nd [proposed]:** a subset of v1-xl train for an A/B against v1-xl at equal steps. It needs no extra extraction.
   - It keeps every v1-large row.
   - It drops an *added* Las Vegas row when a kept row of the same log within 1.5 s (+50 ms) is a near-duplicate: the same `decision_lon` and `decision_lat`, |Δspeed| < 0.5 m/s, |Δheading| < 2°, and a mean distance under 0.6 m between the two 4 s targets (`novelty.py`).
@@ -373,21 +397,22 @@ Evidence marks: **V** measured, **R** reported and not re-checked, **D** derived
   - slip > 20°;
   - the heading turns > 0.1 rad in 0.5 s while moving < 0.2 m.
 
-  The plan flags 54 rows of v1-xl train and 1 of dev (V); the command contradictions alone are 37 (V). Nothing is dropped. A view option to exclude them is [proposed] and off.
+  The plan flags 52 rows of v1-xl train and 1 of dev (V, 2026-11-09). The command contradictions alone are 38 over the three sets (V). Nothing is dropped. A view option to exclude them is [proposed] and off. The list covers the rows of all three sets; 3 of its 19 `v1-large/train` rows are among the 1,727 that v1-xl leaves out.
 
-| (V, 2026-11-08) | v1-large | v1-xl | v1-xl-nd |
+| (V, 2026-11-09, with the warm-up exclusion) | v1-large | v1-xl | v1-xl-nd |
 |---|---|---|---|
-| Train / dev | 100,000 / 2,000 | 200,000 / the same 2,000 | 176,232 / the same 2,000 |
-| Contains all of v1-large train | yes | yes | yes |
-| Las Vegas | 76.08% | 75.21% | 71.87% |
-| Cruise ("keep speed + straight") | 34.12% | 39.96% | 33.15% |
-| Standstill | 16.66% | 9.66% | 10.76% |
-| Turns / lane changes | 8,176 / 2,280 | 18,734 / 3,439 | 18,728 / 3,431 |
-| Unknown command | 12.3% | 12.09% | 12.5% |
-| Near-duplicates within 1 s / 2 s | 0 / 14.6% | 42.2% / 47.0% | 23.9% / 34.1% |
-| Frames to extract | 102,000 | 202,000 with dev (100,000 new, in all 200 archives) | 0 extra |
+| Train / dev | 100,000 / 2,000 | 200,000 / the same 2,000 | 176,352 / the same 2,000 |
+| Contains v1-large train | yes | all but the 1,727 rows in the warm-up window | the same |
+| Train rows within 7 s of a warm-up scene | 1,727 | 0 | 0 |
+| Las Vegas | 76.08% | 75.59% | 72.31% |
+| Cruise ("keep speed + straight") | 34.12% | 39.4% | 32.64% |
+| Standstill | 16.66% | 9.71% | 10.79% |
+| Turns / lane changes | 8,176 / 2,280 | 18,195 / 3,362 | 18,187 / 3,355 |
+| Unknown command | 12.3% | 12.3% | 12.74% |
+| Near-duplicates within 1 s / 2 s (first plan, 2026-11-08; not re-measured) | 0 / 14.6% | 42.2% / 47.0% | 23.9% / 34.1% |
+| Frames to extract | 102,000 | 203,727 for the three sets with dev (101,727 not in v1-large) | 0 extra |
 
-The 23,768 rows v1-xl-nd drops are all Las Vegas and 90.45% cruise, and include only 6 turns and 8 lane changes (V). Train token files: v1-xl SHA-256 d29d2426… (three independent scripts agree, V), v1-xl-nd f74bdbcd… (V).
+The v1-large set in the v1.0-xl folder keeps all its rows, so the 1,727 rows v1-xl leaves out are still extracted. The 23,648 rows v1-xl-nd drops are all Las Vegas and 89.84% cruise, and include only 8 turns and 7 lane changes (V). Train token files: v1-xl SHA-256 7f6eb976…, v1-xl-nd 5cb19408… (V, 2026-11-09). The first plan's files (2026-11-08, before the exclusion) were d29d2426… and f74bdbcd…. `plan` without `--exclude-scenes` still reproduces them byte for byte (V: `tests/data/test_v1_xl_plan.py`).
 
 **Packed images [agreed 2026-11-08: packing; proposed: format]:**
 - **Why:** loose files would add ~415K files, taking scratch to ~1.33M against the 1.0M file quota. Packed, the build adds ~0.6K (D). Scratch held 919.4K files on 2026-11-08 (V).
@@ -403,7 +428,9 @@ The 23,768 rows v1-xl-nd drops are all Las Vegas and 90.45% cruise, and include 
 **How to run (Anvil, from the repo root):**
 ```bash
 python -m data_pipeline.v1.openscene_images plan --out data/pretrain/v1.0-xl --set v1-xl \
-    --extends data/pretrain/v1.0-large/splits/v1-large        # locally, seconds; commit splits/, git pull on Anvil
+    --extends data/pretrain/v1.0-large/splits/v1-large \
+    --exclude-scenes data/pretrain/v1.0-xl/splits/navsim_v1.1_warmup_test_e2e_tokens.txt \
+    --exclude-metadata data/pretrain/downloads/openscene_metadata_trainval.tgz   # locally, ~1 min; commit splits/
 bash scripts/anvil/data_pipeline/build_v1_xl.sh setup         # login node: copies index/, splits/, archives.json, SHA-checked
 OUT=$TRAINING_DATA_ROOT/v1.0-xl-smoke bash scripts/anvil/data_pipeline/build_v1_xl.sh setup     # smoke test first:
 OUT=$TRAINING_DATA_ROOT/v1.0-xl-smoke ARCHIVES=2 sbatch -A cis220051 -p debug --gpus-per-node=0 \
@@ -424,10 +451,12 @@ sbatch -A cis220051 -p debug --gpus-per-node=0 scripts/anvil/data_pipeline/build
 - **Nothing is deleted or moved.** The archives are read in place from `v1.0-large/archives_hf/openscene-v1.1/openscene_sensor_trainval_camera`, a path set in the script, not derived from `OUT`. v1.0-large is only read.
 - **What `verify_v1_xl.py` checks** (each step also writes `verify/<step>.json`):
   - dev SHA-256 79090629… in all three sets;
-  - v1-large ⊂ v1-xl-nd ⊂ v1-xl, with the counts and train SHA-256 above;
+  - (v1-large minus the 1,727 rows in the warm-up window) ⊂ v1-xl-nd ⊂ v1-xl, with the counts and train SHA-256 above;
   - no token or log in NAVSIM's guarded sets, by the index's `our_split` (and the devkit's lists when present);
   - train and dev logs disjoint;
-  - every pack holds exactly its record's frames, and 202,000 in total;
+  - no v1-xl / v1-xl-nd train token is a warm-up token or within 7 s of one. This uses the committed list, the index and OpenScene's metadata (`--metadata`): verify locates the listed tokens that are not index rows itself, over the logs of every train row and listed row (1,094 logs, ~1 min locally, V), and they must equal the plan's `located_in_metadata` (the 6). Without `--metadata` this check fails, since the window cannot be fully checked. Every v1-large row left out of v1-xl must be inside the window. Dev's 3 warm-up tokens and v1-large's 57 are reported;
+  - with `--navsim-root`: the devkit's `warmup_test_e2e` must equal the committed list and hold no v1-xl / v1-xl-nd train token. Dev hits are reported, and its logs are not guarded as a whole. Every other guarded list (nuPlan test logs, navtest, navhard, private_test_e2e, competition_private_tokens, …) must have 0 tokens and 0 logs in train and dev;
+  - every pack holds exactly its record's frames, and 203,727 in total;
   - the 102,000 shared frames match v1.0-large;
   - every canonical check passes;
   - the view zips hold exactly the jsonl images;
@@ -444,3 +473,7 @@ sbatch -A cis220051 -p debug --gpus-per-node=0 scripts/anvil/data_pipeline/build
 4. **Dev overlaps navtrain:** 475 of the 2,000 dev samples are navtrain tokens (R). This matters only for a fine-tune on navtrain.
 5. **Gate 1 and Gate 2:** the look at the 50 renders (v1-xl's `qa/report.html`), and the release sign-off. `release.py` takes only smoke and v1-pilot today (V). Training on the unreleased views follows v1-large's precedent.
 6. **After Nov 16:** scratch is flushed in the Nov 16–23 reservation (R). Where should a copy be kept?
+7. **Warm-up exclusion (2026-11-09):**
+   - Scene-level with ±7 s, as now, or whole warm-up logs? Whole logs would take the 52 indexed warm-up logs out of train; 43 of them are nuPlan train logs (V).
+   - Retrain the runs on v1-pilot and v1-large, whose train sets contain warm-up tokens, or keep them and flag them?
+   - Should NAVSIM v1.1's filters go into the index guard? `navsim_splits.py` reads NAVSIM main today. Rebuilding the index with the v1.1 devkit would guard all 62 warm-up logs as a whole, which is the log-level choice.

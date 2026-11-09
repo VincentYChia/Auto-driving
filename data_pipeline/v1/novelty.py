@@ -17,11 +17,12 @@ a start-up next to a standstill apart (V: 2026-11-08 prototype ``judge_nested.py
 order and drop one if its city is gated (Las Vegas) and a kept row of its log within ``window_s``
 (+50 ms) on either side is a near-duplicate of it. Kept rows are the earlier rows already kept and
 the base rows ahead in time. It depends on nothing random, so v1-xl fixes it. On v1-xl train it
-keeps 176,232 of 200,000 rows (V, 2026-11-08).
+keeps 176,352 of 200,000 rows (V, 2026-11-09, with the warm-up exclusion; 176,232 in the first plan).
+With the warm-up exclusion the base rows are v1-large's minus those in the window (``scene_exclusion``).
 
 ``label_conflicts``: the quality proposal's hard-bad tests over the rule-1 window (-1.5 … +4.0 s),
-reported only; nothing is dropped. About 54 rows of v1-xl train (R); 37 command contradictions in
-v1-xl train and 14 in v1-large train (V).
+reported only; nothing is dropped. 52 rows of v1-xl train and 1 of dev (V, 2026-11-09; 54 in the first
+plan); 38 command contradictions over the three sets (V).
 """
 
 from __future__ import annotations
