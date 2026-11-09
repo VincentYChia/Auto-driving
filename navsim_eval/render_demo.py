@@ -30,8 +30,10 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from navsim_eval.predictions import load_predictions  # noqa: E402
 
-# categorical series in fixed order (light chart palette), human path in ink
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]
+# model colours from the light chart palette, skipping blue, yellow and red: NAVSIM's BEV already uses them for
+# vehicles, static objects and the ego car. Human path in ink, drawn on top; constant velocity in grey dots.
+SERIES = ["#1baf7a", "#eb6834", "#6250d6", "#e87ba4", "#008300"]
+GREY = "#52514e"
 INK = "#0b0b0b"
 COMMANDS = ["left", "straight", "right", "unknown"]
 
@@ -148,7 +150,7 @@ def main() -> None:
         add_configured_bev_on_ax(ax_bev, scene.map_api, frame)
         human = scene.get_future_trajectory(8).poses[:, :2]  # the 4 s the models plan
         line = np.vstack([[0, 0], human])
-        ax_bev.plot(line[:, 1], line[:, 0], color=INK, linestyle="--", linewidth=2, zorder=4,
+        ax_bev.plot(line[:, 1], line[:, 0], color=INK, linestyle="--", linewidth=1.6, zorder=20,
                     label="Human driver (recorded)")
         entry = {"token": token, "why": why, "command": command_of(scene), "map": scene.scene_metadata.map_name,
                  "models": {}}
@@ -161,8 +163,8 @@ def main() -> None:
                 continue
             path = np.vstack([[0, 0], np.asarray(wp, dtype=float)[:8, :2]])
             label = f"{m['name']}: PDMS {pdms:.2f}" + (f" ({why_zero})" if why_zero else "")
-            ax_bev.plot(path[:, 1], path[:, 0], color=SERIES[i % len(SERIES)], linewidth=2.2, marker="o",
-                        markersize=3.5, zorder=5 + i, label=label)
+            ax_bev.plot(path[:, 1], path[:, 0], color=SERIES[i % len(SERIES)], linewidth=3.0 if i == 0 else 2.2,
+                        marker="o", markersize=4 if i == 0 else 3, zorder=15 - i, label=label)  # first model on top
         if cv is not None and token in cv.index:
             v = np.asarray(scene.get_agent_input().ego_statuses[-1].ego_velocity, dtype=float)[:2]
             t = 0.5 * np.arange(1, 9)
@@ -171,8 +173,7 @@ def main() -> None:
             pdms, why_zero = float(row["score"]), failure(row)
             entry["models"]["Constant velocity"] = {"pdms": round(pdms, 3), "zeroed_by": why_zero or None}
             label = f"Constant velocity: PDMS {pdms:.2f}" + (f" ({why_zero})" if why_zero else "")
-            ax_bev.plot(path[:, 1], path[:, 0], color=SERIES[len(models) % len(SERIES)], linewidth=1.8,
-                        linestyle=":", zorder=4, label=label)
+            ax_bev.plot(path[:, 1], path[:, 0], color=GREY, linewidth=1.8, linestyle=":", zorder=4, label=label)
         configure_bev_ax(ax_bev)
         configure_ax(ax_bev)
         ax_bev.set_title("Bird's-eye view, 4 s plans (ego at centre, facing up)", fontsize=10, color=INK, loc="left")
