@@ -116,7 +116,8 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (n
 
 | | PDMS (95% CI) | No collision | Drivable area | TTC | Comfort | Progress | Direction | Scenes scoring 0 |
 |---|---|---|---|---|---|---|---|---|
-| **0.8B, v1-pilot, 2 epochs** | **0.752 (0.746–0.759)** | 0.962 | 0.870 | 0.886 | 1.000 | 0.700 | 0.968 | 16% |
+| **0.8B, v1-large (100,000 samples), 3 epochs** | **0.779 (0.773–0.785)** | 0.970 | 0.885 | 0.907 | 1.000 | 0.720 | 0.972 | 14% |
+| 0.8B, v1-pilot, 2 epochs | 0.752 (0.746–0.759) | 0.962 | 0.870 | 0.886 | 1.000 | 0.700 | 0.968 | 16% |
 | 2B, v1-pilot, 2 epochs | 0.751 (0.745–0.757) | 0.962 | 0.871 | 0.884 | 1.000 | 0.697 | 0.968 | 16% |
 | 2B, v1-large (100,000 samples), 1 epoch | 0.748 (0.741–0.754) | 0.964 | 0.862 | 0.890 | 1.000 | 0.694 | 0.967 | 17% |
 | 0.8B, v1-pilot, 2 epochs, `--ego-dropout 0.8` | 0.742 (0.736–0.749) | 0.959 | 0.862 | 0.883 | 1.000 | 0.689 | 0.966 | 17% |
@@ -124,6 +125,7 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (n
 | MVLAD-AD 8B (official weights, nuScenes adapter, no command) | 0.362 (0.355–0.369) | 0.764 | 0.652 | 0.609 | 0.751 | 0.344 | 0.829 | 51% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
 
+- **Three passes over v1-large are the best NAVSIM pilot so far (2026-11-09):** the 0.8B trained 3 epochs on v1-large's 100,000 samples scores 0.779, paired against the 0.8B on v1-pilot +0.027 PDMS (95% bootstrap CI +0.022 to +0.032), with every sub-score up: no collision +0.008, drivable area +0.016, TTC +0.022, progress +0.021 (all CIs above 0); scenes scoring 0 fall from 16.2% to 14.0%. It also beats both 2B pilots (vs 2B v1-pilot +0.028, CI +0.023 to +0.033; vs 2B v1-large 1 epoch +0.031, CI +0.026 to +0.037). Dev agreed (0.629 vs 0.661 m ADE), and train vs dev ADE (0.456 vs 0.629) shows it learning, not memorizing (the 6-epoch v1-pilot run memorized: 0.367 vs 0.689). So more data helps once it gets enough passes: the 1-epoch 2B on the same data did not move. Its shard 3 of 4 was predicted on the lab RTX 4090; on shard 2, which both machines predicted, 70% of answers were identical and the rest differ as greedy decoding does across GPUs (median 0 m, max 4.0 m).
 - **2B and 0.8B are tied on NAVSIM too:** paired 2B − 0.8B over all 12,146 scenes is −0.001 PDMS (95% bootstrap CI −0.006 to +0.004), and no sub-metric differs. The 2.5× larger model buys nothing here.
 - **The 0.8B pilot is far ahead of MVLAD-AD:** paired MVLAD − 0.8B over all 12,146 scenes is −0.391 PDMS (95% bootstrap CI −0.399 to −0.383); MVLAD scores higher on 12% of scenes, lower on 68%. MVLAD runs here with its nuScenes-trained adapter, no route command and history padded to 5 s (`../docs/navsim_eval/RUNBOOK.md` §2), so this is not a verdict on masked diffusion.
 - **More data did not move the 2B on NAVSIM (2026-11-09):** 2B on v1-large (100,000 samples, 1 epoch) against 2B on v1-pilot, paired: −0.004 PDMS (95% bootstrap CI −0.008 to +0.001); against the 0.8B: −0.005 (−0.010 to +0.001). Dev agreed (0.657 vs 0.655 m ADE): one pass over 100,000 samples is worth two over 45,000, at the same number of steps.
