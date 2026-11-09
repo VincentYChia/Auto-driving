@@ -6,12 +6,15 @@ Reads only the view written by ``data_pipeline/v1/pilot_view.py`` (``train.jsonl
     python pilot_sft/train_lora.py --view data/pretrain/v1.0-pilot/views/pilot_v1/smoke \\
         --model Qwen/Qwen3.5-2B --out runs/qwen35-2b-smoke --epochs 2
 
-What is trained: LoRA on every linear layer of the language model; the vision encoder and its
-projector stay frozen. The loss covers the answer only (the 8 "(x, y)" pairs and the end token).
-Settings are [proposed] starting points for a first test, not tuned.
+What is trained: LoRA on every linear layer of the language model. ``--vision`` sets what happens to
+the vision encoder and its projector: ``frozen`` (the default), ``lora`` (LoRA on their linear layers too)
+or ``full`` (every vision weight trained, at ``--vision-lr``, saved inside the adapter through PEFT's
+``modules_to_save``, so the evaluation scripts load it unchanged). The loss covers the answer only (the 8
+"(x, y)" pairs and the end token). Settings are [proposed] starting points, not tuned.
 
 Writes ``<out>/adapter/`` (PEFT), ``<out>/log.jsonl`` (loss per step, dev loss per evaluation) and
-``<out>/run.json`` (settings, data checksums, timings, peak GPU memory).
+``<out>/run.json`` (settings, data checksums, timings, peak GPU memory). With ``--snapshot-epochs`` it also
+keeps the adapter at the end of every epoch but the last, as ``<out>/epoch_<k>/``.
 """
 
 from __future__ import annotations
@@ -102,11 +105,28 @@ class Batches:
         return batch
 
 
+VISION_KEYS = ("visual", "vision", "merger", "multi_modal_projector")
+
+
 def language_linear_layers(model) -> List[str]:
     """Names of every nn.Linear in the language model: not the vision tower, projector or LM head."""
-    skip = ("visual", "vision", "lm_head", "merger", "multi_modal_projector")
+    skip = VISION_KEYS + ("lm_head",)
     return sorted({name for name, module in model.named_modules()
                    if isinstance(module, torch.nn.Linear) and not any(s in name for s in skip)})
+
+
+def vision_linear_layers(model) -> List[str]:
+    """Names of every nn.Linear in the vision tower and its projector."""
+    return sorted({name for name, module in model.named_modules()
+                   if isinstance(module, torch.nn.Linear) and any(s in name for s in VISION_KEYS)})
+
+
+def vision_tower_name(model) -> str:
+    """The module holding the vision encoder and projector (``visual`` in Qwen3.5), for ``modules_to_save``."""
+    for name, _ in model.named_modules():
+        if name.split(".")[-1] in ("visual", "vision_tower"):
+            return name.split(".")[-1]
+    raise SystemExit("no vision tower found (expected a module named 'visual' or 'vision_tower')")
 
 
 def main() -> None:
@@ -129,6 +149,12 @@ def main() -> None:
     parser.add_argument("--no-checkpointing", action="store_true", help="faster, needs more memory")
     parser.add_argument("--ego-dropout", type=float, default=0.0,
                         help="share of training samples whose ego state and past positions are hidden [proposed]")
+    parser.add_argument("--vision", choices=("frozen", "lora", "full"), default="frozen",
+                        help="what to train in the vision encoder and projector [proposed]")
+    parser.add_argument("--vision-lr", type=float, default=2e-5,
+                        help="learning rate for the vision weights with --vision full [proposed]")
+    parser.add_argument("--snapshot-epochs", action="store_true",
+                        help="save the adapter at the end of every epoch but the last, as <out>/epoch_<k>/")
     parser.add_argument("--save-every", type=int, default=50, help="optimizer steps between checkpoints; 0 = none")
     parser.add_argument("--resume", action="store_true", help="continue from <out>/checkpoint.pt if it exists")
     args = parser.parse_args()
@@ -153,15 +179,27 @@ def main() -> None:
         model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
         model.enable_input_require_grads()
     targets = language_linear_layers(model)
+    if args.vision == "lora":
+        targets += vision_linear_layers(model)
+    to_save = [vision_tower_name(model)] if args.vision == "full" else None
     model = get_peft_model(model, LoraConfig(r=args.rank, lora_alpha=args.alpha, lora_dropout=0.05,
-                                             target_modules=targets, task_type="CAUSAL_LM"))
+                                             target_modules=targets, modules_to_save=to_save,
+                                             task_type="CAUSAL_LM"))
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
 
     batches = Batches(processor, args.view, train, ego_dropout=args.ego_dropout, seed=args.seed)
     steps_per_epoch = math.ceil(len(train) / (args.batch * args.accum))
     steps = args.max_steps or math.ceil(steps_per_epoch * args.epochs)
-    optim = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=args.lr, weight_decay=0.0)
+    # with --vision full the copied vision tower ("modules_to_save") gets its own, lower learning rate
+    is_vision = lambda n: args.vision == "full" and "modules_to_save" in n
+    params = [(n, p) for n, p in model.named_parameters() if p.requires_grad]
+    groups = [{"params": [p for n, p in params if not is_vision(n)], "lr": args.lr}]
+    if args.vision == "full":
+        groups.append({"params": [p for n, p in params if is_vision(n)], "lr": args.vision_lr})
+        if not groups[1]["params"]:
+            raise SystemExit("--vision full found no trainable vision weights")
+    optim = torch.optim.AdamW(groups, weight_decay=0.0)
     warm = max(1, int(args.warmup * steps))
     sched = torch.optim.lr_scheduler.LambdaLR(
         optim, lambda s: min(1.0, (s + 1) / warm) * 0.5 * (1 + math.cos(math.pi * min(1.0, s / max(1, steps)))))
@@ -215,6 +253,8 @@ def main() -> None:
     run = {"args": vars(args), "device": torch.cuda.get_device_name(0) if device == "cuda" else "cpu",
            "dtype": str(dtype), "train_samples": len(train), "dev_samples_for_loss": len(dev),
            "trainable_params": trainable, "total_params": total, "lora_targets": len(targets),
+           "vision_trainable_params": sum(p.numel() for n, p in model.named_parameters()
+                                          if p.requires_grad and any(s in n for s in VISION_KEYS)),
            "optimizer_steps": steps, "resumed_at_step": step or None,
            "data": {f: sha256(os.path.join(args.view, f)) for f in ("train.jsonl", "dev.jsonl")}}
     print(json.dumps({k: run[k] for k in ("device", "train_samples", "trainable_params", "optimizer_steps")}), flush=True)
@@ -247,6 +287,10 @@ def main() -> None:
         log.flush()
         if step % 10 == 0 or "dev_loss" in entry:
             print(json.dumps(entry), flush=True)
+        if args.snapshot_epochs and step % steps_per_epoch == 0 and step < steps:
+            snap = os.path.join(args.out, f"epoch_{step // steps_per_epoch}")
+            model.save_pretrained(snap)
+            processor.save_pretrained(snap)  # evaluate.py loads the processor from the adapter folder
         if args.save_every and step % args.save_every == 0 and step < steps:
             save_checkpoint()
     elapsed = time.time() - start
