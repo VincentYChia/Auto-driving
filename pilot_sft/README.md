@@ -118,9 +118,11 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (n
 |---|---|---|---|---|---|---|---|---|
 | **0.8B, v1-pilot, 2 epochs** | **0.752 (0.746–0.759)** | 0.962 | 0.870 | 0.886 | 1.000 | 0.700 | 0.968 | 16% |
 | 2B, v1-pilot, 2 epochs | 0.751 (0.745–0.757) | 0.962 | 0.871 | 0.884 | 1.000 | 0.697 | 0.968 | 16% |
+| MVLAD-AD 8B (official weights, nuScenes adapter, no command) | 0.362 (0.355–0.369) | 0.764 | 0.652 | 0.609 | 0.751 | 0.344 | 0.829 | 51% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
 
 - **2B and 0.8B are tied on NAVSIM too:** paired 2B − 0.8B over all 12,146 scenes is −0.001 PDMS (95% bootstrap CI −0.006 to +0.004), and no sub-metric differs. The 2.5× larger model buys nothing here.
+- **The 0.8B pilot is far ahead of MVLAD-AD:** paired MVLAD − 0.8B over all 12,146 scenes is −0.391 PDMS (95% bootstrap CI −0.399 to −0.383); MVLAD scores higher on 12% of scenes, lower on 68%. MVLAD runs here with its nuScenes-trained adapter, no route command and history padded to 5 s (`../docs/navsim_eval/RUNBOOK.md` §2), so this is not a verdict on masked diffusion.
 - **The hard scenes are shared:** 12% of scenes score 0 for both models; each fails about 4% more that the other passes.
 - **Published bars on the same split** (from the papers, not rerun here): ego-status MLP 0.656, TransFuser 0.840, human 0.948. Our constant velocity matches the published 0.206.
 - **Most of the zeros come from leaving the drivable area** (13% of scenes); at-fault collisions zero 3%.
@@ -188,6 +190,21 @@ Qwen3.5-0.8B on v1-pilot, 2 epochs, the same 1,000 dev samples; only rank 32 →
 | Final dev loss | 0.190 | 0.189 |
 
 - **No measurable change on full input:** paired difference +0.007 m ADE (95% bootstrap CI −0.011 to +0.025) and −0.008 m FDE (−0.056 to +0.040). LoRA size is not what limits this run.
+
+### Same data, more epochs: v1-pilot at 6 epochs (2026-11-08, V)
+Qwen3.5-0.8B on v1-pilot, `--ego-dropout 0.5`, the same 1,000 dev samples; only the epochs changed (2 → 6). One seed each. Aggregates in `results/qwen35-0.8b-v1pilot-ep6.json`.
+
+| ADE / FDE (m) | 2 epochs | 6 epochs |
+|---|---|---|
+| **Full input** | **0.661 / 1.737** | **0.689 / 1.769** |
+| Camera image blanked | 0.937 / 2.549 | 1.244 / 3.497 |
+| Ego state and past positions hidden | 2.910 / 5.365 | 2.689 / 4.902 |
+| What blanking the image costs (ADE) | +0.276 | +0.555 |
+| Final dev loss (best) | 0.190 (0.190) | 0.240 (0.191 at step 11,000) |
+
+- **Repeating the same 45,000 samples made dev worse:** paired +0.028 m ADE (95% bootstrap CI −0.000 to +0.057). Dev loss bottomed out around epoch 4 and then rose, the signature of memorization.
+- **The model leans on the image twice as much but predicts no better:** consistent with memorizing training images rather than learning from them.
+- **Against `large-ep3` (100,000 distinct samples, 3 epochs, about the same samples seen):** 0.629 vs 0.689 ADE. More distinct data is the lever; repetition is not.
 
 On Windows, Qwen3.5's linear-attention layers fall back to slow reference kernels
 (`flash-linear-attention` and `causal_conv1d` are not installed). On Linux GPUs, install them.
