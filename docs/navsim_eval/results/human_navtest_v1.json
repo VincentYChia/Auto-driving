@@ -1,0 +1,29 @@
+{
+ "what": "NAVSIM's human agent: the recorded human path scored as the plan (reference ceiling)",
+ "evidence": "V (measured on Anvil)",
+ "split": "navtest",
+ "devkit": "navsim v1.1",
+ "scenes": 12146,
+ "failed": 0,
+ "job": "22110203 (shared, CPU)",
+ "metrics": {
+  "no_at_fault_collisions": 1.0,
+  "drivable_area_compliance": 1.0,
+  "time_to_collision_within_bound": 1.0,
+  "comfort": 0.999,
+  "ego_progress": 0.8696,
+  "driving_direction_compliance": 0.9883,
+  "pdms": 0.9455
+ },
+ "pdms_95ci_bootstrap": [
+  0.9445,
+  0.9465
+ ],
+ "share_scenes_score_zero": 0.0,
+ "median_scene_score": 0.9564,
+ "share_zero_by_metric": {
+  "no_at_fault_collisions": 0.0,
+  "drivable_area_compliance": 0.0,
+  "driving_direction_compliance": 0.0068
+ }
+}

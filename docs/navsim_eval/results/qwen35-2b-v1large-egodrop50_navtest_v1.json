@@ -1,0 +1,34 @@
+{
+ "what": "Qwen3.5-2B pilot trained on v1-large (100,000 samples, 1 epoch), ego dropout 50%",
+ "evidence": "V (measured on Anvil)",
+ "split": "navtest",
+ "devkit": "navsim v1.1",
+ "scenes": 12146,
+ "failed": 0,
+ "predictions": 12146,
+ "fallbacks_to_constant_velocity": 0,
+ "job": "22110228 (shared, CPU)",
+ "metrics": {
+  "no_at_fault_collisions": 0.9638,
+  "drivable_area_compliance": 0.8623,
+  "time_to_collision_within_bound": 0.89,
+  "comfort": 0.9999,
+  "ego_progress": 0.6938,
+  "driving_direction_compliance": 0.9668,
+  "pdms": 0.7478
+ },
+ "pdms_95ci_bootstrap": [
+  0.7413,
+  0.7543
+ ],
+ "share_scenes_score_zero": 0.1676,
+ "median_scene_score": 0.9181,
+ "share_zero_by_metric": {
+  "no_at_fault_collisions": 0.033,
+  "drivable_area_compliance": 0.1377,
+  "driving_direction_compliance": 0.0172
+ },
+ "vs_constant_velocity_same_scenes": {
+  "pdms_difference": 0.5412
+ }
+}

@@ -111,20 +111,24 @@ linear 0.925 / 2.492, MLP 0.781 / 2.118, command mean 6.419 / 11.548.
 - **The past positions are still ignored:** drift follow −0.01 for both, 0.37 for the MLP.
 - **The two models are tied:** paired 2B − 0.8B on the same samples is −0.007 m ADE (95% bootstrap CI −0.028 to +0.014) and −0.028 m FDE (−0.087 to +0.031). NAVSIM decides between them.
 
-### NAVSIM navtest, full set (2026-11-08, V)
+### NAVSIM navtest, full set (2026-11-08, updated 2026-11-09, V)
 PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (no fallbacks to constant velocity) and scored (0 failed). Aggregates in `../docs/navsim_eval/results/`.
 
 | | PDMS (95% CI) | No collision | Drivable area | TTC | Comfort | Progress | Direction | Scenes scoring 0 |
 |---|---|---|---|---|---|---|---|---|
 | **0.8B, v1-pilot, 2 epochs** | **0.752 (0.746–0.759)** | 0.962 | 0.870 | 0.886 | 1.000 | 0.700 | 0.968 | 16% |
 | 2B, v1-pilot, 2 epochs | 0.751 (0.745–0.757) | 0.962 | 0.871 | 0.884 | 1.000 | 0.697 | 0.968 | 16% |
+| 2B, v1-large (100,000 samples), 1 epoch | 0.748 (0.741–0.754) | 0.964 | 0.862 | 0.890 | 1.000 | 0.694 | 0.967 | 17% |
+| Human driver's recorded path (NAVSIM's human agent, our run) | 0.946 (0.945–0.947) | 1.000 | 1.000 | 1.000 | 0.999 | 0.870 | 0.988 | 0% |
 | MVLAD-AD 8B (official weights, nuScenes adapter, no command) | 0.362 (0.355–0.369) | 0.764 | 0.652 | 0.609 | 0.751 | 0.344 | 0.829 | 51% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
 
 - **2B and 0.8B are tied on NAVSIM too:** paired 2B − 0.8B over all 12,146 scenes is −0.001 PDMS (95% bootstrap CI −0.006 to +0.004), and no sub-metric differs. The 2.5× larger model buys nothing here.
 - **The 0.8B pilot is far ahead of MVLAD-AD:** paired MVLAD − 0.8B over all 12,146 scenes is −0.391 PDMS (95% bootstrap CI −0.399 to −0.383); MVLAD scores higher on 12% of scenes, lower on 68%. MVLAD runs here with its nuScenes-trained adapter, no route command and history padded to 5 s (`../docs/navsim_eval/RUNBOOK.md` §2), so this is not a verdict on masked diffusion.
+- **More data did not move the 2B on NAVSIM (2026-11-09):** 2B on v1-large (100,000 samples, 1 epoch) against 2B on v1-pilot, paired: −0.004 PDMS (95% bootstrap CI −0.008 to +0.001); against the 0.8B: −0.005 (−0.010 to +0.001). Dev agreed (0.657 vs 0.655 m ADE): one pass over 100,000 samples is worth two over 45,000, at the same number of steps.
+- **The human path never scores 0** (our run of NAVSIM's human agent: 0.946, published 0.948), so every zero a pilot gets is the plan's fault, not the metric's.
 - **The hard scenes are shared:** 12% of scenes score 0 for both models; each fails about 4% more that the other passes.
-- **Published bars on the same split** (from the papers, not rerun here): ego-status MLP 0.656, TransFuser 0.840, human 0.948. Our constant velocity matches the published 0.206.
+- **Published bars on the same split** (from the papers, not rerun here): ego-status MLP 0.656, TransFuser 0.840, human 0.948. Our constant velocity (0.207) and human (0.946) runs match the published 0.206 and 0.948.
 - **Most of the zeros come from leaving the drivable area** (13% of scenes); at-fault collisions zero 3%.
 - **Comfort is 0.9998, not a constant:** MVLAD's raw paths score 0.75 on it, so the metric is live and the pilot's paths are smooth.
 
