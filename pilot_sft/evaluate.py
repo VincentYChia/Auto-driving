@@ -68,6 +68,17 @@ class HF:
 
             self.model = PeftModel.from_pretrained(self.model, adapter)
         self.model.eval()
+        # Stop at the token that closes the assistant turn. Qwen3.5-0.8B ships no generation_config.json, so
+        # generate() otherwise stops only at the config's <|endoftext|> and runs on to max_new_tokens after the
+        # answer's <|im_end|> (V, 2026-11-08: 989 of 1,000 dev answers ran past 8 pairs). The first 8 pairs are
+        # the same either way under greedy decoding; stopping only removes the wasted tokens.
+        tok = self.processor.tokenizer
+        end = train_lora.answer_end(self.processor)
+        config_eos = getattr(self.model.generation_config, "eos_token_id", None)
+        candidates = [tok.convert_tokens_to_ids(end), tok.eos_token_id]
+        candidates += list(config_eos) if isinstance(config_eos, (list, tuple)) else [config_eos]
+        self.stop_ids = sorted({i for i in candidates if isinstance(i, int) and i >= 0})
+        self.pad_id = tok.pad_token_id if tok.pad_token_id is not None else self.stop_ids[0]
 
     def answer(self, items: List[Dict[str, Any]]) -> List[str]:
         from PIL import Image
@@ -78,7 +89,8 @@ class HF:
             images = [Image.new("RGB", im.size, (128, 128, 128)) for im in images]
         batch = self.processor(text=prompts, images=images, padding=True, return_tensors="pt").to(self.device)
         with self.torch.no_grad():
-            out = self.model.generate(**batch, max_new_tokens=128, do_sample=False)
+            out = self.model.generate(**batch, max_new_tokens=128, do_sample=False, eos_token_id=self.stop_ids,
+                                      pad_token_id=self.pad_id)
         return self.processor.batch_decode(out[:, batch["input_ids"].shape[1]:], skip_special_tokens=True)
 
 
