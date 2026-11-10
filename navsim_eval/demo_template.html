@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>NAVSIM plan viewer</title>
+<!-- Template of navsim_eval/render_demo.py --html. It holds no data; the script puts its JSON in the demo-data element.
+     A filled copy embeds nuPlan camera images and map renders: keep it private and out of the repository. -->
+<style>
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --raised: #ffffff;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #6b6a65;
+  --rule: #e4e3df;
+  --rule-strong: #cfcdc7;
+  --btn: #f3f2ef;
+  --btn-hover: #e9e7e2;
+  --focus: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19;
+    --raised: #222220;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --ink-3: #a5a49b;
+    --rule: #383835;
+    --rule-strong: #4c4b47;
+    --btn: #2a2a28;
+    --btn-hover: #353532;
+    --focus: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19;
+  --raised: #222220;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --ink-3: #a5a49b;
+  --rule: #383835;
+  --rule-strong: #4c4b47;
+  --btn: #2a2a28;
+  --btn-hover: #353532;
+  --focus: #3987e5;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+main { max-width: 1380px; margin: 0 auto; padding: 20px 16px 40px; }
+h1 { font-size: 21px; line-height: 1.3; margin: 0 0 6px; font-weight: 650; }
+h2 { font-size: 18px; line-height: 1.35; margin: 0 0 4px; font-weight: 650; }
+h3 { font-size: 15px; margin: 0 0 8px; font-weight: 650; }
+p { margin: 0 0 8px; }
+.lede { color: var(--ink-2); max-width: 78ch; margin-bottom: 16px; }
+.small { font-size: 13px; color: var(--ink-2); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+button, select {
+  font: inherit; color: var(--ink); background: var(--btn);
+  border: 1px solid var(--rule-strong); border-radius: 8px; padding: 6px 12px; min-height: 36px;
+}
+button { cursor: pointer; }
+button:hover { background: var(--btn-hover); }
+button:disabled { opacity: 0.45; cursor: default; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.scene-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 14px; }
+.scene-nav select { flex: 1 1 280px; min-width: 0; max-width: 640px; }
+.counter { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.why { color: var(--ink-2); max-width: 90ch; }
+.why strong { color: var(--ink); font-weight: 600; }
+.facts { display: flex; flex-wrap: wrap; gap: 2px 24px; margin: 0 0 16px; }
+.facts div { display: flex; gap: 6px; min-width: 0; }
+.facts dt { color: var(--ink-3); }
+.facts dd { margin: 0; min-width: 0; }
+.stage { display: flex; flex-direction: column; gap: 16px; }
+.col { display: contents; }
+#cam-panel { order: 1; }
+#bev-panel { order: 2; }
+#plans-panel { order: 3; }
+#keys-panel { order: 4; }
+@media (min-width: 920px) {
+  .stage { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+}
+.panel { margin: 0; background: var(--raised); border: 1px solid var(--rule); border-radius: 12px; padding: 12px; min-width: 0; }
+figcaption { color: var(--ink-2); font-size: 13px; margin-top: 8px; }
+.cam-box img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; background: var(--rule); }
+.cam-missing { padding: 40px 12px; text-align: center; color: var(--ink-2); border: 1px dashed var(--rule-strong); border-radius: 6px; }
+#bev { display: block; width: 100%; height: auto; border-radius: 6px; background: #ffffff; }
+.controls { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.controls input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: var(--ink-2); height: 28px; }
+#play { display: inline-flex; align-items: center; gap: 6px; min-width: 92px; justify-content: center; }
+#play svg { fill: currentColor; }
+#time-out { font-variant-numeric: tabular-nums; min-width: 3.6em; text-align: right; }
+.controls-2 { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 8px; }
+.controls-2 label { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: var(--btn); }
+.seg button + button { border-left: 1px solid var(--rule-strong); }
+.seg button[aria-pressed="true"] { background: var(--btn-hover); font-weight: 650; }
+.hint { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 7px 8px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+thead th { font-weight: 600; color: var(--ink-2); font-size: 13px; white-space: nowrap; }
+tbody th { font-weight: 400; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.num.pdms { font-weight: 650; }
+label.series { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+label.series input { margin: 0; width: 16px; height: 16px; flex: none; }
+.swatch { flex: none; display: block; }
+.why0 { color: var(--ink-2); font-size: 13px; margin: 2px 0 0 24px; }
+tr.off th .name, tr.off td { color: var(--ink-3); }
+.key-list { list-style: none; padding: 0; margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; }
+.key-list li { display: inline-flex; align-items: center; gap: 6px; }
+.notes { color: var(--ink-2); font-size: 13px; max-width: 92ch; margin-top: 20px; }
+.notes p { margin-bottom: 6px; }
+.notes strong { color: var(--ink); font-weight: 600; }
+@media (max-width: 520px) {
+  main { padding-top: 14px; }
+  h1 { font-size: 19px; }
+  th, td { padding: 6px 4px; }
+  table { font-size: 13px; }
+  .why0 { margin-left: 0; }
+  #play { min-width: 0; }
+  #play .label { display: none; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>NAVSIM navtest: each model's 4-second plan, one scene at a time</h1>
+    <p class="lede">The front camera at the moment of planning, and NAVSIM's bird's-eye view of the same moment.
+      Press play: each plan's box moves as NAVSIM's simulated car drove that plan when it scored it, while the other
+      road users replay what they did in the recording (NAVSIM v1 does not let them react).</p>
+  </header>
+
+  <p id="template-note" class="panel" hidden>This is the empty page template of
+    <span class="mono">navsim_eval/render_demo.py</span>. Run the script with <span class="mono">--html &lt;file&gt;</span>
+    to get a page with scenes.</p>
+
+  <div id="app">
+    <nav class="scene-nav" aria-label="Scenes">
+      <button id="prev" type="button">&lsaquo; Previous</button>
+      <select id="scene-select" aria-label="Scene"></select>
+      <button id="next" type="button">Next &rsaquo;</button>
+      <span id="counter" class="counter"></span>
+    </nav>
+
+    <section aria-labelledby="scene-title">
+      <h2 id="scene-title"></h2>
+      <p id="scene-why" class="why"></p>
+      <dl class="facts">
+        <div><dt>Route command</dt><dd id="f-command"></dd></div>
+        <div><dt>Speed at t = 0</dt><dd id="f-speed"></dd></div>
+        <div><dt>Map</dt><dd id="f-map"></dd></div>
+        <div><dt>Token</dt><dd id="f-token" class="mono"></dd></div>
+      </dl>
+    </section>
+
+    <div class="stage">
+      <div class="col">
+        <figure id="cam-panel" class="panel">
+          <div class="cam-box"><img id="cam" alt=""><div id="cam-missing" class="cam-missing" hidden>No camera image for this scene.</div></div>
+          <figcaption>Front camera at the planning moment (t = 0). The models plan from this image and the ego state.</figcaption>
+        </figure>
+        <section id="plans-panel" class="panel" aria-labelledby="plans-h">
+          <h3 id="plans-h">Plans and their NAVSIM scores on this scene</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Plan (tick to show)</th>
+                  <th scope="col" class="num" title="PDM score, 0 to 1">PDMS</th>
+                  <th scope="col" class="num" title="No at-fault collision">NC</th>
+                  <th scope="col" class="num" title="Drivable area compliance">DAC</th>
+                  <th scope="col" class="num" title="Time to collision within bound">TTC</th>
+                  <th scope="col" class="num" title="Ego progress">EP</th>
+                  <th scope="col" class="num" title="Comfort">C</th>
+                </tr>
+              </thead>
+              <tbody id="plans-body"></tbody>
+            </table>
+          </div>
+          <p class="small" style="margin-top:10px">PDMS = NC &times; DAC &times; (5&nbsp;TTC + 2&nbsp;C + 5&nbsp;EP) / 12.
+            <strong>NC</strong>: no at-fault collision (0.5 when the object hit is static).
+            <strong>DAC</strong>: every corner of the ego box stays on drivable area.
+            <strong>TTC</strong>: time to collision stays above NAVSIM's bound.
+            <strong>EP</strong>: progress along the route, relative to NAVSIM's own PDM-Closed planner.
+            <strong>C</strong>: acceleration and jerk within comfort limits.</p>
+        </section>
+      </div>
+      <div class="col">
+        <figure id="bev-panel" class="panel">
+          <svg id="bev" viewBox="0 0 640 640" role="img" aria-labelledby="bev-cap" xmlns="http://www.w3.org/2000/svg">
+            <image id="bev-img" x="0" y="0" width="640" height="640" preserveAspectRatio="none"></image>
+            <g id="g-agents"></g>
+            <g id="g-ego0"></g>
+            <g id="g-paths"></g>
+            <g id="g-ego"></g>
+            <g id="g-over"></g>
+          </svg>
+          <div class="controls">
+            <button id="play" type="button" aria-label="Play">
+              <svg id="icon-play" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5 L12.5 7 L3 12.5 Z"></path></svg>
+              <svg id="icon-pause" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" hidden><rect x="2.5" y="1.5" width="3.2" height="11" rx="0.8"></rect><rect x="8.3" y="1.5" width="3.2" height="11" rx="0.8"></rect></svg>
+              <span class="label" id="play-label">Play</span>
+            </button>
+            <input id="time" type="range" min="0" max="4" step="0.5" value="0" aria-label="Seconds after the planning moment">
+            <output id="time-out" for="time">0.0 s</output>
+          </div>
+          <div class="controls-2">
+            <label>Playback <select id="speed" aria-label="Playback speed">
+              <option value="1">real time</option>
+              <option value="0.5" selected>&frac12; speed</option>
+              <option value="0.25">&frac14; speed</option>
+            </select></label>
+            <div class="seg" role="group" aria-label="View size" id="view-buttons"></div>
+          </div>
+          <p id="view-hint" class="hint" hidden></p>
+          <figcaption id="bev-cap">Bird's-eye view: the ego at the centre facing up, x forward and y to the left.
+            Lines and markers are the 4 s plans; each box is NAVSIM's simulated car following its plan, at the time
+            on the slider.</figcaption>
+        </figure>
+        <section id="keys-panel" class="panel" aria-labelledby="keys-h">
+          <h3 id="keys-h">Key</h3>
+          <ul id="series-keys" class="key-list" aria-label="Plans"></ul>
+          <ul id="agent-keys" class="key-list" aria-label="Road users"></ul>
+          <ul id="map-keys" class="key-list" aria-label="Map"></ul>
+          <p class="small">Map and road users in NAVSIM's own colours; each road user has a short line showing which
+            way it faces. A box corner outside the grey road and green car-park areas zeroes DAC.</p>
+        </section>
+      </div>
+    </div>
+
+    <footer class="notes">
+      <p><strong>What NAVSIM scores.</strong> One 4-second plan per scene: 8 poses, 0.5 s apart, drawn as the
+        line and its markers. NAVSIM does not score those poses as they are: a simulated car (an LQR controller
+        steering a kinematic bicycle model, in 0.1 s steps) follows the plan from the car's state at t = 0, and the
+        collision, road and comfort checks run on that car. The moving boxes are that car, computed with NAVSIM's own
+        simulator from the same metric cache the scores came from. So a box can drift off its line, by metres for
+        a jerky plan or a sharp turn, and it is the box, not the line, that has to stay clear and on the road.</p>
+      <p><strong>Other road users.</strong> They are placed as NAVSIM places them when it scores: the logged boxes
+        at 0.5 s steps, moved in straight lines in between. An object exists from the first to the last frame it was
+        logged in (frames up to 5 s count), a missed frame inside a track is bridged, and an object logged in a
+        single frame, even one after 4 s, stays at that spot for the whole plan.</p>
+      <p><strong>Keys.</strong> <span class="mono">n</span> / <span class="mono">p</span>: next or previous scene;
+        space: play or pause; <span class="mono">,</span> / <span class="mono">.</span>: step half a second.
+        Add <span class="mono">#3</span> to the file's address to open scene 3, <span class="mono">#3@2.5</span> to
+        open it 2.5 s in, or <span class="mono">#3@2.5,wide</span> for the wider view.</p>
+      <p><strong>Data.</strong> This file embeds nuPlan camera images and map renders: keep it private and out of
+        the repository. <span id="generated"></span></p>
+    </footer>
+  </div>
+</main>
+
+<script id="demo-data" type="application/json">__DEMO_DATA_JSON__</script>
+<script>
+(function () {
+  "use strict";
+  var NS = "http://www.w3.org/2000/svg";
+  var VB = 640; // viewBox width; one metre is VB / (2 * half_y) units
+
+  function $(id) { return document.getElementById(id); }
+
+  var D = null;
+  try { D = JSON.parse($("demo-data").textContent); } catch (err) { D = null; }
+  if (!D || !Array.isArray(D.scenes) || D.scenes.length === 0) {
+    $("template-note").hidden = false;
+    $("app").hidden = true;
+    return;
+  }
+
+  /* poseAt:begin (same rule as demo_html.pose_at: the rule of the observation NAVSIM scores against) */
+  function poseAt(keys, t, step) {
+    var present = [];
+    for (var i = 0; i < keys.length; i++) if (keys[i]) present.push(i);
+    if (present.length === 0) return null;
+    if (present.length === 1) return keys[present[0]]; // logged once: NAVSIM holds it for the whole horizon
+    var u = t / step;
+    if (u < present[0] - 1e-9 || u > present[present.length - 1] + 1e-9) return null;
+    var j = 0;
+    while (j + 1 < present.length && present[j + 1] <= u + 1e-9) j++;
+    var ka = present[j], a = keys[ka];
+    if (Math.abs(u - ka) < 1e-9 || j === present.length - 1) return a;
+    var kb = present[j + 1], b = keys[kb], f = (u - ka) / (kb - ka); // across absent keys, as NAVSIM does
+    var dh = Math.atan2(Math.sin(b[2] - a[2]), Math.cos(b[2] - a[2]));
+    var h = a[2] + f * dh;
+    return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), Math.atan2(Math.sin(h), Math.cos(h))];
+  }
+  /* poseAt:end */
+
+  /* steps:begin (the , and . keys: the previous or next 0.5 s key time, never skipping the nearest one) */
+  function nextKeyTime(t, step) { return Math.floor(t / step + 1e-9) * step + step; }
+  function prevKeyTime(t, step) { return Math.ceil(t / step - 1e-9) * step - step; }
+  /* steps:end */
+
+  var STEP = D.step, T_END = D.horizon;
+  var series = D.series;
+  var state = { i: 0, t: 0, playing: false, speed: 0.5, view: D.default_view, shown: {} };
+  series.forEach(function (s) { state.shown[s.key] = true; });
+  var K = 1; // viewBox units per CSS pixel, so strokes keep their on-screen width at any size
+
+  var svg = $("bev"), bevImg = $("bev-img");
+  var gAgents = $("g-agents"), gEgo0 = $("g-ego0"), gPaths = $("g-paths"), gEgo = $("g-ego"), gOver = $("g-over");
+  var agentEls = [], egoEls = [], egoStart = null, timeText = null;
+
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (attrs[k] !== null && attrs[k] !== undefined) e.setAttribute(k, String(attrs[k]));
+    });
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function html(name, cls, text) {
+    var e = document.createElement(name);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+  // ---------------------------------------------------------------- geometry (ego frame: x forward, y left)
+  function view() { return D.views[state.view]; }
+  function unitsPerMetre() { return VB / (2 * view().half_y); }
+  function viewHeight() { var v = view(); return VB * v.half_x / v.half_y; }
+  function toSvg(x, y) {
+    var v = view(), s = VB / (2 * v.half_y);
+    return [(v.half_y - y) * s, (v.half_x - x) * s];
+  }
+  function corners(cx, cy, h, l, w) {
+    var c = Math.cos(h), s = Math.sin(h), dl = l / 2, dw = w / 2;
+    return [[dl, dw], [-dl, dw], [-dl, -dw], [dl, -dw]].map(function (q) {
+      return [cx + q[0] * c - q[1] * s, cy + q[0] * s + q[1] * c];
+    });
+  }
+  function egoCorners(p) {
+    var r = D.ego.rear_axle_to_center; // poses are rear-axle poses; the box centre sits r metres ahead
+    return corners(p[0] + r * Math.cos(p[2]), p[1] + r * Math.sin(p[2]), p[2], D.ego.length, D.ego.width);
+  }
+  function pts(list) {
+    return list.map(function (p) { var q = toSvg(p[0], p[1]); return q[0].toFixed(2) + "," + q[1].toFixed(2); }).join(" ");
+  }
+  function dash(line) {
+    if (line === "dash") return (7 * K).toFixed(2) + " " + (4.5 * K).toFixed(2);
+    if (line === "dot") return (0.1 * K).toFixed(2) + " " + (4 * K).toFixed(2);
+    return null;
+  }
+  function marker(shape, u, v, r, attrs, parent) {
+    var m, p;
+    if (shape === "square") {
+      m = el("rect", { x: u - 0.9 * r, y: v - 0.9 * r, width: 1.8 * r, height: 1.8 * r }, parent);
+    } else if (shape === "diamond") {
+      p = [[u, v - 1.25 * r], [u + 1.25 * r, v], [u, v + 1.25 * r], [u - 1.25 * r, v]];
+    } else if (shape === "triangle") {
+      p = [[u, v - 1.3 * r], [u + 1.2 * r, v + 0.8 * r], [u - 1.2 * r, v + 0.8 * r]];
+    } else if (shape === "triangle-down") {
+      p = [[u, v + 1.3 * r], [u + 1.2 * r, v - 0.8 * r], [u - 1.2 * r, v - 0.8 * r]];
+    } else {
+      m = el("circle", { cx: u, cy: v, r: r }, parent);
+    }
+    if (p) m = el("polygon", { points: p.map(function (q) { return q[0].toFixed(2) + "," + q[1].toFixed(2); }).join(" ") }, parent);
+    Object.keys(attrs).forEach(function (k) { m.setAttribute(k, String(attrs[k])); });
+    return m;
+  }
+  function side(y) {
+    if (Math.abs(y) < 0.05) return "on the centre line";
+    return Math.abs(y).toFixed(1) + " m " + (y > 0 ? "left" : "right");
+  }
+  function drawOrder() { // bottom to top, as in the PNG figures: constant velocity, later models, reference, human
+    var cv = series.filter(function (s) { return s.key === "cv"; });
+    var models = series.filter(function (s) { return s.key !== "cv" && s.key !== "human"; }).reverse();
+    var human = series.filter(function (s) { return s.key === "human"; });
+    return cv.concat(models, human);
+  }
+
+  // ---------------------------------------------------------------- swatches (on a white chip: the map is light in both themes)
+  function swatch(spec, w, h) {
+    w = w || 40; h = h || 16;
+    var s = el("svg", { width: w, height: h, viewBox: "0 0 " + w + " " + h, "class": "swatch", "aria-hidden": "true" });
+    el("rect", { x: 0.5, y: 0.5, width: w - 1, height: h - 1, rx: 3, fill: "#ffffff", stroke: "#cfcdc7" }, s);
+    if (spec.box) {
+      el("rect", { x: w / 2 - 8, y: h / 2 - 4.5, width: 16, height: 9, fill: spec.fill, "fill-opacity": spec.opacity === undefined ? 1 : spec.opacity,
+        stroke: spec.line || "none", "stroke-width": 1 }, s);
+      return s;
+    }
+    if (spec.area) {
+      el("rect", { x: 3, y: 3, width: w - 6, height: h - 6, rx: 1.5, fill: spec.fill, "fill-opacity": spec.opacity === undefined ? 1 : spec.opacity }, s);
+      return s;
+    }
+    var line = el("line", { x1: 4, y1: h / 2, x2: w - 4, y2: h / 2, stroke: spec.color, "stroke-width": spec.width || 2, "stroke-linecap": "round" }, s);
+    if (spec.line === "dash") line.setAttribute("stroke-dasharray", "6 4");
+    if (spec.line === "dot") line.setAttribute("stroke-dasharray", "0.1 4");
+    if (spec.marker) marker(spec.marker, w / 2, h / 2, 3.6, { fill: spec.color, stroke: "#ffffff", "stroke-width": 1.4 }, s);
+    return s;
+  }
+
+  // ---------------------------------------------------------------- scene drawing
+  function build() {
+    var sc = D.scenes[state.i];
+    var width = svg.getBoundingClientRect().width;
+    K = width > 0 ? VB / width : 1;
+    var H = viewHeight();
+    svg.setAttribute("viewBox", "0 0 " + VB + " " + H.toFixed(2));
+    bevImg.setAttribute("href", sc.views[state.view]);
+    bevImg.setAttribute("width", VB);
+    bevImg.setAttribute("height", H.toFixed(2));
+
+    clear(gAgents); clear(gEgo0); clear(gPaths); clear(gEgo); clear(gOver);
+    agentEls = sc.agents.map(function (a) {
+      var st = D.agent_styles[a.type] || D.agent_styles.generic_object || { fill: "#bab0ac", line: "#000000" };
+      var g = el("g", {}, gAgents);
+      var poly = el("polygon", { fill: st.fill, stroke: st.line, "stroke-width": K, "stroke-linejoin": "round" }, g);
+      var head = el("line", { stroke: st.line, "stroke-width": K }, g);
+      var seen = a.p.filter(function (p) { return p; }).length;
+      el("title", {}, g).textContent = (D.type_labels[a.type] || a.type.replace(/_/g, " ")) +
+        (seen === 1 ? " (logged in one frame only; NAVSIM keeps it there for the whole plan)" : "");
+      return { a: a, g: g, poly: poly, head: head };
+    });
+
+    // under the paths, as in NAVSIM's own figures
+    egoStart = el("polygon", { points: pts(egoCorners([0, 0, 0])), fill: D.ego.fill, stroke: D.ego.line, "stroke-width": K }, gEgo0);
+    el("title", {}, egoStart).textContent = "Ego at the planning moment (t = 0)";
+    egoEls = [];
+    drawOrder().forEach(function (s) {
+      var keys = sc.plans[s.key];
+      if (!keys) return;
+      var g = el("g", {}, gPaths);
+      var line = pts(keys);
+      el("polyline", { points: line, fill: "none", stroke: "#ffffff", "stroke-opacity": 0.85, "stroke-width": (s.width + 3) * K,
+        "stroke-linejoin": "round", "stroke-linecap": "round" }, g);
+      el("polyline", { points: line, fill: "none", stroke: s.color, "stroke-width": s.width * K, "stroke-linejoin": "round",
+        "stroke-linecap": "round", "stroke-dasharray": dash(s.line) }, g);
+      if (s.marker) {
+        for (var j = 1; j < keys.length; j++) {
+          var q = toSvg(keys[j][0], keys[j][1]);
+          var m = marker(s.marker, q[0], q[1], (s.key === "m0" ? 4.6 : 4) * K, { fill: s.color, stroke: "#ffffff", "stroke-width": 1.5 * K }, g);
+          el("title", {}, m).textContent = s.name + ", t = " + (j * STEP).toFixed(1) + " s: " + keys[j][0].toFixed(1) + " m ahead, " + side(keys[j][1]);
+        }
+      }
+      var boxDash = s.line === "solid" ? null : (s.line === "dot" ? [2.5, 2.5] : [6, 3.5]).map(function (v) { return (v * K).toFixed(2); }).join(" ");
+      var box = el("polygon", { fill: s.color, "fill-opacity": s.key.charAt(0) === "m" ? 0.22 : 0.12, stroke: s.color,
+        "stroke-width": (s.key === "m0" ? 2.4 : 1.8) * K, "stroke-dasharray": boxDash, "stroke-linejoin": "round" }, gEgo);
+      // the box drives NAVSIM's simulated motion for this plan (0.1 s poses); without it, the plan's own lines
+      var motion = sc.motion && sc.motion[s.key];
+      el("title", {}, box).textContent = s.name + (motion ? ": NAVSIM's simulated car following this plan, at the slider's time"
+                                                          : ": the ego box on the plan's lines (not simulated), at the slider's time");
+      egoEls.push({ key: s.key, keys: keys, path: motion || keys, step: motion ? D.motion_step : STEP, box: box, g: g });
+    });
+
+    // scale bar and time label, on white chips at the corners
+    var v = view(), upm = unitsPerMetre(), pad = 8 * K, bar = v.scale_m * upm;
+    var fs = 12 * K;
+    el("rect", { x: pad, y: H - pad - 26 * K, width: bar + 20 * K, height: 26 * K, rx: 4 * K, fill: "#ffffff", "fill-opacity": 0.9 }, gOver);
+    var x0 = pad + 10 * K, yb = H - pad - 7 * K;
+    el("path", { d: "M" + x0 + "," + (yb - 4 * K) + " v" + (4 * K) + " h" + bar + " v" + (-4 * K), stroke: "#0b0b0b",
+      "stroke-width": 1.6 * K, fill: "none", "stroke-linejoin": "round" }, gOver);
+    el("text", { x: x0 + bar / 2, y: yb - 6 * K, "text-anchor": "middle", "font-size": fs, fill: "#0b0b0b" }, gOver).textContent = v.scale_m + " m";
+    el("rect", { x: pad, y: pad, width: 76 * K, height: 24 * K, rx: 4 * K, fill: "#ffffff", "fill-opacity": 0.9 }, gOver);
+    timeText = el("text", { x: pad + 8 * K, y: pad + 16.5 * K, "font-size": fs, fill: "#0b0b0b", "font-weight": 600 }, gOver);
+
+    applyVisibility();
+    draw(state.t);
+  }
+
+  function draw(t) {
+    agentEls.forEach(function (e) {
+      var p = poseAt(e.a.p, t, STEP);
+      if (!p) { e.g.setAttribute("visibility", "hidden"); return; }
+      e.g.removeAttribute("visibility");
+      e.poly.setAttribute("points", pts(corners(p[0], p[1], p[2], e.a.l, e.a.w)));
+      var reach = e.a.l / 2 + 1, a = toSvg(p[0], p[1]);
+      var b = toSvg(p[0] + reach * Math.cos(p[2]), p[1] + reach * Math.sin(p[2]));
+      e.head.setAttribute("x1", a[0].toFixed(2)); e.head.setAttribute("y1", a[1].toFixed(2));
+      e.head.setAttribute("x2", b[0].toFixed(2)); e.head.setAttribute("y2", b[1].toFixed(2));
+    });
+    var moving = t >= 0.05; // at t = 0 every plan's box is the ego box itself
+    egoEls.forEach(function (e) {
+      var p = poseAt(e.path, t, e.step);
+      if (p) e.box.setAttribute("points", pts(egoCorners(p)));
+      e.box.setAttribute("visibility", moving ? "visible" : "hidden");
+    });
+    if (egoStart) egoStart.setAttribute("opacity", moving ? 0.45 : 1);
+    if (timeText) timeText.textContent = "t = " + t.toFixed(1) + " s";
+    $("time-out").textContent = t.toFixed(1) + " s";
+  }
+
+  function applyVisibility() {
+    egoEls.forEach(function (e) {
+      var on = !!state.shown[e.key];
+      e.g.style.display = on ? "" : "none";
+      e.box.style.display = on ? "" : "none";
+    });
+    updateHint();
+  }
+
+  function updateHint() {
+    var sc = D.scenes[state.i], v = view();
+    var outside = function (p) { return Math.abs(p[0]) > v.half_x || Math.abs(p[1]) > v.half_y; };
+    var out = series.some(function (s) {
+      var keys = sc.plans[s.key], motion = sc.motion && sc.motion[s.key];
+      return state.shown[s.key] && keys && (keys.some(outside) || (motion && motion.some(outside)));
+    });
+    var hint = $("view-hint");
+    var wider = Object.keys(D.views).filter(function (k) { return D.views[k].half_y > v.half_y; })[0];
+    if (!out) { hint.hidden = true; return; }
+    hint.hidden = false;
+    hint.textContent = wider ? "Some plans run past the edge of this view; the " + D.views[wider].label + " view shows more."
+                             : "Some plans run past the edge of this view.";
+  }
+
+  // ---------------------------------------------------------------- scene info and score table
+  var rows = {};
+  function fmt(v, key) {
+    if (v === null || v === undefined) return "–";
+    if (key === "pdms" || key === "ep") return v.toFixed(2);
+    return String(Math.round(v * 100) / 100);
+  }
+  function buildTable() {
+    var body = $("plans-body");
+    series.forEach(function (s) {
+      var tr = html("tr"), th = html("th");
+      th.scope = "row";
+      var label = html("label", "series"), cb = html("input");
+      cb.type = "checkbox"; cb.checked = true;
+      cb.addEventListener("change", function () {
+        state.shown[s.key] = cb.checked;
+        tr.classList.toggle("off", !cb.checked);
+        applyVisibility();
+      });
+      label.appendChild(cb); label.appendChild(swatch(s)); label.appendChild(html("span", "name", s.name));
+      var why0 = html("div", "why0");
+      th.appendChild(label); th.appendChild(why0); tr.appendChild(th);
+      var cells = {};
+      ["pdms", "nc", "dac", "ttc", "ep", "c"].forEach(function (k) {
+        var td = html("td", "num" + (k === "pdms" ? " pdms" : ""));
+        cells[k] = td; tr.appendChild(td);
+      });
+      body.appendChild(tr);
+      rows[s.key] = { tr: tr, cb: cb, why0: why0, cells: cells };
+    });
+  }
+  function fillTable(sc) {
+    series.forEach(function (s) {
+      var r = rows[s.key], sco = sc.scores[s.key], plan = sc.plans[s.key];
+      Object.keys(r.cells).forEach(function (k) {
+        var v = sco ? sco[k] : null, td = r.cells[k];
+        clear(td);
+        var text = fmt(v, k);
+        if ((k === "nc" || k === "dac") && v !== null && v !== undefined && v < 1) {
+          td.appendChild(html("strong", "", text));
+        } else {
+          td.textContent = text;
+        }
+      });
+      r.cb.disabled = !plan;
+      var notes = [];
+      if (!plan) notes.push("No plan for this scene.");
+      if (sco && sco.zeroed_by) notes.push("Scored 0: " + sco.zeroed_by + ".");
+      if (!sco && plan) notes.push(s.key === "human" ? "Not scored here." : "No score for this scene.");
+      r.why0.textContent = notes.join(" ");
+      r.why0.hidden = notes.length === 0;
+    });
+  }
+
+  function buildKeys() {
+    var sk = $("series-keys");
+    series.forEach(function (s) {
+      var li = html("li"); li.appendChild(swatch(s)); li.appendChild(html("span", "", s.name)); sk.appendChild(li);
+    });
+    var ego = html("li");
+    ego.appendChild(swatch({ box: true, fill: D.ego.fill, line: D.ego.line }));
+    ego.appendChild(html("span", "", "ego at t = 0"));
+    var ak = $("agent-keys");
+    ak.appendChild(ego);
+    D.agent_keys.forEach(function (k) {
+      var li = html("li"); li.appendChild(swatch({ box: true, fill: k.fill, line: k.line })); li.appendChild(html("span", "", k.label)); ak.appendChild(li);
+    });
+    var mk = $("map-keys");
+    D.map_keys.forEach(function (k) {
+      var li = html("li");
+      li.appendChild(k.dash ? swatch({ color: k.line, line: "dash", width: 1.4 }) : swatch({ area: true, fill: k.fill, opacity: k.opacity }));
+      li.appendChild(html("span", "", k.label)); mk.appendChild(li);
+    });
+  }
+
+  function buildViews() {
+    var box = $("view-buttons");
+    Object.keys(D.views).forEach(function (name) {
+      var b = html("button", "", D.views[name].label);
+      b.type = "button"; b.dataset.view = name;
+      b.setAttribute("aria-pressed", String(name === state.view));
+      b.addEventListener("click", pointerBlur(function () { setView(name); }));
+      box.appendChild(b);
+    });
+  }
+  function setView(name) {
+    state.view = name;
+    Array.prototype.forEach.call($("view-buttons").children, function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.view === name));
+    });
+    build();
+  }
+
+  function setScene(i) {
+    var n = D.scenes.length;
+    state.i = ((i % n) + n) % n;
+    pause();
+    state.t = 0;
+    $("time").value = "0";
+    var sc = D.scenes[state.i];
+    $("scene-select").value = String(state.i);
+    $("counter").textContent = "Scene " + (state.i + 1) + " of " + n;
+    $("scene-title").textContent = "Scene " + (state.i + 1) + ": " + sc.map_label + ", route command " + sc.command;
+    var why = $("scene-why");
+    clear(why);
+    why.appendChild(document.createTextNode("Why this scene: "));
+    why.appendChild(html("strong", "", sc.why));
+    why.appendChild(document.createTextNode(". " + sc.why_text));
+    $("f-command").textContent = sc.command;
+    $("f-speed").textContent = sc.speed.toFixed(1) + " m/s (" + Math.round(sc.speed * 3.6) + " km/h)";
+    $("f-map").textContent = sc.map_label + " (" + sc.map + ")";
+    $("f-token").textContent = sc.token;
+    var cam = $("cam");
+    if (sc.camera) {
+      cam.hidden = false; $("cam-missing").hidden = true;
+      cam.src = sc.camera;
+      cam.alt = "Front camera, scene " + (state.i + 1);
+    } else {
+      cam.hidden = true; $("cam-missing").hidden = false;
+    }
+    fillTable(sc);
+    build();
+    try { history.replaceState(null, "", "#" + (state.i + 1)); } catch (err) { /* file:// may refuse */ }
+  }
+
+  // ---------------------------------------------------------------- playback
+  var last = null;
+  function setTime(t) {
+    state.t = Math.max(0, Math.min(T_END, t));
+    $("time").value = String(Math.round(state.t / STEP) * STEP);
+    draw(state.t);
+  }
+  function frame(now) {
+    if (!state.playing) return;
+    if (last !== null) state.t = Math.min(T_END, state.t + (now - last) / 1000 * state.speed);
+    last = now;
+    $("time").value = String(Math.round(state.t / STEP) * STEP);
+    draw(state.t);
+    if (state.t >= T_END) { pause(); return; }
+    requestAnimationFrame(frame);
+  }
+  function play() {
+    if (state.t >= T_END - 1e-9) state.t = 0;
+    state.playing = true; last = null;
+    showPlaying(true);
+    requestAnimationFrame(frame);
+  }
+  function pause() { state.playing = false; showPlaying(false); }
+  function showPlaying(on) {
+    $("icon-play").hidden = on; $("icon-pause").hidden = !on;
+    $("play-label").textContent = on ? "Pause" : "Play";
+    $("play").setAttribute("aria-label", on ? "Pause" : "Play");
+  }
+
+  // ---------------------------------------------------------------- wiring
+  // after a mouse or touch click (detail > 0; keyboard activation has 0) a button gives up focus, so a following
+  // space reaches the play shortcut instead of pressing the same button again
+  function pointerBlur(fn) {
+    return function (ev) { fn(); if (ev.detail > 0 && ev.currentTarget && ev.currentTarget.blur) ev.currentTarget.blur(); };
+  }
+  var select = $("scene-select");
+  D.scenes.forEach(function (sc, i) {
+    var o = html("option", "", String(i + 1).padStart(2, "0") + " · " + sc.why + " · " + sc.map_label + " · " + sc.token.slice(0, 8));
+    o.value = String(i);
+    select.appendChild(o);
+  });
+  select.addEventListener("change", function () { setScene(parseInt(select.value, 10)); });
+  $("prev").addEventListener("click", pointerBlur(function () { setScene(state.i - 1); }));
+  $("next").addEventListener("click", pointerBlur(function () { setScene(state.i + 1); }));
+  $("play").addEventListener("click", function () { if (state.playing) pause(); else play(); });
+  $("time").addEventListener("input", function () { pause(); setTime(parseFloat($("time").value)); });
+  $("speed").addEventListener("change", function () { state.speed = parseFloat($("speed").value); });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+    var tag = (ev.target && ev.target.tagName) || "";
+    var type = tag === "INPUT" ? ev.target.type : "";
+    var typing = tag === "SELECT" || tag === "TEXTAREA" || (tag === "INPUT" && type !== "checkbox" && type !== "range");
+    if (typing) return;
+    if (ev.key === "n") setScene(state.i + 1);
+    else if (ev.key === "p") setScene(state.i - 1);
+    else if (ev.key === ".") { pause(); setTime(nextKeyTime(state.t, STEP)); }
+    else if (ev.key === ",") { pause(); setTime(prevKeyTime(state.t, STEP)); }
+    // space plays or pauses everywhere but on a button or a checkbox, which space presses (on the slider too,
+    // where it would otherwise scroll the page)
+    else if (ev.key === " " && tag !== "BUTTON" && type !== "checkbox") { ev.preventDefault(); if (state.playing) pause(); else play(); }
+  });
+  var lastWidth = 0;
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      var w = svg.getBoundingClientRect().width;
+      if (Math.abs(w - lastWidth) > 1) { lastWidth = w; build(); }
+    }).observe(svg);
+  } else {
+    window.addEventListener("resize", function () { build(); });
+  }
+
+  state.speed = parseFloat($("speed").value);
+  $("generated").textContent = "Generated " + D.generated + " by navsim_eval/render_demo.py (seed " + D.seed + ", " + D.scenes.length + " scenes).";
+  buildTable();
+  buildKeys();
+  buildViews();
+  // address: #<scene>, optionally @<seconds> and ,<view name>; e.g. #3@2.5,wide. Read at start-up and whenever the
+  // reader edits it (setScene's replaceState does not fire hashchange, so this cannot loop)
+  function applyHash() {
+    var m = /^#(\d+)(?:@([\d.]+))?(?:,(\w+))?$/.exec(location.hash || "");
+    if (!m) return false;
+    if (m[3] && D.views[m[3]] && m[3] !== state.view) setView(m[3]);
+    setScene(parseInt(m[1], 10) - 1);
+    if (m[2]) setTime(parseFloat(m[2]));
+    return true;
+  }
+  if (!applyHash()) setScene(0);
+  window.addEventListener("hashchange", applyHash);
+})();
+</script>
+</body>
+</html>
