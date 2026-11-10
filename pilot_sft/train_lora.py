@@ -74,9 +74,20 @@ def prompt_text(processor, item: Dict[str, Any]) -> str:
 def mask_ego(item: Dict[str, Any]) -> Dict[str, Any]:
     """The item with its ego-state and past-position lines replaced by "not available"; the command stays."""
     lines = [("Ego state: not available." if l.startswith("Ego state:") else
-              "Past positions: not available." if l.startswith("Past positions") else l)
+              "Past positions: not available." if l.startswith("Past positions") else
+              "Past poses: not available." if l.startswith("Past poses") else l)
              for l in item["prompt"].split("\n")]
     return {**item, "prompt": "\n".join(lines)}
+
+
+def view_prompt_version(view: str) -> str:
+    """The view's prompt version (``view.json``), recorded in run.json so prediction can rebuild the same prompt;
+    views without one are pilot_v1.1."""
+    path = os.path.join(view, "view.json")
+    if not os.path.exists(path):
+        return "pilot_v1.1"
+    with open(path, encoding="utf-8") as f:
+        return json.load(f).get("prompt_version") or "pilot_v1.1"
 
 
 def answer_end(processor) -> str:
@@ -320,7 +331,8 @@ def main() -> None:
         os.replace(ckpt + ".part", ckpt)
 
     log = open(log_path, "a", encoding="utf-8")
-    run = {"args": vars(args), "device": torch.cuda.get_device_name(0) if device == "cuda" else "cpu",
+    run = {"args": vars(args), "prompt_version": view_prompt_version(args.view),
+           "device": torch.cuda.get_device_name(0) if device == "cuda" else "cpu",
            "dtype": str(dtype), "torch_threads": torch.get_num_threads(),
            "train_samples": len(train), "dev_samples_for_loss": len(dev),
            "trainable_params": trainable, "total_params": total, "lora_targets": len(targets),

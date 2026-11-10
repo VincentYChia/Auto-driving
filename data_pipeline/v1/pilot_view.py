@@ -66,6 +66,20 @@ PROMPT = (
     "Route command: {command}.\n"
     "Predict the path for the next 4 seconds: 8 positions (x, y) in metres, one every 0.5 s."
 )
+# 1.1 -> 1.2 [proposed 2026-11-09]: the past as 4 poses with heading at -1.5, -1.0, -0.5 and 0 s (the last is the
+# origin), the history ReCogDrive gives its VLM (4 timesteps of (x, y, heading), 2 decimals), written in our prompt's
+# wording; everything else is unchanged. Views of each version live side by side (VIEW_ROOTS); 1.1 stays the default.
+POSES_S = (-1.5, -1.0, -0.5, 0.0)
+PROMPT_V12 = (
+    "Front camera image (CAM_F0).\n"
+    "Ego state: speed {speed:.1f} m/s, acceleration {accel:+.1f} m/s², yaw rate {yaw_rate:+.2f} rad/s.\n"
+    "Past poses (x forward and y left in metres, heading in radians) at -1.5, -1.0, -0.5 and 0 s: {poses}.\n"
+    "Route command: {command}.\n"
+    "Predict the path for the next 4 seconds: 8 positions (x, y) in metres, one every 0.5 s."
+)
+TEMPLATES = {"pilot_v1.1": PROMPT, "pilot_v1.2": PROMPT_V12}
+PROMPT_VERSIONS = tuple(TEMPLATES)
+VIEW_ROOTS = {"pilot_v1.1": VIEW, "pilot_v1.2": "pilot_v1.2"}
 COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "path_xyyaw", "path_valid",
            "speed", "accel_lon", "command")
 PAIR = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
@@ -78,6 +92,25 @@ ZIP_DATE = image_store.DATE_TIME  # the earliest a zip can store: no build time 
 
 def _pairs(xy: np.ndarray) -> str:
     return " ".join(f"({x:.1f}, {y:.1f})" for x, y in np.round(xy, 1) + 0.0)  # no "-0.0"
+
+
+def _poses(xyh: Any) -> str:
+    return " ".join(f"({x:.2f}, {y:.2f}, {h:.2f})" for x, y, h in np.round(np.asarray(xyh, dtype=np.float64), 2) + 0.0)
+
+
+def render_prompt(version: str, speed: float, accel: float, yaw_rate: float, poses: Any, command: str) -> str:
+    """The prompt of ``version``. ``poses``: (x, y, heading) at ``POSES_S`` in the anchor's frame, the last the origin.
+
+    ``speed`` is formatted by the template; pass ``accel`` and ``yaw_rate`` already rounded (as ``sample`` does)."""
+    poses = np.asarray(poses, dtype=np.float64)
+    if poses.shape != (len(POSES_S), 3):
+        raise ValueError(f"need {len(POSES_S)} poses (x, y, heading), got shape {poses.shape}")
+    if version == "pilot_v1.1":
+        return PROMPT.format(speed=speed, accel=accel, yaw_rate=yaw_rate, history=_pairs(poses[:3, :2] + 0.0),
+                             command=command)
+    if version == "pilot_v1.2":
+        return PROMPT_V12.format(speed=speed, accel=accel, yaw_rate=yaw_rate, poses=_poses(poses), command=command)
+    raise ValueError(f"unknown prompt version {version}; known: {PROMPT_VERSIONS}")
 
 
 def parse_path(text: str, n: int = len(TARGET_S)) -> Optional[np.ndarray]:
@@ -94,12 +127,13 @@ def past_yaw_rate(path: np.ndarray) -> float:
     return float(geometry.normalize_angle(path[NOW, 2] - path[PREV, 2]) / (PATH_OFFSETS_S[NOW] - PATH_OFFSETS_S[PREV]))
 
 
-def sample(frames: tables.Columns, k: int) -> Dict[str, Any]:
+def sample(frames: tables.Columns, k: int, version: str = PROMPT_VERSION) -> Dict[str, Any]:
     path = np.asarray(frames["path_xyyaw"][k], dtype=np.float64)
-    hist = path[[int(np.flatnonzero(np.isclose(PATH_OFFSETS_S, t))[0]) for t in HISTORY_S]]
+    poses = path[[int(np.flatnonzero(np.isclose(PATH_OFFSETS_S, t))[0]) for t in POSES_S]]
     fut = path[[int(np.flatnonzero(np.isclose(PATH_OFFSETS_S, t))[0]) for t in TARGET_S]]
-    prompt = PROMPT.format(speed=float(frames["speed"][k]), accel=round(float(frames["accel_lon"][k]), 1) + 0.0,
-                           yaw_rate=round(past_yaw_rate(path), 2) + 0.0, history=_pairs(hist[:, :2] + 0.0),
+    prompt = render_prompt(version, speed=float(frames["speed"][k]),
+                           accel=round(float(frames["accel_lon"][k]), 1) + 0.0,
+                           yaw_rate=round(past_yaw_rate(path), 2) + 0.0, poses=poses,
                            command=COMMAND_TEXT.get(str(frames["command"][k]), "none given"))
     log, token = str(frames["log_name"][k]), str(frames["token"][k])
     return {
@@ -226,12 +260,12 @@ def write_zip(path: str, names: Sequence[str], jobs: Sequence[Any], workers: int
     return sizes
 
 
-def view_dir(out_dir: str, set_name: str) -> str:
-    return os.path.join(out_dir, "views", VIEW, set_name)
+def view_dir(out_dir: str, set_name: str, version: str = PROMPT_VERSION) -> str:
+    return os.path.join(out_dir, "views", VIEW_ROOTS[version], set_name)
 
 
 def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: int = 8,
-          storage: str = "loose") -> Dict[str, Any]:
+          storage: str = "loose", prompt_version: str = PROMPT_VERSION) -> Dict[str, Any]:
     """Write the view of ``set_name``. ``storage="zip"`` [proposed] packs the images into ``images.zip``.
 
     A loose build skips images that already exist; a zip build always rewrites ``images.zip`` (the bytes
@@ -240,14 +274,16 @@ def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: in
     """
     if storage not in STORAGE:
         raise ValueError(f"unknown storage {storage}")
-    stale_zip = os.path.join(view_dir(out_dir, set_name), ZIP_NAME)
+    if prompt_version not in TEMPLATES:
+        raise ValueError(f"unknown prompt version {prompt_version}; known: {PROMPT_VERSIONS}")
+    stale_zip = os.path.join(view_dir(out_dir, set_name, prompt_version), ZIP_NAME)
     if storage == "loose" and os.path.exists(stale_zip):
         raise FileExistsError(f"{stale_zip} exists, and the readers (ViewImages, export) prefer it to loose "
                               "images: move it aside, or build with --storage zip")
     member = f"in_{set_name.replace('-', '_')}"
     frames = tables.read(os.path.join(out_dir, "frames.parquet"), list(COLUMNS) + ["source_archive", member])
     rows = np.flatnonzero(frames[member])
-    target = view_dir(out_dir, set_name)
+    target = view_dir(out_dir, set_name, prompt_version)
     os.makedirs(target, exist_ok=True)
 
     def source(k: int) -> Tuple[str, str, int]:
@@ -276,12 +312,12 @@ def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: in
         chosen = rows[frames["our_split"][rows] == split]
         with open(os.path.join(target, f"{split}.jsonl"), "w", encoding="utf-8", newline="\n") as f:
             for k in chosen:
-                f.write(json.dumps(sample(frames, k), ensure_ascii=False) + "\n")
+                f.write(json.dumps(sample(frames, k, prompt_version), ensure_ascii=False) + "\n")
         counts[split] = int(len(chosen))
-    lengths = [len(sample(frames, k)["prompt"]) for k in rows[:200]]
+    lengths = [len(sample(frames, k, prompt_version)["prompt"]) for k in rows[:200]]
     spec = {
-        "view": VIEW,
-        "prompt_version": PROMPT_VERSION,
+        "view": VIEW_ROOTS[prompt_version],
+        "prompt_version": prompt_version,
         "set": set_name,
         "created_utc": provenance.utc_now(),
         "repo_commit": provenance.git_commit(provenance.REPO_ROOT),
@@ -298,12 +334,15 @@ def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: in
                   "visual_tokens_note": "D: each side rounded to the nearest multiple of patch × merge "
                                         "(Qwen2VLImageProcessor), one token per merged patch"},
         "images_zip": images_zip,
-        "history_s": list(HISTORY_S),
+        "history_s": list(HISTORY_S) if prompt_version == "pilot_v1.1" else list(POSES_S),
         "target_s": list(TARGET_S),
-        "number_format": "metres, 1 decimal in text; continuous values in target_xy / target_yaw",
+        "number_format": ("metres, 1 decimal in text; continuous values in target_xy / target_yaw"
+                          if prompt_version == "pilot_v1.1" else
+                          "metres, 1 decimal in text, past poses 2 decimals with heading in radians; continuous "
+                          "values in target_xy / target_yaw"),
         "prompt_chars_mean": round(float(np.mean(lengths)), 1) if lengths else None,
         "system": SYSTEM,
-        "prompt_template": PROMPT,
+        "prompt_template": TEMPLATES[prompt_version],
         "constant_velocity_baseline": {split: constant_velocity(frames, rows[frames["our_split"][rows] == split])
                                        for split in ("train", "dev")},
     }
@@ -326,10 +365,11 @@ def chat_record(item: Dict[str, Any], image_bytes: bytes) -> Dict[str, Any]:
     ]}
 
 
-def export(out_dir: str, set_name: str = "smoke", fmt: str = "chat", limit: Optional[int] = None) -> Dict[str, Any]:
+def export(out_dir: str, set_name: str = "smoke", fmt: str = "chat", limit: Optional[int] = None,
+           prompt_version: str = PROMPT_VERSION) -> Dict[str, Any]:
     if fmt != "chat":
         raise ValueError(f"unknown format {fmt}")
-    target = view_dir(out_dir, set_name)
+    target = view_dir(out_dir, set_name, prompt_version)
     out = {}
     with _ViewReader(target) as images:
         for split in ("train", "dev"):
@@ -381,6 +421,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         p = sub.add_parser(name)
         p.add_argument("--out", required=True, help="dataset directory, e.g. data/pretrain/v1.0-pilot")
         p.add_argument("--set", default="smoke", choices=SETS)
+        p.add_argument("--prompt-version", default=PROMPT_VERSION, choices=PROMPT_VERSIONS,
+                       help="pilot_v1.2 [proposed]: 4 past poses with heading; written to views/pilot_v1.2/<set>")
         if name == "build":
             p.add_argument("--width", type=int, default=WIDTH, help="image width in the view (px)")
             p.add_argument("--workers", type=int, default=8)
@@ -391,11 +433,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             p.add_argument("--limit", type=int, default=None, help="first N samples per split (a quick test file)")
     args = parser.parse_args(argv)
     if args.command == "build":
-        spec = build(args.out, args.set, args.width, args.workers, args.storage)
+        spec = build(args.out, args.set, args.width, args.workers, args.storage, args.prompt_version)
         print(json.dumps({k: spec[k] for k in ("samples", "storage", "image", "images_zip",
                                                "constant_velocity_baseline")}, indent=1))
     else:
-        print(json.dumps(export(args.out, args.set, args.format, args.limit), indent=1))
+        print(json.dumps(export(args.out, args.set, args.format, args.limit, args.prompt_version), indent=1))
 
 
 if __name__ == "__main__":

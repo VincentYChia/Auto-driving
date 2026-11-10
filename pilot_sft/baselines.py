@@ -32,6 +32,7 @@ TARGET_S = np.array([0.5 * (k + 1) for k in range(8)])
 NUM = r"([-+]?\d+(?:\.\d+)?)"
 STATE = re.compile(rf"speed {NUM} m/s, acceleration {NUM} m/s.*?, yaw rate {NUM} rad/s")
 PAIR = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
+TRIPLE = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
 COMMANDS = ("left", "right", "straight", "unknown")
 
 
@@ -43,8 +44,11 @@ def read_jsonl(path: str) -> List[Dict[str, Any]]:
 def prompt_numbers(item: Dict[str, Any]) -> Tuple[float, float, float, List[float]]:
     """Speed, acceleration, yaw rate and the 6 past coordinates, as the prompt states them."""
     v, a, w = map(float, STATE.search(item["prompt"]).groups())
-    line = next(l for l in item["prompt"].split("\n") if l.startswith("Past positions"))
-    past = [float(x) for pair in PAIR.findall(line.split(":", 1)[1]) for x in pair]
+    line = next(l for l in item["prompt"].split("\n") if l.startswith(("Past positions", "Past poses")))
+    if line.startswith("Past poses"):  # pilot_v1.2: (x, y, heading) at -1.5, -1.0, -0.5, 0 s; keep the 3 past (x, y)
+        past = [float(x) for pose in TRIPLE.findall(line.split(":", 1)[1])[:3] for x in pose[:2]]
+    else:
+        past = [float(x) for pair in PAIR.findall(line.split(":", 1)[1]) for x in pair]
     return v, a, w, past
 
 

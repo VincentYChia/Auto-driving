@@ -31,8 +31,8 @@ from data_pipeline import labels  # noqa: E402
 from data_pipeline.v1 import pilot_view  # noqa: E402
 
 
-def item(record: Dict[str, Any]) -> Dict[str, Any]:
-    """A pilot_v1.1 sample from one exported NAVSIM record (image relative to ``<out>``)."""
+def item(record: Dict[str, Any], version: str = "pilot_v1.1") -> Dict[str, Any]:
+    """A sample in prompt ``version`` from one exported NAVSIM record (image relative to ``<out>``)."""
     nav = record["navsim"]
     history = nav["ego_history_local"]  # (x, y, heading) at -1.5, -1.0, -0.5, 0 s; the last is the origin
     if len(history) != 4:
@@ -40,12 +40,22 @@ def item(record: Dict[str, Any]) -> Dict[str, Any]:
     turn = history[3][2] - history[2][2]
     yaw_rate = math.atan2(math.sin(turn), math.cos(turn)) / 0.5  # pilot_view.past_yaw_rate
     vx, vy = nav["ego_velocity"][:2]
-    prompt = pilot_view.PROMPT.format(
-        speed=math.hypot(vx, vy), accel=round(float(nav["ego_acceleration"][0]), 1) + 0.0,
-        yaw_rate=round(yaw_rate, 2) + 0.0,
-        history=pilot_view._pairs([[p[0] + 0.0, p[1] + 0.0] for p in history[:3]]),
+    prompt = pilot_view.render_prompt(
+        version, speed=math.hypot(vx, vy), accel=round(float(nav["ego_acceleration"][0]), 1) + 0.0,
+        yaw_rate=round(yaw_rate, 2) + 0.0, poses=[[float(v) for v in p[:3]] for p in history],
         command=pilot_view.COMMAND_TEXT[labels.describe_command(nav["driving_command"])])
     return {"id": record["id"], "image": f"images/{record['id']}.jpg", "system": pilot_view.SYSTEM, "prompt": prompt}
+
+
+def run_prompt_version(adapter: Any) -> str:
+    """The prompt version the adapter was trained on: ``run.json`` of its run folder (``<run>/adapter`` or
+    ``<run>/epoch_<k>``) records it; runs from before 2026-11-09 don't, and they all used pilot_v1.1."""
+    if adapter:
+        path = os.path.join(os.path.dirname(os.path.normpath(adapter)), "run.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                return json.load(f).get("prompt_version") or "pilot_v1.1"
+    return "pilot_v1.1"
 
 
 def constant_velocity(record: Dict[str, Any]) -> List[List[float]]:
@@ -63,7 +73,11 @@ def main() -> None:
     parser.add_argument("--num-shards", type=int, default=1)
     parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--max-samples", type=int, default=None, help="cap per shard (timing runs)")
+    parser.add_argument("--prompt-version", default=None, choices=pilot_view.PROMPT_VERSIONS,
+                        help="default: the one the adapter's run was trained on (run.json), else pilot_v1.1")
     args = parser.parse_args()
+    version = args.prompt_version or run_prompt_version(args.adapter)
+    print(f"prompt version {version}", flush=True)
 
     with open(args.inputs, encoding="utf-8") as f:
         records = sorted(json.load(f), key=lambda r: r["id"])[args.shard :: args.num_shards]
@@ -89,7 +103,7 @@ def main() -> None:
             chunk = todo[i : i + args.batch]
             for r in chunk:  # the view's resize: same width, filter and JPEG quality as training
                 pilot_view._resize((r["image"], os.path.join(args.out, "images", f"{r['id']}.jpg"), pilot_view.WIDTH))
-            answers = backend.answer([item(r) for r in chunk])
+            answers = backend.answer([item(r, version) for r in chunk])
             for r, text in zip(chunk, answers):
                 path = pilot_view.parse_path(text)
                 row = {"token": r["id"], "answer": text}

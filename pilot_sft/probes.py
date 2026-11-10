@@ -38,8 +38,13 @@ PAST_S = (-1.5, -1.0, -0.5)
 def drift(item: Dict[str, Any], mps: float) -> Dict[str, Any]:
     """Past positions as if the car had been sliding right at ``mps`` (left if negative) until now."""
     lines = item["prompt"].split("\n")
-    k = next(i for i, l in enumerate(lines) if l.startswith("Past positions"))
+    k = next(i for i, l in enumerate(lines) if l.startswith(("Past positions", "Past poses")))
     head, tail = lines[k].split(":", 1)
+    if lines[k].startswith("Past poses"):  # pilot_v1.2: shift the 3 past poses, keep headings and the origin pose
+        poses = [tuple(map(float, p)) for p in baselines.TRIPLE.findall(tail)]
+        moved = [(x, y - mps * t, h) for (x, y, h), t in zip(poses, PAST_S)] + poses[len(PAST_S):]
+        lines[k] = head + ": " + " ".join(f"({x:.2f}, {y:.2f}, {h:.2f})" for x, y, h in np.round(moved, 2) + 0.0) + "."
+        return {**item, "prompt": "\n".join(lines)}
     pairs = [(float(x), float(y)) for x, y in baselines.PAIR.findall(tail)]
     moved = [(x, y - mps * t) for (x, y), t in zip(pairs, PAST_S)]  # y(t) = -mps * t: left in the past
     lines[k] = head + ": " + " ".join(f"({x:.1f}, {y:.1f})" for x, y in np.round(moved, 1) + 0.0) + "."
