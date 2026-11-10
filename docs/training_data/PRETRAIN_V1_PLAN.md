@@ -10,6 +10,7 @@
   - **Steps 6 and 7 are coded**; step 7 ran on the smoke set. The fine-tuning code is in `pilot_sft/` (its README has the platforms and costs). Step 6b is not needed for the first test model, which writes its path as text.
 - **v1-large, 2026-11-03/04:** v1-pilot's rules and seed with 100,000 train + v1-pilot's 2,000 dev, built on Anvil; every canonical check passes (V). Not released (§10).
 - **v1-xl, 2026-11-08 [agreed]:** train anchors ≥ 1.0 s apart, about 2× v1-large, same rules and dev, images packed into archive files. Plan, build job and checks are written; the build runs on Anvil next. A nested subset, v1-xl-nd, is [proposed] for an A/B (§10). Gate 1 and Gate 2 are still open for both sets.
+- **v1.0-full, 2026-11-10 [agreed: max out the data first; re-split dev]:** every frame that passes the rules outside the warm-up window, extracted once (690,529); dev re-split to dev-v2 (2,000 from 40 held-out val logs), so 185 val logs go to training: v1-full = 675,701 train. Mechanics [proposed]; plan committed, build not run yet (§12).
 
 **Researcher decisions, 2026-10-27 [agreed]:**
 - **Source:** OpenScene trainval only for the first build. Other sources come later, once access is confirmed.
@@ -571,3 +572,114 @@ The plan reads `index/candidates.parquet` inside `--out` (locally a link to v1.0
 3. **Density.** 97.2% of v1-nt's rows and 96.0% of v1-all's have another row 0.5 s away (V). `novelty.nested_filter` over every city would keep 71,946 of v1-nt's 80,626 (V). Should a view thin them, given "no overly repetitive data"?
 4. **v1-xl-mix and v1-xl-nd.** v1-xl-mix drops 21,506 of v1-xl-nd's stay-stopped rows. "Pool minus v1-xl" (237,777) would also keep v1-xl-nd's near-duplicate filter.
 5. **Navtrain scenes with a dropped frame.** NAVSIM windows by frame count, so for 680 of the 915 its 4 s pose lies at 4.5 s (660) or 5.0 s (20) (V, recount). They stay out by rule 1.
+
+## 12. v1.0-full: every frame that passes the rules, extracted once, and a re-split dev
+Evidence marks: **V** measured, **R** reported and not re-checked, **D** derived.
+
+**The decisions [agreed 2026-11-10].** The researcher: "actively building the dataset in as large steps as possible. Its a safe assumption to think that more data will do better, so long as it meets quality standards. Additionally its much faster to trim data then it is to get new data. Try to max out the available data first then train." On re-splitting dev so that most val-log rows become trainable (the lead's proposal): "If it does not harm the integrity of training go for it." Dev was re-split for this build. Everything below (the sets, dev-v2's rule and draw, the build) is [proposed].
+
+**Why re-split.** The old pinned dev (dev-v1: v1-pilot's = v1-xl's = v1-all's 2,000) spans 221 of the 225 nuPlan val logs. The split is by log, so every row of those logs, 97,499 in all, was kept out of training, among them 18,048 navtrain rows (V). The new dev stays log-level, from few whole drives, and the other val logs go to training.
+
+**What is built [proposed].** One new folder, `$TRAINING_DATA_ROOT/v1.0-full`; its plan files are committed in `data/pretrain/v1.0-full/splits/`. One pass over the 200 archives packs 690,529 frames into a fresh pack folder; 428,645 of them v1.0-pool also packed (v1-all's train and dev-v1 but its 49 rows inside the warm-up window), 261,884 are new (V). Every later trim is a view (and canonical-set) choice, with no re-streaming.
+
+| Set or file (V, 2026-11-10) | Rows | Logs | SHA-256 | Rule |
+|---|---|---|---|---|
+| v1-full train | 675,701 | 1,270 | 759fb537… | every eligible row outside the ±7 s warm-up window in the 1,085 TRAIN logs (594,978) and the 185 released val logs (80,723); no thinning, no spacing |
+| v1-full dev = **dev-v2** | 2,000 | 34 of the 40 held-out | 0661d481… | below |
+| v1-full-devlogs (dev, no train) | 14,828 | 40 | 2e9203dd… | every eligible row outside the window in dev-v2's 40 held-out logs; extracted and in the canonical record, in no view; dev-v2 is drawn from it |
+| `dev-v2_logs.txt` | 40 logs | 13 drives | eff9eb2e… | the held-out val logs |
+| `dev-v1_tokens.txt` | 2,000 | 221 | 79090629… | the old pinned dev, byte for byte, kept for the record |
+| `v1-all_tokens_{train,dev}.txt` | 426,694 + 2,000 | | 92081c07… / 79090629… | byte copies of v1.0-pool's v1-all (inside v1-full's train; checked) |
+
+`v1-full-devlogs_tokens_train.txt` is empty on purpose (SHA-256 e3b0c442…). With the old dev (dev-v1's 221 logs held out), v1-full's train would be the TRAIN-log rows alone: 594,978 (reference only). `tests/data/test_v1_full_plan.py` re-plans on the real index and checks every file byte for byte.
+
+**A row's split is its token file's.** The index's `our_split` stays nuPlan's (every val log is `dev`). `pilot_view` and `qa_report` now take a sample's split from the set's token files (`pilot_view.set_split`); for every earlier set the two agree, so their views are unchanged, and `view.json` records `split_differs_from_index` (80,723 for v1-full). `frames.parquet` keeps the index's `our_split`; `release.py` still reads it and is not used for this build.
+
+**The rules, per group of logs** (`token_sets.every_row`, `FULL_RULES` in order; V):
+
+| | TRAIN logs | released val logs (185) | held-out val logs (40) |
+|---|---|---|---|
+| index rows (rule 1) | 604,071 | 81,733 | 15,766 |
+| eligible (rules 2, 3, 5) | 604,071 | 81,733 | 15,766 |
+| outside the warm-up window | **594,978** | **80,723** | **14,828** |
+| standstill rows kept | 189,005 | 19,844 | 4,321 |
+
+Rule 6 (standstill thinning), 7 (spacing) and 8 (cruise cap) are not applied, as asked.
+
+**dev-v2 (`token_sets.choose_dev_logs`, `draw_dev`, `DEV_V2`) [proposed].**
+- **Logs:** 40, by navtest's city mix (largest remainder: Las Vegas 14, Boston 12, Pittsburgh 8, Singapore 6). Within a city, among the val drives whose every log is a val log, the whole drives that sum to that many logs with the fewest navtrain rows that pass the rules (exact dynamic program; ties: more rows, then drive names; no randomness). Chosen: 8 + 2 + 2 + 1 = 13 drives, holding 1,521 of the 17,248 such navtrain rows in val logs (V).
+- **Drives.** A nuPlan log name is `<date>.<time>_<vehicle>_<start>_<end>`; the drive is the name without the segment fields (`token_sets.drive_of`). nuPlan's own train/val split is by drive: no drive, and no vehicle on a day, holds both a train and a val log (V: the 1,310 indexed logs are 171 drives; the 225 val logs are 63 drives in 17 vehicle-days). v1-xl's split (dev = nuPlan val logs) inherited that; nothing in our rules checked it before. dev-v2 holds out whole drives, so no held-out drive has a training log (V, checked by `verify_v1_full.py`). **Caveat:** 12 of the 13 held-out drives share a vehicle and a day with a released val drive (none with a TRAIN drive), which drive-level isolation allows (V).
+- **Anchors:** 2,000 by navtest's city share (669 / 613 / 402 / 316), ≥ 1.0 s apart in each log, drawn in the order pinned in `token_sets.DEV_DRAW` (`numpy.random.default_rng([20261110, 2])`): first the logs' navtrain tokens (NAVSIM's own scene filter), then the other rows, standstill-thinned (rule 6). 743 anchors are navtrain tokens (V).
+- **One refinement beyond the brief, flagged:** the fill skips rows whose route command is unknown (`fill_needs_command`). NAVSIM's scenes never have one (0 of navtrain's 102,373 rows, V; navtest 0.0%), but the low-navtrain drives do: 29.0% of the held-out rows (V). The literal "natural mix" fill gives 20.25% unknown-command anchors (V). One flag turns it off.
+
+**dev-v2 against navtest and dev-v1, % of the samples (V; navtest: the committed failure analysis, 12,146 scenes):**
+
+| | navtest | dev-v1 (old) | dev-v2 | dev-v2, literal fill |
+|---|---|---|---|---|
+| Las Vegas / Boston / Pittsburgh / Singapore | 33.5 / 30.7 / 20.1 / 15.8 | 34.0 / 21.7 / 16.7 / 27.6 | 33.45 / 30.65 / 20.10 / 15.80 | the same |
+| turn left / right | 16.2 / 9.7 | 8.85 / 6.25 | 7.65 / 6.10 | 9.00 / 5.85 |
+| sideways shift | 13.2 | 8.80 | 9.15 | 9.85 |
+| brake to a stop | 6.7 | 3.25 | 2.85 | 2.70 |
+| start from a stop | 5.5 | 4.85 | 4.85 | 5.30 |
+| stay stopped | 0.07 | 5.50 | 6.75 | 5.55 |
+| keep going | 48.6 | 62.50 | 62.65 | 61.75 |
+| command unknown | 0.0 | 7.35 | **0.0** | 20.25 |
+| navtrain tokens | – | 475 | 743 | 740 |
+| logs | – | 221 | 40 held out (34 with anchors) | |
+
+dev-v2 matches navtest's city mix and, unlike dev-v1, has no unknown command and no warm-up token (dev-v1 holds 3). Its maneuver mix is like dev-v1's, not navtest's: both are drawn from whole logs, where navtest is NAVSIM's filtered scenes.
+
+**dev-v1 and comparability.** 1,670 of dev-v1's 2,000 rows are now v1-full train rows, 305 sit in held-out logs (54 are dev-v2 anchors) and 49 inside the warm-up window (V). So dev-v1 never scores a model trained on v1-full. **Dev numbers before and after are not comparable**, except by re-evaluating the earlier adapters on dev-v2; that is clean, because no earlier set trained on any val log (every earlier train set is TRAIN logs only, V: `check_sets`).
+
+**Navtrain.** 96,353 navtrain rows are in v1-full's train, against v1-nt's 80,626: 15,727 come from the released val logs. 1,897 navtrain index rows sit in the held-out logs (V).
+
+**The mix of v1-full's train against v1-all's, % (V):**
+
+| | v1-all | v1-full |
+|---|---|---|
+| Las Vegas / Boston / Pittsburgh / Singapore | 75.5 / 11.5 / 9.5 / 3.5 | 72.8 / 11.9 / 9.7 / 5.6 |
+| turn left / right | 7.5 / 3.9 | 5.6 / 3.0 |
+| sideways shift | 3.9 | 3.2 |
+| brake to a stop | 3.2 | 2.4 |
+| start from a stop | 6.0 | 4.2 |
+| **stay stopped** | 7.7 | **32.9** |
+| keep going | 67.8 | 48.6 |
+| standstill flag / cruise | 4.9 / 41.7 | 30.9 / 30.1 |
+| command unknown | 12.1 | 12.0 |
+| navtrain rows | 18.9 | 14.3 |
+
+Without standstill thinning a third of v1-full's train is stay-stopped (222,489 rows). That is the point of extracting it all ("faster to trim"), but a view trained as is spends a third of its steps on stopped frames; a thinned view needs only a canonical set and a view rebuild (open question 1).
+
+`splits/v1-full_label_conflicts.tsv` (report only) lists 135 rows that fail a hard-bad label test: 134 in v1-full's train, 0 in dev-v2, 1 held-out (V).
+
+**Leakage (V, `verify_v1_full.py` on the local plan, against copies of both Anvil devkits: 16 of 16 checks pass; splits 31 of 31, rules 12 of 12).** v1-full's train: 0 warm-up tokens, 0 rows within ±7 s of a warm-up scene (the 6 metadata frames included), 0 rows in a held-out log or drive; both sets: 0 tokens and logs in every guarded list but the warm-up filter (v1.1 without warm-up: 1,349 logs, 14,146 tokens; main: 1,349 and 12,539), every dev token in a held-out val log. **Caveat:** the warm-up filter is held to the scene-level rule (`SCENE_LEVEL_FILTERS`), still [proposed] (§10, question 7): v1-full's train has 27,750 rows in 47 warm-up logs, which whole-log guarding would remove (v1-all: 16,444 in 43); verify reports them and does not fail them.
+
+**The build [proposed mechanics], cloned from v1.0-pool's:**
+- `build_v1_full.sh setup` (login node) copies `index/` and `images/archives.json` from v1.0-large and `splits/` from the repo, SHA-checked, then runs `verify_v1_full.py` `splits` (with `--pool`), `rules` and `leakage` (both devkits). The sbatch starts only when all three reports say `"ok": true` and are newer than every file in `splits/` and `index/`.
+- `build_v1_full.sbatch`: fetch (64 shards), a cross-check of the 428,645 frames v1.0-pool also packed against its records, canonical for v1-full and v1-full-devlogs, the QA summary of v1-full, the v1-full zip view in pilot_v1.1 and pilot_v1.2 (`WORKERS=16`), the links `$TRAINING_DATA_ROOT/pilot_v1/v1-full` and `v1-full-p12` (an existing link elsewhere is left as is and stops the job), and `verify_v1_full.py all`.
+- **Safety, as v1.0-pool:** job name `v1-full` with `--dependency=singleton`, a `flock` on `$OUT/.build_v1_full.lock`, a quota guard before every step, archives read in place from `V1XL_SRC` and never deleted or moved. Never run `build_v1_large.sbatch`. v1.0-large, v1.0-xl and v1.0-pool are only read.
+- **Time (D, from v1.0-pool's build, R: fetch ~5 min at 64 processes, canonical ~50 min for 428,694 frames, views 6–24 min each at 16 workers):** fetch ~5–10 min, canonical ~81 min, QA ~3 min, each view ~38 min (677,701 samples), verify ~10–15 min: about 3.0 h, so one 4 h `shared` slot, with `RESUBMIT` if a step would not fit. Guards: fetch 15, canonical 110, QA 8, each view 60, verify 25.
+- **Memory (D): `--mem=200G`.**
+  - Fetch: 64 shards, each holding the frame map (0.62 GB working set, 0.72 GB peak for the 690,529 frames, V locally) and its current archive's frames. The largest archive, 124 (19.3 GB), keeps 11,650 frames: ~2.4 GB at 205.7 KB a frame (R), ~3.1 GB in its worker with the map. The 64 largest archives keep 352,482 frames (72.5 GB), so ~120 GB in all.
+  - Canonical: ~167 KB per frame (V: 30,000 real frames, locally), so ~115 GB for 690,529.
+  - Views: v1.0-pool's peaked at ~44 GB with 16 workers (R); 1.6× the frames gives ~71 GB.
+- **Size (D):** packs ~142 GB (205.7 KB a frame, R), the two views ~69 GB (51.0 KB a sample), canonical ~7 GB (v1-large's 1.05 GB for 102,000 frames, V): ~218 GB on scratch. Files: 200 packs, 200 records, 64 fetch logs, 11 split files, 3 index files, 4 canonical, 2 QA, 8 view, ~8 verify, the lock and the 2 links: ~0.5K.
+- **Verify:** `verify_v1_full.py` reuses `verify_v1_xl.py`'s checks through a `Build` with `resplit=True` (rule 4 becomes "every dev token is in a nuPlan val log, every train token in a TRAIN log or a released val log"). It adds: the held-out logs are whole val drives with navtest's city mix and `choose_dev_logs` reproduces them; v1-full's train and v1-full-devlogs recomputed row for row; dev-v2's spacing, city counts and commands, and the pinned draw re-run; no held-out log or drive in a train set; both views (pilot_v1.1: the token files' samples and splits, images re-made from the packs, sampled train lines identical to v1.0-pool's v1-all view; pilot_v1.2: line for line the pilot_v1.1 samples, the same images.zip); no held-out row in any view's train.jsonl, and no view of v1-full-devlogs. The shared checks changed only where a build sets the new fields (an empty token file, a set whose dev is not the pinned 2,000, `resplit`): v1-xl's and v1.0-pool's checks and tests are unchanged.
+- **Training needs no change:** `SET=v1-full sbatch scripts/anvil/pilot_sft/train_lora.sbatch` (or `SET=v1-full-p12`). Its dev is dev-v2.
+
+**How to run:**
+```bash
+python -m data_pipeline.v1.openscene_images plan --out data/pretrain/v1.0-full --set v1-full \
+    --extends data/pretrain/v1.0-pool/splits/v1-all \
+    --exclude-scenes data/pretrain/v1.0-xl/splits/navsim_v1.1_warmup_test_e2e_tokens.txt \
+    --exclude-metadata data/pretrain/downloads/openscene_metadata_trainval.tgz   # locally, ~45 s; commit splits/
+bash scripts/anvil/data_pipeline/build_v1_full.sh setup     # login node: copies, SHA checks, verify splits/rules/leakage
+sbatch -A cis220051 -p shared --gpus-per-node=0 scripts/anvil/data_pipeline/build_v1_full.sbatch  # repeat until "done"
+```
+
+**Open questions for the researcher [open]:**
+1. **Stay-stopped in v1-full's train** (32.9%): train on it as is, or add a thinned view (e.g. v1-all's one standstill per 5 s, over the train and released val logs) as a canonical set?
+2. **Vehicle-day isolation.** dev-v2 is isolated by drive; 12 of its 13 drives share a vehicle and day with a released drive. Holding out whole vehicle-days instead is possible but coarser: Singapore has only 2 val vehicle-days (15 and 37 logs), so at least 15 Singapore logs and 2,291 navtrain rows would be held out (V).
+3. **The fill's known-command rule** (above): keep it, or the literal natural mix?
+4. **Warm-up, scene-level or whole logs** (§10, question 7)? Whole logs would take 27,750 rows out of v1-full's train.
+5. **Re-evaluating the earlier adapters on dev-v2**, so that results before and after the re-split can be compared.

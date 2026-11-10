@@ -18,6 +18,11 @@ from OpenScene's camera archives.
         --exclude-scenes data/pretrain/v1.0-xl/splits/navsim_v1.1_warmup_test_e2e_tokens.txt \
         --exclude-metadata data/pretrain/downloads/openscene_metadata_trainval.tgz
         # the 0.5 s train pool (v1-all) and v1-nt, v1-xl-mix, v1-nt-mix, v1-xl's dev (token_sets.py, §11)
+    python -m data_pipeline.v1.openscene_images plan   --out data/pretrain/v1.0-full --set v1-full \
+        --extends data/pretrain/v1.0-pool/splits/v1-all \
+        --exclude-scenes data/pretrain/v1.0-xl/splits/navsim_v1.1_warmup_test_e2e_tokens.txt \
+        --exclude-metadata data/pretrain/downloads/openscene_metadata_trainval.tgz
+        # every row that passes the rules outside the warm-up window, no thinning; dev re-split: dev-v2 (§12)
 
 ``plan`` reads only the metadata index (minutes, no images) [agreed 2026-10-31]:
 * selects v1-pilot (``selection.PILOT``: 45k train + 2k dev, train balanced) from every log;
@@ -190,12 +195,15 @@ def _base_rows(cands: tables.Columns, extends: str) -> Dict[str, np.ndarray]:
     return rows
 
 
-def _describe(cands: tables.Columns, rows: np.ndarray) -> Dict[str, Any]:
-    """Per split: the counts a set derived from a selection reports (its rows are not drawn, so no target)."""
+def _describe(cands: tables.Columns, rows: np.ndarray,
+              by_split: Optional[Dict[str, np.ndarray]] = None) -> Dict[str, Any]:
+    """Per split: the counts a set derived from a selection reports (its rows are not drawn, so no target).
+
+    ``by_split`` gives each split's rows when they are not the index's ``our_split`` (v1.0-full's re-split dev)."""
     out = {}
     cruise = selection.is_cruise(cands)
     for split in ("train", "dev"):
-        r = rows[cands["our_split"][rows] == split]
+        r = by_split[split] if by_split is not None else rows[cands["our_split"][rows] == split]
         out[split] = {"selected": len(r), "logs": len(set(cands["log_name"][r].tolist())),
                       "cruise_share": round(float(cruise[r].mean()), 4) if len(r) else None,
                       "city": stats.value_counts(cands["city"][r]),
@@ -228,6 +236,8 @@ def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = A
     """``set_name`` v1-pilot selects v1-pilot and smoke; v1-large selects only v1-large (its own dataset folder).
 
     v1-all (``token_sets.POOL``) plans the v1.0-pool folder's four sets instead, with no draw: ``_plan_pool``.
+    v1-full (``token_sets.FULL``) plans the v1.0-full folder: every row that passes the quality rules outside the
+    warm-up window, no thinning, with dev re-split to dev-v2 (40 held-out val logs): ``_plan_full``.
 
     v1-xl [agreed 2026-11-08; superset mechanics proposed] needs ``extends``, the prefix of the base
     set's token files (``data/pretrain/v1.0-large/splits/v1-large``). Every base row is fixed in the
@@ -249,9 +259,14 @@ def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = A
     such a token can be a frame of an indexed log with train rows around it (6 warm-up tokens are, V), so a
     plan without it fails open. ``allow_unlocated`` plans anyway and only reports them (tests, other lists).
     """
-    if set_name == token_sets.POOL:
+    if set_name in (token_sets.POOL, token_sets.FULL):
         if allow_unlocated:
-            raise ValueError(f"allow_unlocated is not for {token_sets.POOL}: its plan places every listed warm-up frame")
+            raise ValueError(f"allow_unlocated is not for {set_name}: its plan places every listed warm-up frame")
+        if set_name == token_sets.FULL:
+            if navtrain is not None:
+                raise ValueError(f"navtrain is for {token_sets.POOL} only")
+            return _plan_full(out_dir, archive_map, archive_tree, extends, exclude_scenes, exclude_window_s,
+                              exclude_metadata)
         return _plan_pool(out_dir, archive_map, archive_tree, extends, navtrain, exclude_scenes, exclude_window_s,
                           exclude_metadata)
     if navtrain is not None:
@@ -504,7 +519,7 @@ def _nested_sets(cands: tables.Columns, main_name: str, main_rows: np.ndarray, b
 
 def _write_label_conflicts(cands: tables.Columns, sets: Sequence[Tuple[str, np.ndarray, Any]], split_dir: str,
                            main_name: str, target: Callable[[str], str] = lambda path: path,
-                           nested: bool = True) -> Dict[str, Any]:
+                           nested: bool = True, split_of: Optional[Dict[int, str]] = None) -> Dict[str, Any]:
     """``splits/<main>_label_conflicts.tsv``: token, set, reasons for each flagged row (report only).
 
     ``nested`` (v1-xl: each of ``sets``, largest first, holds the next): ``set`` is the smallest set that holds
@@ -516,7 +531,11 @@ def _write_label_conflicts(cands: tables.Columns, sets: Sequence[Tuple[str, np.n
     ``v1-all,v1-nt-mix,v1-xl-mix,v1-nt/train`` (in all four) or ``v1-all,v1-nt-mix,v1-nt/train`` (not in v1-xl-mix).
     The rows tested are the union of the sets (= v1-xl's rows without an exclusion).
     ``target`` maps the file's path to the path actually written (``plan`` writes ``.part`` first).
+    ``split_of`` (row -> split) gives each row's split when it is not the index's ``our_split`` (v1.0-full).
     """
+    def split(r: int) -> str:
+        return split_of[r] if split_of is not None else str(cands["our_split"][r])
+
     holders: Dict[int, List[str]] = {}
     for name, rows, _ in sets:  # largest first
         for r in rows.tolist():
@@ -529,11 +548,11 @@ def _write_label_conflicts(cands: tables.Columns, sets: Sequence[Tuple[str, np.n
     with open(target(path), "w", encoding="utf-8", newline="\n") as f:
         f.write("token\tset\treasons\n")
         for r, reasons in sorted(conflicts, key=lambda item: cands["token"][item[0]]):
-            f.write(f"{cands['token'][r]}\t{','.join(holders[r])}/{cands['our_split'][r]}\t{','.join(reasons)}\n")
+            f.write(f"{cands['token'][r]}\t{','.join(holders[r])}/{split(r)}\t{','.join(reasons)}\n")
     flagged = {r for r, _ in conflicts}
     return {
         "file": os.path.basename(path), "report_only": True, "tests": list(novelty.REASONS),
-        "rows": {name: {s: sum(1 for r in rows.tolist() if r in flagged and cands["our_split"][r] == s)
+        "rows": {name: {s: sum(1 for r in rows.tolist() if r in flagged and split(r) == s)
                         for s in ("train", "dev")} for name, rows, _ in sets},
         "by_reason": {k: sum(k in reasons for _, reasons in conflicts) for k in novelty.REASONS},
     }
@@ -707,6 +726,216 @@ def _plan_pool(out_dir: str, archive_map: str, archive_tree: str, extends: Optio
         "pool": pool_report,
         "navtrain": navtrain_entry,
         "mix": mix_report,
+        "maneuver_rules": {"module": "navsim_tools.maneuvers", "labels": list(maneuvers.LABELS),
+                           "turn_rad": maneuvers.TURN_RAD, "horizon_s": list(maneuvers.HORIZON_S),
+                           "input": "the index's path_xyyaw at +0.5 ... +4.0 s (float32, read as float64) and speed",
+                           "priority": "turn > stay stopped / start from a stop > brake to a stop > sideways shift > "
+                                       "keep going (navsim_tools/maneuvers.py)"},
+        "scene_exclusion": exclusion,
+        **extra,
+    }
+    provenance.write_text(os.path.join(split_dir, "manifest.json"), json.dumps(manifest, indent=1))  # last: a whole plan
+    return manifest
+
+
+FULL_APPLIES_TO = (f"every set: no row of {token_sets.FULL} (train: the TRAIN logs and the released val logs; dev: "
+                   f"dev-v2) or of {token_sets.FULL_DEVLOGS} is in the window; dev-v1 and the base unchanged")
+DEV_V1_FILE = "dev-v1_tokens.txt"  # the old pinned dev (v1-pilot's = v1-xl's = v1-all's), kept for reference
+DEV_V2_LOGS_FILE = "dev-v2_logs.txt"  # dev-v2's held-out val logs, one log name per line
+
+
+def _write_lines(path: str, lines: Iterable[str]) -> None:
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(f"{line}\n" for line in sorted(lines))
+
+
+def _plan_full(out_dir: str, archive_map: str, archive_tree: str, extends: Optional[str],
+               exclude_scenes: Optional[str], window_s: float, metadata: Optional[str]) -> Dict[str, Any]:
+    """``plan(set_name="v1-full")``: the v1.0-full folder (``token_sets``: dev-v2, ``every_row``) [proposed 2026-11-10].
+
+    Every input is required: ``extends``, the prefix of v1.0-pool's v1-all token files (its train must lie inside
+    v1-full's, so every frame v1.0-pool extracted for training is extracted again; its dev is the old pinned dev,
+    kept as ``dev-v1_tokens.txt``); ``exclude_scenes``, the warm-up list; ``metadata``, OpenScene's metadata (it
+    places the warm-up frames that are not index rows). Writes, in ``splits/``: ``v1-full_tokens_{train,dev}.txt``
+    (train: every row that passes the rules in the TRAIN logs and the released val logs; dev: dev-v2),
+    ``v1-full-devlogs_tokens_{train,dev}.txt`` (train empty: the rows of dev-v2's held-out logs are dev, in no
+    training view), ``dev-v2_logs.txt``, ``dev-v1_tokens.txt``, byte copies of the base's files and of the
+    warm-up list, ``v1-full_label_conflicts.tsv`` (report only) and ``manifest.json``, staged as ``.part`` like
+    ``plan``. A row's split is its token file's (the index's ``our_split`` calls every val log ``dev``). The base
+    is recorded under ``base``, not ``selections``, so ``fetch`` extracts the two sets' frames only.
+    """
+    full, devlog_set = token_sets.FULL, token_sets.FULL_DEVLOGS
+    missing = [name for name, value in (("extends", extends), ("exclude_scenes", exclude_scenes),
+                                        ("exclude_metadata", metadata)) if value is None]
+    if missing:
+        raise ValueError(f"{full} needs {', '.join(missing)}: v1.0-pool's v1-all token file prefix "
+                         "(data/pretrain/v1.0-pool/splits/v1-all), the warm-up list and OpenScene's metadata")
+    split_dir = os.path.join(out_dir, "splits")
+    if _same_dir(os.path.dirname(extends) or ".", split_dir):
+        raise ValueError(f"--out {out_dir} is the base set's own folder: plan {full} into a folder of its own")
+    base_name = os.path.basename(extends)
+    if base_name in token_sets.FULL_SETS:
+        raise ValueError(f"the base set cannot be {base_name}")
+    copies = [(exclude_scenes, _list_target(exclude_scenes, split_dir))]
+
+    cands = tables.read(os.path.join(out_dir, "index", "candidates.parquet"), POOL_COLUMNS)
+    archives = load_archives(archive_map, archive_tree)
+    in_index = set(cands["log_name"].tolist())
+    in_map = {log for a in archives.values() for log in a["logs"]}
+    base = _base_rows(cands, extends)
+    window, exclusion = _scene_exclusion(cands, exclude_scenes, window_s, base, metadata, applies_to=FULL_APPLIES_TO)
+    rule = token_sets.DEV_V2
+    held_logs, logs_report = token_sets.choose_dev_logs(cands, window, rule)
+    dev, draw_report = token_sets.draw_dev(cands, window, held_logs, rule)
+    draw_report["numpy"] = np.__version__  # the draw is numpy's Generator.permutation (token_sets.DEV_DRAW)
+    rows, rule_report = token_sets.every_row(cands, window, held_logs)
+    train, devlogs = rows["train"], rows["held_out"]
+    token_sets.check_full(cands, train, devlogs, dev, window, held_logs, base["train"], rule.spacing_s)
+    groups = rule_report["by_group"]
+    exclusion["train_pool_excluded"] = sum(groups[g]["excluded_by_first_failing_rule"]["outside_window"]
+                                           for g in ("train_logs", "released_val_logs"))
+    exclusion["held_out_rows_excluded"] = groups["held_out_val_logs"]["excluded_by_first_failing_rule"]["outside_window"]
+    exclusion["dev_v2_in_window"] = int(window[dev].sum())
+
+    labels = token_sets.maneuver_labels(cands)
+    base_rows = np.sort(np.concatenate([base["train"], base["dev"]]))
+    full_rows = np.sort(np.concatenate([train, dev]))
+    split_of = {int(r): "train" for r in train.tolist()}
+    split_of.update({int(r): "dev" for r in devlogs.tolist()})  # dev-v2 is inside the held-out rows
+    navtrain_rows = np.flatnonzero(cands["in_navtrain"])
+    reference = {base_name: base["train"], "navtrain": navtrain_rows}
+    old_dev = base["dev"]
+    sets = [
+        (full, {"train": train, "dev": dev},
+         {"rule": "train: every row that passes the rules (manifest every_row) in the TRAIN logs and the released val "
+                  "logs, no thinning; dev: dev-v2 (manifest dev_v2)",
+          "splits": _describe(cands, full_rows, {"train": train, "dev": dev}),
+          "train_detail": token_sets.describe_train(cands, labels, train, reference),
+          "dev_detail": token_sets.describe_train(cands, labels, dev, {"navtrain": navtrain_rows, "dev-v1": old_dev})}),
+        (devlog_set, {"train": np.zeros(0, dtype=np.int64), "dev": devlogs},
+         {"rule": "every row that passes the rules in dev-v2's held-out val logs, as dev; no train rows; in no "
+                  "training view (manifest dev_logs)",
+          "splits": _describe(cands, devlogs, {"train": np.zeros(0, dtype=np.int64), "dev": devlogs}),
+          "dev_detail": token_sets.describe_train(cands, labels, devlogs, {"dev-v2": dev, "dev-v1": old_dev})}),
+    ]
+
+    os.makedirs(split_dir, exist_ok=True)
+    staged: List[str] = []
+
+    def part(path: str) -> str:
+        staged.append(path)
+        return path + ".part"
+
+    base_sha = {split: _sha256(f"{extends}_tokens_{split}.txt") for split in ("train", "dev")}
+    reports = {}
+    extra: Dict[str, Any] = {}
+    try:
+        for name, by_split, report in sets:
+            for split in ("train", "dev"):
+                path = os.path.join(split_dir, f"{name}_tokens_{split}.txt")
+                _write_tokens(part(path), cands["token"][by_split[split]])
+                report[split] = len(by_split[split])
+            report["sha256"] = {split: _sha256(os.path.join(split_dir, f"{name}_tokens_{split}.txt.part"))
+                                for split in ("train", "dev")}
+            report["images_gb_estimate"] = round((len(by_split["train"]) + len(by_split["dev"])) * KB_PER_IMAGE / 1e6,
+                                                 2)  # D
+            reports[name] = report
+        for split in ("train", "dev"):  # byte copies of the base, so the folder holds what it is checked against
+            src = f"{extends}_tokens_{split}.txt"
+            dst = os.path.join(split_dir, f"{base_name}_tokens_{split}.txt")
+            shutil.copyfile(src, part(dst))
+            if _sha256(dst + ".part") != base_sha[split]:
+                raise RuntimeError(f"the copy of {src} differs from it")
+        shutil.copyfile(f"{extends}_tokens_dev.txt", part(os.path.join(split_dir, DEV_V1_FILE)))
+        _write_lines(part(os.path.join(split_dir, DEV_V2_LOGS_FILE)), held_logs)
+        for src, dst in copies:
+            if dst is not None:
+                shutil.copyfile(src, part(dst))
+        conflict_sets = [(name, np.union1d(by_split["train"], by_split["dev"]), None) for name, by_split, _ in sets]
+        extra["label_conflicts"] = _write_label_conflicts(cands, conflict_sets, split_dir, full, part, nested=False,
+                                                           split_of=split_of)
+    except BaseException:  # leave the folder as it was: remove only this call's unfinished .part files
+        for path in staged:
+            if os.path.exists(path + ".part"):
+                os.remove(path + ".part")
+        raise
+    for path in staged:
+        os.replace(path + ".part", path)
+
+    all_rows = np.union1d(full_rows, devlogs)
+    order = archive_order(cands, all_rows, archives)
+    archive_of = {log: n for n, a in archives.items() for log in a["logs"]}
+    per_archive = Counter({n: 0 for n in archives})
+    per_archive.update(archive_of[cands["log_name"][r]] for r in all_rows.tolist())
+    largest = max(order, key=lambda n: (per_archive[n], -n))
+    in_base = np.isin(all_rows, base_rows)
+    held = token_sets.in_logs(cands, held_logs)
+    is_val = cands["our_split"] == "dev"
+    passing = selection.eligible(cands) & ~window
+    in_train = np.zeros(len(cands["t_us"]), dtype=bool)
+    in_train[train] = True
+    nt = cands["in_navtrain"]
+    image_dir = os.path.join(out_dir, "images")
+    os.makedirs(image_dir, exist_ok=True)
+    provenance.write_text(os.path.join(image_dir, "archives.json"),
+                          json.dumps({str(n): a for n, a in archives.items()}, indent=1))
+    manifest = {
+        "step": "3: selection and archive order (docs/training_data/PRETRAIN_V1_PLAN.md)",
+        "created_utc": provenance.utc_now(),
+        "repo_commit": provenance.git_commit(provenance.REPO_ROOT),
+        "repo_dirty": provenance.git_dirty(provenance.REPO_ROOT),
+        "archive_map_url": ARCHIVE_MAP_URL,
+        "archive_map_logs": len(in_map),
+        "index_logs_missing_from_map": len(in_index - in_map),
+        "map_logs_missing_from_index": len(in_map - in_index),
+        "archive_order": order,
+        "smoke_archives": [],
+        "download_gb": {"smoke": 0.0, "all": round(sum(a["bytes"] for a in archives.values()) / 1e9, 1)},
+        "frames_to_keep": len(all_rows),
+        "frames_to_keep_per_archive": {str(n): per_archive[n] for n in order},
+        "largest_archive": {"archive": int(largest), "frames": int(per_archive[largest]),
+                            "bytes": int(archives[largest]["bytes"])},
+        "split_source": "the token files: a row's split is its file's, not the index's our_split (nuPlan's, which "
+                        "calls every val log dev); dev was re-split for this build (dev-v2)",
+        "selections": reports,
+        "base": {"set": base_name, "prefix": _repo_relative(extends), "sha256": base_sha,
+                 "train": len(base["train"]), "dev": len(base["dev"]),
+                 "role": f"v1.0-pool's {base_name}: its train lies inside {full}'s; its dev is dev-v1; not a "
+                         "selection (not fetched)",
+                 "splits": _describe(cands, base_rows),
+                 "train_detail": token_sets.describe_train(cands, labels, base["train"])},
+        "dev_v2": {"file": f"{full}_tokens_dev.txt", "sha256": reports[full]["sha256"]["dev"],
+                   "logs_file": DEV_V2_LOGS_FILE, "logs": logs_report, "draw": draw_report,
+                   "split": "log-level: the held-out logs are whole nuPlan drives (token_sets.drive_of); no drive "
+                            "holds both a held-out log and a training log"},
+        "dev_v1": {"file": DEV_V1_FILE, "sha256": base_sha["dev"], "rows": len(old_dev),
+                   f"in_{full}_train": int(in_train[old_dev].sum()), "in_held_out_logs": int(held[old_dev].sum()),
+                   "inside_window": int(window[old_dev].sum()),
+                   "use": "the old pinned dev, for the record only: most of its rows are now training rows, so it "
+                          f"never scores a model trained on {full}; earlier adapters are re-evaluated on dev-v2 (no "
+                          "earlier set trained on a val log)"},
+        "every_row": rule_report,
+        "with_the_old_dev": {"train": groups["train_logs"]["left_after"]["outside_window"],
+                             "note": "for reference only: the TRAIN-log rows alone, as v1-full's train would be with "
+                                     "dev-v1's 221 val logs held out"},
+        "navtrain_rows": {"rows_in_index": int(nt.sum()), "passing_the_rules": int((nt & passing).sum()),
+                     f"in_{full}_train": int((nt & in_train).sum()),
+                     "in_released_val_logs": int((nt & in_train & is_val).sum()),
+                     "in_held_out_logs": int((nt & held).sum()),
+                     "in_dev_v2": int(nt[dev].sum())},
+        "covered_by_base": {"set": base_name, "frames": int(in_base.sum()), "new_frames": int((~in_base).sum()),
+                            "base_frames_not_kept": int(len(base_rows) - in_base.sum())},
+        "dev_logs": {
+            "val_logs_in_index": len(set(cands["log_name"][is_val].tolist())),
+            "val_rows_in_index": int(is_val.sum()),
+            "held_out_logs": len(held_logs), "held_out_rows_in_index": int(held.sum()),
+            devlog_set: len(devlogs),
+            "dev_v2_in_" + devlog_set: int(np.isin(dev, devlogs).sum()),
+            "released_val_logs": groups["released_val_logs"]["logs"],
+            "released_val_rows_in_train": groups["released_val_logs"]["left_after"]["outside_window"],
+            "in_training_views": 0,
+            "use": f"{devlog_set}: extracted and kept in the canonical record, in no view; dev-v2 is drawn from it",
+        },
         "maneuver_rules": {"module": "navsim_tools.maneuvers", "labels": list(maneuvers.LABELS),
                            "turn_rad": maneuvers.TURN_RAD, "horizon_s": list(maneuvers.HORIZON_S),
                            "input": "the index's path_xyyaw at +0.5 ... +4.0 s (float32, read as float64) and speed",
@@ -1076,16 +1305,20 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         p.add_argument("--out", required=True, help="dataset directory holding index/, e.g. data/pretrain/v1.0-pilot")
         if name == "plan":
             p.add_argument("--set", default=selection.PILOT.name,
-                           choices=(selection.PILOT.name, selection.LARGE.name, selection.XL.name, token_sets.POOL),
-                           help="v1-pilot (with smoke), v1-large, v1-xl (with v1-xl-nd; needs --extends), or "
+                           choices=(selection.PILOT.name, selection.LARGE.name, selection.XL.name, token_sets.POOL,
+                                    token_sets.FULL),
+                           help="v1-pilot (with smoke), v1-large, v1-xl (with v1-xl-nd; needs --extends), "
                                 "v1-all (the v1.0-pool folder: v1-all, v1-nt-mix, v1-xl-mix, v1-nt; needs --extends, "
-                                "--navtrain, --exclude-scenes, --exclude-metadata), each in its own dataset directory")
+                                "--navtrain, --exclude-scenes, --exclude-metadata), or v1-full (the v1.0-full folder: "
+                                "v1-full and v1-full-devlogs; needs --extends, --exclude-scenes, --exclude-metadata), "
+                                "each in its own dataset directory")
             p.add_argument("--extends", help="v1-xl: prefix of the base token files, "
                                              "e.g. data/pretrain/v1.0-large/splits/v1-large; v1-all: v1-xl-nd's, "
-                                             "data/pretrain/v1.0-xl/splits/v1-xl-nd")
+                                             "data/pretrain/v1.0-xl/splits/v1-xl-nd; v1-full: v1-all's, "
+                                             "data/pretrain/v1.0-pool/splits/v1-all")
             p.add_argument("--navtrain", help="v1-all: NAVSIM's navtrain token list, e.g. data/pretrain/v1.0-pool/splits/"
                                               + scene_exclusion.NAVTRAIN_FILE)
-            p.add_argument("--exclude-scenes", help="v1-xl, v1-all: token list of NAVSIM scenes no train sample may come "
+            p.add_argument("--exclude-scenes", help="v1-xl, v1-all, v1-full: token list of NAVSIM scenes no train sample may come "
                                                     "near, e.g. data/pretrain/v1.0-xl/splits/" + scene_exclusion.WARMUP_FILE)
             p.add_argument("--exclude-window-s", type=float, default=scene_exclusion.WINDOW_S,
                            help="with --exclude-scenes: same-log window around each listed scene, seconds, inclusive")
@@ -1121,6 +1354,15 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                 parser.error(f"--set {token_sets.POOL} needs {' '.join(need)}")
             if args.allow_unlocated:
                 parser.error(f"--allow-unlocated is not for --set {token_sets.POOL}")
+        elif args.set == token_sets.FULL:
+            need = [flag for flag, value in (("--extends", args.extends), ("--exclude-scenes", args.exclude_scenes),
+                                             ("--exclude-metadata", args.exclude_metadata)) if not value]
+            if need:
+                parser.error(f"--set {token_sets.FULL} needs {' '.join(need)}")
+            if args.navtrain:
+                parser.error(f"--navtrain is for --set {token_sets.POOL} only")
+            if args.allow_unlocated:
+                parser.error(f"--allow-unlocated is not for --set {token_sets.FULL}")
         else:
             if args.navtrain:
                 parser.error(f"--navtrain is for --set {token_sets.POOL} only")
@@ -1145,6 +1387,13 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             print("scene exclusion:", json.dumps({k: e[k] for k in ("name", "window_s", "tokens_in_index",
                                                                      "tokens_not_in_index", "tokens_not_located", "train_pool_excluded",
                                                                      "base_train_dropped", "base_dev_in_window")}))
+        if "every_row" in manifest:
+            print("every row:", json.dumps({g: r["left_after"] for g, r in manifest["every_row"]["by_group"].items()}))
+            print("dev-v2:", json.dumps({c: (r["logs"], r["navtrain_rows_held_out"])
+                                         for c, r in manifest["dev_v2"]["logs"]["per_city"].items()}),
+                  json.dumps(manifest["dev_v2"]["draw"]["per_city"]))
+            print("dev logs:", json.dumps(manifest["dev_logs"]), "covered by the base:",
+                  json.dumps(manifest["covered_by_base"]), "dev-v1:", json.dumps(manifest["dev_v1"]))
         if "navtrain" in manifest:
             nt = manifest["navtrain"]
             print("navtrain:", json.dumps({k: nt[k] for k in ("tokens", "left_after", "excluded_by_first_failing_rule",

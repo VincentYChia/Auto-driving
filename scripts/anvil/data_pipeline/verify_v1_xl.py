@@ -107,6 +107,10 @@ class Build(NamedTuple):
     ``relations(out_dir, train, dev, manifest)`` adds the build's own split checks (nesting, base, lists).
     ``left_out`` = (earlier set, set): every train row of the earlier set that the set leaves out is inside the
     warm-up window. ``reported`` sets are earlier sets whose warm-up hits are reported, not failed.
+    A set's dev is the pinned 2,000 (``DEV_SHA256``) unless its ``expected`` entry gives a ``dev_sha256`` of its
+    own (v1.0-full: dev-v2, and the held-out rows); a split expected to hold 0 tokens has an empty file.
+    ``resplit``: the build's split is its token files', not the index's ``our_split`` (v1.0-full releases val logs
+    to training), so leakage checks that every dev token is in a nuPlan val log instead of rule 4's equality.
     """
 
     name: str
@@ -126,6 +130,7 @@ class Build(NamedTuple):
     left_out: Optional[Tuple[str, str]] = None
     reported: Tuple[str, ...] = ()
     warmup_note: str = "dev is evaluation only and pinned"
+    resplit: bool = False
 
 
 def _words(n: int) -> str:
@@ -315,12 +320,12 @@ def check_splits(out_dir: str, large_dir: Optional[str], build: Build = XL) -> L
                 data = f.read()
             lines = read_tokens(path)
             tokens[(name, split)] = lines
-            out.append(_check(b"\r" not in data and data.endswith(b"\n") and lines == sorted(set(lines)),
+            out.append(_check(b"\r" not in data and (data.endswith(b"\n") or not data) and lines == sorted(set(lines)),
                               f"{name} {split}: sorted, unique, LF, trailing newline"))
             want = build.expected[name][split]
             out.append(_check(len(lines) == want, f"{name} {split}: {want:,} tokens", len(lines)))
             sha = hashlib.sha256(data).hexdigest()
-            want_sha = DEV_SHA256 if split == "dev" else build.expected[name]["train_sha256"]
+            want_sha = build.expected[name].get(f"{split}_sha256", DEV_SHA256 if split == "dev" else None)
             out.append(_check(sha == want_sha, f"{name} {split}: SHA-256 {want_sha[:8]}… (spec §3)", sha))
     if len(tokens) < 2 * len(build.sets):
         return out
@@ -330,8 +335,11 @@ def check_splits(out_dir: str, large_dir: Optional[str], build: Build = XL) -> L
     exclusion = m.get("scene_exclusion") if isinstance(m.get("scene_exclusion"), dict) else {}
     out.extend(build.relations(out_dir, train, dev, m))
     words = _words(len(build.sets))
-    out.append(_check(all(dev[name] == dev[build.sets[0]] for name in build.sets),
-                      f"dev is the same 2,000 in all {words} sets"))
+    pinned = [name for name in build.sets if "dev_sha256" not in build.expected[name]]  # the sets with the pinned dev
+    if pinned:
+        out.append(_check(all(dev[name] == dev[pinned[0]] for name in pinned),
+                          f"dev is the same 2,000 in all {words} sets" if len(pinned) == len(build.sets)
+                          else f"dev is the same 2,000 in {', '.join(pinned)}"))
     out.append(_check(not any(train[name] & dev[name] for name in build.sets), "no token is in both train and dev"))
     union = set().union(*train.values(), *dev.values())
     out.append(_check(len(union) == build.frames_to_keep, f"the {words} sets hold {build.frames_to_keep:,} frames",
@@ -495,12 +503,15 @@ def check_leakage(out_dir: str, navsim_root: Union[None, str, Sequence[str]] = N
     row_of = {str(t): k for k, t in enumerate(cands["token"])}
     rows = [row_of.get(t) for t in split_of]
     absent = sum(r is None for r in rows)
-    wrong_split = guarded = 0
+    wrong_split = guarded = released = 0
     log_split: Dict[str, Set[str]] = {"train": set(), "dev": set()}
     for t, r in zip(split_of, rows):
         if r is None:
             continue
-        if str(cands["our_split"][r]) != split_of[t]:
+        index_split = str(cands["our_split"][r])
+        if build.resplit and split_of[t] == "train" and index_split == "dev":
+            released += 1  # a row of a val log the re-split released to training
+        elif index_split != split_of[t]:
             wrong_split += 1
         if str(cands["guard_reason"][r]):
             guarded += 1
@@ -512,9 +523,14 @@ def check_leakage(out_dir: str, navsim_root: Union[None, str, Sequence[str]] = N
     all_logs = log_split["train"] | log_split["dev"]
     # A log missing from logs.parquet counts as excluded too.
     excluded = sorted(l for l in all_logs if l not in log_info or log_info[l][0] == "excluded" or log_info[l][1])
+    rule4 = (_check(wrong_split == 0, "every token's split is the index's our_split (rule 4)", wrong_split)
+             if not build.resplit else
+             _check(wrong_split == 0, "every dev token is in a nuPlan val log and every train token in a TRAIN log or a "
+                                      "val log released by the re-split (the split is the token files')",
+                    {"wrong": wrong_split, "train_tokens_in_released_val_logs": released}))
     out = [
         _check(absent == 0, "every selected token is in the index", absent),
-        _check(wrong_split == 0, "every token's split is the index's our_split (rule 4)", wrong_split),
+        rule4,
         _check(guarded == 0, "no token has a NAVSIM guard reason (rule 5)", guarded),
         _check(not excluded, "no selected log is excluded in the index (NAVSIM evaluation logs, rule 5)", len(excluded)),
         _check(not (log_split["train"] & log_split["dev"]), "no log is in both train and dev",
@@ -708,8 +724,8 @@ def check_canonical(out_dir: str, full: bool, build: Build = XL) -> Tuple[List[C
         counts = {name: report["sets"][name] for name in build.sets}
         out.append(_check(all(c["missing_image"] == 0 for c in counts.values()), "no selected frame lacks its image",
                           {n: c["missing_image"] for n, c in counts.items()}))
-        out.append(_check(all(counts[n]["by_split"] == {"train": build.expected[n]["train"],
-                                                       "dev": build.expected[n]["dev"]} for n in build.sets),
+        out.append(_check(all(counts[n]["by_split"] == {s: build.expected[n][s] for s in SPLITS if build.expected[n][s]}
+                              for n in build.sets),
                           "canonical counts per set and split = spec §3", {n: c["by_split"] for n, c in counts.items()}))
         out.append(_check(report.get("frames") == build.frames_to_keep, f"{build.frames_to_keep:,} canonical frames",
                           report.get("frames")))

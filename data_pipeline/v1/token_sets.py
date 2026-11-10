@@ -25,13 +25,36 @@ The four sets share v1-xl's pinned 2,000 dev rows and come from one train pool:
 
 ``check_sets`` is the post-condition (``selection._check`` at the index's 0.5 s spacing): every train row is an
 eligible train-log row outside the window, and no log has rows in both train and dev.
+
+**v1.0-full** (PRETRAIN_V1_PLAN.md §12). Researcher, 2026-11-10: "actively building the dataset in as large steps
+as possible. Its a safe assumption to think that more data will do better, so long as it meets quality standards.
+Additionally its much faster to trim data then it is to get new data. Try to max out the available data first then
+train." [agreed]; and on re-splitting dev, "If it does not harm the integrity of training go for it" [agreed]. The
+mechanics are [proposed]. The old pinned dev (dev-v1) spans 221 of the 225 nuPlan val logs, so the log-level split
+kept every row of those logs out of training. The new dev stays log-level, from few whole drives:
+* ``choose_dev_logs`` (``DEV_V2``): about 40 nuPlan val logs, in whole nuPlan drives (``drive_of``: the log name
+  without its two segment fields; nuPlan's own train/val split is by drive, so no val drive holds a train log, V),
+  per city as many logs as navtest's city mix gives (``NAVTEST_CITY_SHARE``), and among those the drives holding
+  the fewest navtrain rows that pass the rules (so most navtrain rows are released to training). Exact: a
+  dynamic program per city; no randomness.
+* ``draw_dev`` (**dev-v2**): 2,000 anchors from those logs, per city navtest's share; first the logs' navtrain
+  tokens, then the other rows with a known route command (``fill_needs_command``: no NAVSIM scene lacks one, V),
+  standstill-thinned (rule 6), all >= 1.0 s apart, in the order pinned in ``DEV_DRAW``.
+* ``every_row`` keeps every index anchor that passes the quality rules (rules 2, 3, 5: ``selection.eligible``) and
+  lies outside the warm-up window, with no standstill thinning (rule 6), spacing (rule 7) or cruise cap (rule 8):
+  trimming is left to the views. **v1-full** (``FULL``): those rows of the TRAIN logs and of the released val logs
+  (every val log but dev-v2's), with dev-v2 as dev. **v1-full-devlogs** (``FULL_DEVLOGS``): those rows of dev-v2's
+  logs, as dev (no train rows): extracted, in no training view.
+A row's split in these sets is the set's token files', not the index's ``our_split`` (which stays nuPlan's: val
+logs are ``dev``). ``check_full`` is the post-condition.
 """
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -317,6 +340,247 @@ def check_sets(cands: tables.Columns, train_sets: Mapping[str, np.ndarray], dev_
         for small, large in sorted(inside):
             if not np.isin(train_sets[small], train_sets[large]).all():
                 raise RuntimeError(f"{small} is not inside {large}")
+
+
+# --- every row and a new dev: v1.0-full ---------------------------------------------------------
+
+FULL, FULL_DEVLOGS = "v1-full", "v1-full-devlogs"
+FULL_SETS = (FULL, FULL_DEVLOGS)
+FULL_RULES = (  # (name, what a row must be), in the order an excluded row is explained
+    ("index_row", "a row of the index (rule 1: the -1.5 ... +4.0 s window exists with no timing gap)"),
+    ("eligible", "eligible: CAM_F0 path, sane pose, not guarded (rules 2, 3, 5: selection.eligible)"),
+    ("outside_window", "outside the window of every warm-up scene in its log (scene_exclusion.window_mask)"),
+)
+GROUPS = ("train_logs", "released_val_logs", "held_out_val_logs")  # every_row's report, by where a row's log is
+# navtest's city mix, % of its 12,146 scenes (the committed failure analysis, PRETRAIN_V1_PLAN.md §11), in this order
+NAVTEST_CITY_SHARE = (("us-nv-las-vegas-strip", 0.335), ("us-ma-boston", 0.307),
+                      ("us-pa-pittsburgh-hazelwood", 0.201), ("sg-one-north", 0.158))
+DRIVE = re.compile(r"^(\d{4}\.\d{2}\.\d{2}\.\d{2}\.\d{2}\.\d{2}_veh-\d+)_\d+_\d+$")
+
+
+@dataclass(frozen=True)
+class DevRule:
+    """A log-level dev from few whole nuPlan val drives (``choose_dev_logs``, ``draw_dev``)."""
+
+    name: str
+    city_share: Tuple[Tuple[str, float], ...]
+    n_logs: int
+    n_anchors: int
+    spacing_s: float
+    standstill_period_s: float
+    seed: Tuple[int, ...]
+    fill_needs_command: bool = True  # the fill skips rows whose route command is unknown (no NAVSIM scene has one)
+
+
+DEV_V2 = DevRule(name="dev-v2", city_share=NAVTEST_CITY_SHARE, n_logs=40, n_anchors=2_000, spacing_s=1.0,
+                 standstill_period_s=STANDSTILL_PERIOD_S, seed=(20261110, 2))
+UNKNOWN_COMMAND = "unknown"  # the index's command when OpenScene's one-hot gives none (0 of navtrain's rows, V)
+DEV_LOGS_RULE = ("per city, logs = largest-remainder share of n_logs by city_share; among the nuPlan val drives of the "
+                 "city whose every index log is a val log, the whole drives whose logs sum to that count with the "
+                 "fewest navtrain rows that pass the rules (eligible, outside the warm-up window); ties: more rows "
+                 "that pass the rules, then the sorted drive names (exact dynamic program, no randomness)")
+DEV_DRAW = ("one numpy.random.default_rng(list(seed)); per city in city_share order, quota = largest-remainder share "
+            "of n_anchors: rng.permutation(<the city's navtrain rows that pass the rules, ascending index-row order>), "
+            "then rng.permutation(<its other rows that pass the rules and (fill_needs_command) have a known route "
+            "command, standstill-thinned (rule 6), ascending>), each "
+            "row taken in that order when >= spacing_s - 0.05 s from every row taken in its log, until the quota")
+
+
+def drive_of(log_name: str) -> str:
+    """The nuPlan drive of a log: its name without the two segment fields (``<date>.<time>_<vehicle>``)."""
+    m = DRIVE.match(str(log_name))
+    if m is None:
+        raise ValueError(f"{log_name} is not a nuPlan log name (<date>.<time>_veh-<n>_<start>_<end>)")
+    return m.group(1)
+
+
+def quotas(total: int, shares: Sequence[Tuple[str, float]]) -> Dict[str, int]:
+    """``total`` split by ``shares`` (normalised), largest remainder; ties go to the earlier name."""
+    weight = sum(s for _, s in shares)
+    exact = [(name, total * s / weight) for name, s in shares]
+    out = {name: int(np.floor(x)) for name, x in exact}
+    order = sorted(range(len(exact)), key=lambda k: (-(exact[k][1] - np.floor(exact[k][1])), k))
+    for k in order[: total - sum(out.values())]:
+        out[exact[k][0]] += 1
+    return out
+
+
+def _passing(cands: tables.Columns, window: np.ndarray) -> np.ndarray:
+    return selection.eligible(cands) & ~_bool_mask(window, len(cands["t_us"]), "window")
+
+
+def in_logs(cands: tables.Columns, logs: Iterable[str]) -> np.ndarray:
+    """Rows whose log is one of ``logs`` (a set lookup: ``np.isin`` on strings takes minutes)."""
+    wanted = set(logs)
+    return np.array([log in wanted for log in cands["log_name"].tolist()], dtype=bool)
+
+
+def choose_dev_logs(cands: tables.Columns, window: np.ndarray, rule: DevRule = DEV_V2
+                    ) -> Tuple[List[str], Dict[str, Any]]:
+    """dev-v2's held-out logs (``DEV_LOGS_RULE``) and a report. Needs ``in_navtrain`` and ``city`` columns."""
+    ok = _passing(cands, window)
+    logs = cands["log_name"]
+    split_of: Dict[str, set] = {}
+    for log, split in zip(logs.tolist(), cands["our_split"].tolist()):
+        split_of.setdefault(log, set()).add(split)
+    drives: Dict[str, Dict[str, Any]] = {}
+    for log in sorted(split_of):
+        d = drives.setdefault(drive_of(log), {"logs": [], "splits": set()})
+        d["logs"].append(log)
+        d["splits"] |= split_of[log]
+    log_codes = {log: k for k, log in enumerate(sorted(split_of))}
+    code = np.array([log_codes[log] for log in logs.tolist()], dtype=np.int64)
+    rows_ok = np.bincount(code[ok], minlength=len(log_codes))
+    navtrain_ok = np.bincount(code[ok & cands["in_navtrain"]], minlength=len(log_codes))
+    city_of: Dict[str, set] = {}
+    for log, city in zip(logs.tolist(), cands["city"].tolist()):
+        city_of.setdefault(log, set()).add(city)
+    want = quotas(rule.n_logs, rule.city_share)
+    chosen: List[str] = []
+    per_city: Dict[str, Any] = {}
+    mixed = sorted(name for name, d in drives.items() if len(d["splits"]) > 1)
+    for city, _ in rule.city_share:
+        units = []
+        for name in sorted(drives):
+            d = drives[name]
+            cities = set().union(*(city_of[log] for log in d["logs"]))
+            if d["splits"] != {"dev"} or cities != {city}:
+                continue
+            units.append((name, len(d["logs"]), int(sum(navtrain_ok[log_codes[l]] for l in d["logs"])),
+                          int(sum(rows_ok[log_codes[l]] for l in d["logs"]))))
+        # best[k] = (navtrain rows, -rows, drive names) of the best set of whole drives holding k logs
+        best: Dict[int, Tuple[int, int, Tuple[str, ...]]] = {0: (0, 0, ())}
+        for name, n, nav, rows in units:
+            for k, (b_nav, b_rows, b_names) in sorted(best.items(), reverse=True):
+                cand = (b_nav + nav, b_rows - rows, tuple(sorted(b_names + (name,))))
+                if k + n not in best or cand < best[k + n]:
+                    best[k + n] = cand
+        k = min(best, key=lambda j: (abs(j - want[city]), j))  # the exact count when it can be reached
+        nav, neg_rows, names = best[k]
+        city_logs = sorted(l for name in names for l in drives[name]["logs"])
+        chosen += city_logs
+        per_city[city] = {"logs_wanted": want[city], "logs": len(city_logs), "drives": list(names),
+                          "navtrain_rows_held_out": nav, "rows_held_out": -neg_rows,
+                          "val_drives_of_the_city": len(units),
+                          "navtrain_rows_of_the_city": sum(u[2] for u in units)}
+    report = {"rule": DEV_LOGS_RULE, "per_city": per_city, "logs": len(chosen),
+              "drives": sum(len(c["drives"]) for c in per_city.values()),
+              "drives_with_logs_in_two_splits": mixed,
+              "navtrain_rows_held_out": sum(c["navtrain_rows_held_out"] for c in per_city.values()),
+              "navtrain_rows_in_val_logs": int((ok & cands["in_navtrain"] & (cands["our_split"] == "dev")).sum())}
+    return sorted(chosen), report
+
+
+def draw_dev(cands: tables.Columns, window: np.ndarray, logs: Iterable[str], rule: DevRule = DEV_V2
+             ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """dev-v2's anchors from ``logs`` (``DEV_DRAW``), sorted, and a report; raises when a city's quota is not met."""
+    ok = _passing(cands, window)
+    held = in_logs(cands, logs)
+    codes = selection.log_codes(cands)
+    picker = selection._SpacedPicker(codes, cands["t_us"], rule.spacing_s)
+    rng = np.random.default_rng(list(rule.seed))
+    want = quotas(rule.n_anchors, rule.city_share)
+    out: List[int] = []
+    per_city: Dict[str, Any] = {}
+    for city, _ in rule.city_share:
+        pool = ok & held & (cands["city"] == city)
+        listed = np.flatnonzero(pool & cands["in_navtrain"])
+        fill = pool & ~cands["in_navtrain"]
+        if rule.fill_needs_command:
+            fill &= cands["command"] != UNKNOWN_COMMAND
+        other = np.flatnonzero(selection.thin_standstill(cands, fill, rule.standstill_period_s, codes))
+        first = picker.take(iter(rng.permutation(listed).tolist()), want[city])
+        rest = picker.take(iter(rng.permutation(other).tolist()), want[city] - len(first))
+        if len(first) + len(rest) < want[city]:
+            raise ValueError(f"{rule.name}: {city} gives {len(first) + len(rest)} of its {want[city]} anchors "
+                             f">= {rule.spacing_s} s apart; the logs chosen hold too few rows")
+        out += first + rest
+        per_city[city] = {"anchors": want[city], "navtrain_tokens": len(first), "other_rows": len(rest),
+                          "navtrain_rows_offered": len(listed), "other_rows_offered": len(other)}
+    rows = np.sort(np.array(out, dtype=np.int64))
+    report = {"rule": {**asdict(rule), "draw": DEV_DRAW, "logs_rule": DEV_LOGS_RULE}, "per_city": per_city,
+              "anchors": len(rows), "navtrain_tokens": sum(c["navtrain_tokens"] for c in per_city.values())}
+    return rows, report
+
+
+def every_row(cands: tables.Columns, window: np.ndarray, held_out_logs: Iterable[str]
+              ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
+    """Every index row that passes ``FULL_RULES``: ``train`` (TRAIN logs and the released val logs) and ``held_out``
+    (``held_out_logs``, which must be val logs), with the counts per rule in each of ``GROUPS``.
+
+    No standstill thinning, spacing or cruise cap. ``window`` is the warm-up window mask over all rows. An excluded
+    row's reason is the first rule it fails. Rows of ``excluded`` (NAVSIM-guarded) logs fail ``eligible``.
+    """
+    n = len(cands["t_us"])
+    window = _bool_mask(window, n, "window")
+    held_out_logs = sorted(set(held_out_logs))
+    held = in_logs(cands, held_out_logs)
+    if (cands["our_split"][held] != "dev").any():
+        raise ValueError("a held-out log is not a val (dev) log of the index")
+    eligible = selection.eligible(cands)
+    keep = eligible & ~window
+    is_train, is_val = cands["our_split"] == "train", cands["our_split"] == "dev"
+    groups = {"train_logs": is_train, "released_val_logs": is_val & ~held, "held_out_val_logs": held}
+    by_group: Dict[str, Any] = {}
+    for name, mask in groups.items():
+        kept = mask & keep
+        by_group[name] = {
+            "left_after": {"index_row": int(mask.sum()), "eligible": int((mask & eligible).sum()),
+                           "outside_window": int(kept.sum())},
+            "excluded_by_first_failing_rule": {"eligible": int((mask & ~eligible).sum()),
+                                               "outside_window": int((mask & eligible & window).sum())},
+            "standstill_rows_kept": int((kept & cands["standstill"]).sum()),
+            "logs": len(set(cands["log_name"][kept].tolist())),
+        }
+    rows = {"train": np.flatnonzero((is_train | (is_val & ~held)) & keep), "held_out": np.flatnonzero(held & keep)}
+    report = {
+        "rules": [f"{name}: {text}" for name, text in FULL_RULES],
+        "not_applied": "standstill thinning (rule 6), spacing (rule 7), cruise cap (rule 8): trimming is a view choice",
+        "by_group": by_group,
+        "held_out_logs": len(held_out_logs),
+        "rows_in_other_splits": int((~(is_train | is_val)).sum()),
+    }
+    return rows, report
+
+
+def check_full(cands: tables.Columns, train: np.ndarray, held_out: np.ndarray, dev: np.ndarray, window: np.ndarray,
+               held_out_logs: Iterable[str], base_train: Optional[np.ndarray] = None,
+               spacing_s: float = DEV_V2.spacing_s) -> None:
+    """Post-conditions of the v1.0-full sets; violations are bugs, so they raise even under ``python -O``.
+
+    Every train and held-out row passes the rules; the held-out logs are whole val drives, and no train row is in
+    one of their drives; dev (dev-v2) lies inside the held-out rows, its anchors ``spacing_s`` apart in each log;
+    ``base_train`` (v1.0-pool's v1-all) lies inside the train rows.
+    """
+    excluded = _bool_mask(window, len(cands["t_us"]), "window")
+    ok = selection.eligible(cands) & ~excluded
+    held_out_logs = set(held_out_logs)
+    for name, rows in (("train", train), ("held-out", held_out), ("dev", dev)):
+        rows = np.asarray(rows, dtype=np.int64)
+        if len(np.unique(rows)) != len(rows):
+            raise RuntimeError(f"{name}: a row is listed twice")
+        if not ok[rows].all():
+            raise RuntimeError(f"{name}: a row is ineligible or inside the warm-up window")
+    if (cands["our_split"][in_logs(cands, held_out_logs)] != "dev").any():
+        raise RuntimeError("a held-out log is not a val log")
+    held_drives = {drive_of(log) for log in held_out_logs}
+    other_logs = set(cands["log_name"].tolist()) - held_out_logs
+    if any(drive_of(log) in held_drives for log in other_logs):
+        raise RuntimeError("a held-out drive has a log that is not held out")
+    train_logs = set(cands["log_name"][train].tolist())
+    if train_logs & held_out_logs or {drive_of(log) for log in train_logs} & held_drives:
+        raise RuntimeError("a train row is in a held-out log or drive")
+    if set(cands["log_name"][held_out].tolist()) - held_out_logs:
+        raise RuntimeError("a held-out row is not in a held-out log")
+    if not np.isin(dev, held_out).all():
+        raise RuntimeError("a dev row is not a held-out row")
+    order = np.asarray(dev)[np.lexsort((cands["t_us"][dev], cands["log_name"][dev]))]
+    same = cands["log_name"][order][1:] == cands["log_name"][order][:-1]
+    gaps = np.diff(cands["t_us"][order])[same]
+    if gaps.size and gaps.min() < spacing_s * 1e6 - DT_TOL_US:
+        raise RuntimeError(f"two dev anchors in one log are closer than {spacing_s} s")
+    if base_train is not None and not np.isin(base_train, train).all():
+        raise RuntimeError(f"{int((~np.isin(base_train, train)).sum())} base train rows are not train rows")
 
 
 def maneuver_counts(labels: np.ndarray, rows: np.ndarray) -> Dict[str, int]:

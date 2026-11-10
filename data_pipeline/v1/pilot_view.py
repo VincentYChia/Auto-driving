@@ -83,7 +83,8 @@ VIEW_ROOTS = {"pilot_v1.1": VIEW, "pilot_v1.2": "pilot_v1.2"}
 COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "path_xyyaw", "path_valid",
            "speed", "accel_lon", "command")
 PAIR = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
-SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd", "v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all")
+SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd", "v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all",
+        "v1-full")  # not v1-full-devlogs: the rows of dev-v2's held-out logs are in no view (plan §12)
 STORAGE = ("loose", "zip")
 ZIP_NAME = "images.zip"  # pilot_sft/view_images.ZIP_NAME
 ZIP_CHUNK = 4096  # resized images held in memory at once by a zip build (about 40 kB each at 640 px, D)
@@ -260,6 +261,25 @@ def write_zip(path: str, names: Sequence[str], jobs: Sequence[Any], workers: int
     return sizes
 
 
+def set_split(out_dir: str, set_name: str, tokens: np.ndarray, rows: np.ndarray, index_split: np.ndarray) -> np.ndarray:
+    """``index_split`` with each of ``rows`` given its split in the set's token files (``splits/<set>_tokens_*.txt``).
+
+    The set's files decide a sample's split, not the index's ``our_split``: they agree for every set before
+    v1.0-full, whose re-split dev releases val logs to training (PRETRAIN_V1_PLAN.md §12). Raises when a row's token
+    is in neither file.
+    """
+    split_of: Dict[str, str] = {}
+    for split in ("train", "dev"):
+        with open(os.path.join(out_dir, "splits", f"{set_name}_tokens_{split}.txt"), encoding="utf-8") as f:
+            split_of.update((line.strip(), split) for line in f if line.strip())
+    out = np.array(index_split, dtype=object, copy=True)
+    missing = [str(tokens[k]) for k in rows if str(tokens[k]) not in split_of]
+    if missing:
+        raise ValueError(f"{len(missing)} frames of {set_name} are in neither of its token files, e.g. {missing[0]}")
+    out[rows] = [split_of[str(tokens[k])] for k in rows]
+    return out
+
+
 def view_dir(out_dir: str, set_name: str, version: str = PROMPT_VERSION) -> str:
     return os.path.join(out_dir, "views", VIEW_ROOTS[version], set_name)
 
@@ -283,6 +303,8 @@ def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: in
     member = f"in_{set_name.replace('-', '_')}"
     frames = tables.read(os.path.join(out_dir, "frames.parquet"), list(COLUMNS) + ["source_archive", member])
     rows = np.flatnonzero(frames[member])
+    index_split = frames["our_split"]
+    frames["our_split"] = set_split(out_dir, set_name, frames["token"], rows, index_split)
     target = view_dir(out_dir, set_name, prompt_version)
     os.makedirs(target, exist_ok=True)
 
@@ -334,6 +356,8 @@ def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: in
                   "visual_tokens_note": "D: each side rounded to the nearest multiple of patch × merge "
                                         "(Qwen2VLImageProcessor), one token per merged patch"},
         "images_zip": images_zip,
+        "split_source": "the set's token files (splits/<set>_tokens_{train,dev}.txt)",
+        "split_differs_from_index": int((frames["our_split"][rows] != index_split[rows]).sum()),
         "history_s": list(HISTORY_S) if prompt_version == "pilot_v1.1" else list(POSES_S),
         "target_s": list(TARGET_S),
         "number_format": ("metres, 1 decimal in text; continuous values in target_xy / target_yaw"

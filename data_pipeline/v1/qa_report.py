@@ -26,7 +26,7 @@ from typing import Any, Dict, Optional, Sequence
 
 import numpy as np
 
-from data_pipeline.v1 import image_store, projection, provenance, stats, tables
+from data_pipeline.v1 import image_store, pilot_view, projection, provenance, stats, tables
 from data_pipeline.v1.openscene_index import PATH_OFFSETS_S
 
 RENDER_WIDTH = 960
@@ -40,7 +40,8 @@ COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "
            "K", "dist", "cam_to_ego", "path_xyyaw", "path_valid", "path_t_s", "speed", "accel_lon", "command",
            "has_route", "crosses_scene_boundary", "flag_speed_consistent", "flag_standstill", "max_time_err_s",
            "in_navtrain")
-SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd", "v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all")  # canonical.SETS
+SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd", "v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all",
+        "v1-full")  # canonical.SETS but v1-full-devlogs (QA renders v1-full: its train and dev-v2)
 
 
 def pixels(frames: tables.Columns, k: int) -> np.ndarray:
@@ -134,6 +135,8 @@ def _hist(values, edges, unit: str) -> Dict[str, int]:
 def build(out_dir: str, set_name: str = "smoke", n: int = 50, seed: int = 0) -> Dict[str, Any]:
     frames = tables.read(os.path.join(out_dir, "frames.parquet"), list(COLUMNS) + [f"in_{set_name.replace('-', '_')}"])
     rows = np.flatnonzero(frames[f"in_{set_name.replace('-', '_')}"])
+    # the set's split (its token files), not the index's: they differ only for v1.0-full's re-split dev (plan §12)
+    frames["our_split"] = pilot_view.set_split(out_dir, set_name, frames["token"], rows, frames["our_split"])
     with open(os.path.join(out_dir, "canonical.json"), encoding="utf-8") as f:
         canonical = json.load(f)
     pick = np.sort(np.random.default_rng(seed).choice(rows, size=min(n, len(rows)), replace=False))
