@@ -43,5 +43,7 @@ data/pretrain/**
 !data/pretrain/**/splits/*.txt
 # v1-xl label-conflict list: tokens with the names of the label tests they fail (an ID list, no values)
 !data/pretrain/**/splits/*_label_conflicts.tsv
+# derived sets' report (rules, counts, mixes, SHA-256s: aggregates only; data_pipeline/v1/derived_sets.py)
+!data/pretrain/**/splits/derived.json
 data/pretrain/smoke/**
 data/pretrain/downloads/

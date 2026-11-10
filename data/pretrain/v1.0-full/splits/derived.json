@@ -1,0 +1,166 @@
+{
+ "step": "derived_sets",
+ "created_utc": "2026-11-10T20:59:06Z",
+ "repo_commit": "4fbbbbc64607133a36ef535a2fb78e1bb76dbf16",
+ "sets": {
+  "v1-full-thin": {
+   "parent": "v1-full",
+   "rule": "v1-full's train rows that rule 6 keeps when it thins the eligible rows of v1-full's train logs (at most one standstill anchor per 5 s in each log; before the warm-up window, as v1-all), plus every navtrain row of v1-full's train; dev = v1-full's dev (dev-v2)",
+   "train": 489771,
+   "dev": 2000,
+   "sha256": {
+    "train": "da9804fd8338cae68da20321d4e98331c5e3706f47ebb1effcf8ec4aa20ce1f0",
+    "dev": "0661d4815bd0cae50f1d3495ed1b024d2e40711965197603b9b1d593d36eb951"
+   },
+   "splits": {
+    "train": {
+     "selected": 489771,
+     "logs": 1270,
+     "cruise_share": 0.4151,
+     "city": {
+      "us-nv-las-vegas-strip": 340881,
+      "us-ma-boston": 64489,
+      "us-pa-pittsburgh-hazelwood": 52074,
+      "sg-one-north": 32327
+     },
+     "decision_lon": {
+      "keep_speed": 258508,
+      "decelerate": 79813,
+      "accelerate": 67837,
+      "stopped": 35360,
+      "start": 24511,
+      "stop": 23742
+     },
+     "decision_lat": {
+      "straight": 337286,
+      "stationary": 58495,
+      "turn_left": 31068,
+      "curve_left": 24446,
+      "turn_right": 17831,
+      "curve_right": 13216,
+      "lane_change_left": 3766,
+      "lane_change_right": 3663
+     },
+     "standstill_share": 0.0468
+    },
+    "dev": {
+     "selected": 2000,
+     "logs": 34,
+     "cruise_share": 0.413,
+     "city": {
+      "us-nv-las-vegas-strip": 669,
+      "us-ma-boston": 613,
+      "us-pa-pittsburgh-hazelwood": 402,
+      "sg-one-north": 316
+     },
+     "decision_lon": {
+      "keep_speed": 1082,
+      "decelerate": 311,
+      "accelerate": 301,
+      "stopped": 132,
+      "stop": 90,
+      "start": 84
+     },
+     "decision_lat": {
+      "straight": 1303,
+      "stationary": 225,
+      "turn_left": 129,
+      "curve_left": 105,
+      "turn_right": 104,
+      "curve_right": 102,
+      "lane_change_left": 16,
+      "lane_change_right": 16
+     },
+     "standstill_share": 0.0515
+    }
+   },
+   "train_detail": {
+    "maneuver": {
+     "turn left (>20 deg)": 37634,
+     "turn right (>20 deg)": 20556,
+     "sideways shift (>2 m, lane change or curve)": 21818,
+     "brake to a stop": 15951,
+     "start from a stop": 28579,
+     "stay stopped": 36559,
+     "keep going": 328674
+    },
+    "logs": 1270,
+    "shared_with": {
+     "v1-full": 489771,
+     "navtrain": 96353,
+     "v1-all": 426694
+    }
+   },
+   "removed_from_parent_train": 185930
+  },
+  "dev-v2": {
+   "parent": "v1-full",
+   "rule": "train empty; dev = v1-full's dev (dev-v2)",
+   "train": 0,
+   "dev": 2000,
+   "sha256": {
+    "train": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "dev": "0661d4815bd0cae50f1d3495ed1b024d2e40711965197603b9b1d593d36eb951"
+   },
+   "splits": {
+    "train": {
+     "selected": 0,
+     "logs": 0,
+     "cruise_share": null,
+     "city": {},
+     "decision_lon": {},
+     "decision_lat": {},
+     "standstill_share": null
+    },
+    "dev": {
+     "selected": 2000,
+     "logs": 34,
+     "cruise_share": 0.413,
+     "city": {
+      "us-nv-las-vegas-strip": 669,
+      "us-ma-boston": 613,
+      "us-pa-pittsburgh-hazelwood": 402,
+      "sg-one-north": 316
+     },
+     "decision_lon": {
+      "keep_speed": 1082,
+      "decelerate": 311,
+      "accelerate": 301,
+      "stopped": 132,
+      "stop": 90,
+      "start": 84
+     },
+     "decision_lat": {
+      "straight": 1303,
+      "stationary": 225,
+      "turn_left": 129,
+      "curve_left": 105,
+      "turn_right": 104,
+      "curve_right": 102,
+      "lane_change_left": 16,
+      "lane_change_right": 16
+     },
+     "standstill_share": 0.0515
+    }
+   },
+   "train_detail": {
+    "maneuver": {
+     "turn left (>20 deg)": 0,
+     "turn right (>20 deg)": 0,
+     "sideways shift (>2 m, lane change or curve)": 0,
+     "brake to a stop": 0,
+     "start from a stop": 0,
+     "stay stopped": 0,
+     "keep going": 0
+    },
+    "logs": 0,
+    "shared_with": {
+     "v1-full": 0,
+     "navtrain": 0,
+     "v1-all": 0
+    }
+   }
+  }
+ },
+ "standstill_period_s": 5.0
+}

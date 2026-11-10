@@ -683,3 +683,19 @@ sbatch -A cis220051 -p shared --gpus-per-node=0 scripts/anvil/data_pipeline/buil
 3. **The fill's known-command rule** (above): keep it, or the literal natural mix?
 4. **Warm-up, scene-level or whole logs** (§10, question 7)? Whole logs would take 27,750 rows out of v1-full's train.
 5. **Re-evaluating the earlier adapters on dev-v2**, so that results before and after the re-split can be compared.
+
+**Built (V, 2026-11-10):** `build_v1_full.sbatch` 22135446 ran in 2 h 02 min on `shared`; `verify_v1_full.py all` 93 of 93. Views `v1-full` and `v1-full-p12` (677,701 samples each, images.zip 34.2 GB). Constant velocity: train ADE 1.276 m, dev-v2 1.889 m.
+
+### Derived sets: v1-full-thin and dev-v2 [proposed 2026-11-10]
+
+Question 1 answered the cheap way: a thinned set cut from v1-full's own token files, with no fetch and **no canonical step** (`data_pipeline/v1/derived_sets.py`). `pilot_view` takes a derived set's membership from its token files (`member_rows`; every listed token must be a frame of `frames.parquet`), not from an `in_<set>` column, so a new trim costs one view build.
+
+- **v1-full-thin:** v1-full's train rows that rule 6 keeps when it thins the eligible rows of v1-full's train logs (at most one standstill anchor per 5 s in each log, thinned before the warm-up window, exactly as v1-all), plus every navtrain row of v1-full's train (NAVSIM's own scenes are not thinned, as in v1-nt). Dev: dev-v2. **489,771 train** (V): v1-all's 426,694 all inside, plus the released val logs' thinned rows and the navtrain standstill rows v1-all dropped; 185,930 of v1-full's rows removed, all standstill. Stay-stopped 36,559 (7.5%, from 32.9%); every turn, sideways shift, brake, start and keep-going row of v1-full kept; navtrain 96,353; 1,270 logs. Cities: Las Vegas 69.6%, Boston 13.2%, Pittsburgh 10.6%, Singapore 6.6% (v1-all: 75.5 / 11.5 / 9.5 / 3.5).
+- **dev-v2:** v1-full's dev alone (train empty), as a 2,000-sample view in both prompt versions, to re-evaluate earlier adapters (question 5) without copying the 34 GB v1-full view.
+- Post-conditions (`check_thin`): inside v1-full's train, every navtrain row kept, v1-all's train inside, kept non-navtrain standstill anchors ≥ 5 s apart per log. `splits/derived.json` records the rules, counts, mixes and SHA-256s.
+
+```bash
+python -m data_pipeline.v1.derived_sets --out data/pretrain/v1.0-full     # locally, ~5 s; commit splits/
+sbatch -A cis220051 -p shared --gpus-per-node=0 scripts/anvil/data_pipeline/build_derived_views.sbatch
+# -> $TRAINING_DATA_ROOT/pilot_v1/{dev-v2, dev-v2-p12, v1-full-thin-p12}; train with SET=v1-full-thin-p12
+```

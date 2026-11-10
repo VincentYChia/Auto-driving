@@ -83,8 +83,11 @@ VIEW_ROOTS = {"pilot_v1.1": VIEW, "pilot_v1.2": "pilot_v1.2"}
 COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "path_xyyaw", "path_valid",
            "speed", "accel_lon", "command")
 PAIR = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
+# Derived sets [proposed 2026-11-10] (data_pipeline/v1/derived_sets.py): cut from a built set with no canonical step,
+# so frames.parquet has no in_<set> column for them; their membership is their token files' (member_rows)
+DERIVED_SETS = ("v1-full-thin", "dev-v2")
 SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd", "v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all",
-        "v1-full")  # not v1-full-devlogs: the rows of dev-v2's held-out logs are in no view (plan §12)
+        "v1-full") + DERIVED_SETS  # not v1-full-devlogs: the rows of dev-v2's held-out logs are in no view (plan §12)
 STORAGE = ("loose", "zip")
 ZIP_NAME = "images.zip"  # pilot_sft/view_images.ZIP_NAME
 ZIP_CHUNK = 4096  # resized images held in memory at once by a zip build (about 40 kB each at 640 px, D)
@@ -261,6 +264,25 @@ def write_zip(path: str, names: Sequence[str], jobs: Sequence[Any], workers: int
     return sizes
 
 
+def token_splits(out_dir: str, set_name: str) -> Dict[str, str]:
+    """Token -> split of the set's token files (``splits/<set>_tokens_{train,dev}.txt``)."""
+    split_of: Dict[str, str] = {}
+    for split in ("train", "dev"):
+        with open(os.path.join(out_dir, "splits", f"{set_name}_tokens_{split}.txt"), encoding="utf-8") as f:
+            split_of.update((line.strip(), split) for line in f if line.strip())
+    return split_of
+
+
+def member_rows(out_dir: str, set_name: str, tokens: np.ndarray) -> np.ndarray:
+    """Rows of a derived set (``DERIVED_SETS``): the frames whose token is in its token files, every one a frame."""
+    listed = token_splits(out_dir, set_name)
+    rows = np.flatnonzero(np.array([str(t) in listed for t in tokens], dtype=bool))
+    if len(rows) != len(listed):
+        raise ValueError(f"{len(listed) - len(rows)} tokens of {set_name} have no frame in frames.parquet "
+                         "(a derived set must lie inside the folder's frames)")
+    return rows
+
+
 def set_split(out_dir: str, set_name: str, tokens: np.ndarray, rows: np.ndarray, index_split: np.ndarray) -> np.ndarray:
     """``index_split`` with each of ``rows`` given its split in the set's token files (``splits/<set>_tokens_*.txt``).
 
@@ -268,10 +290,7 @@ def set_split(out_dir: str, set_name: str, tokens: np.ndarray, rows: np.ndarray,
     v1.0-full, whose re-split dev releases val logs to training (PRETRAIN_V1_PLAN.md §12). Raises when a row's token
     is in neither file.
     """
-    split_of: Dict[str, str] = {}
-    for split in ("train", "dev"):
-        with open(os.path.join(out_dir, "splits", f"{set_name}_tokens_{split}.txt"), encoding="utf-8") as f:
-            split_of.update((line.strip(), split) for line in f if line.strip())
+    split_of = token_splits(out_dir, set_name)
     out = np.array(index_split, dtype=object, copy=True)
     missing = [str(tokens[k]) for k in rows if str(tokens[k]) not in split_of]
     if missing:
@@ -300,9 +319,13 @@ def build(out_dir: str, set_name: str = "smoke", width: int = WIDTH, workers: in
     if storage == "loose" and os.path.exists(stale_zip):
         raise FileExistsError(f"{stale_zip} exists, and the readers (ViewImages, export) prefer it to loose "
                               "images: move it aside, or build with --storage zip")
-    member = f"in_{set_name.replace('-', '_')}"
-    frames = tables.read(os.path.join(out_dir, "frames.parquet"), list(COLUMNS) + ["source_archive", member])
-    rows = np.flatnonzero(frames[member])
+    if set_name in DERIVED_SETS:
+        frames = tables.read(os.path.join(out_dir, "frames.parquet"), list(COLUMNS) + ["source_archive"])
+        rows = member_rows(out_dir, set_name, frames["token"])
+    else:
+        member = f"in_{set_name.replace('-', '_')}"
+        frames = tables.read(os.path.join(out_dir, "frames.parquet"), list(COLUMNS) + ["source_archive", member])
+        rows = np.flatnonzero(frames[member])
     index_split = frames["our_split"]
     frames["our_split"] = set_split(out_dir, set_name, frames["token"], rows, index_split)
     target = view_dir(out_dir, set_name, prompt_version)
