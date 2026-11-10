@@ -40,7 +40,7 @@ COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "
            "K", "dist", "cam_to_ego", "path_xyyaw", "path_valid", "path_t_s", "speed", "accel_lon", "command",
            "has_route", "crosses_scene_boundary", "flag_speed_consistent", "flag_standstill", "max_time_err_s",
            "in_navtrain")
-SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd")  # as canonical.SETS
+SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd", "v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all")  # canonical.SETS
 
 
 def pixels(frames: tables.Columns, k: int) -> np.ndarray:

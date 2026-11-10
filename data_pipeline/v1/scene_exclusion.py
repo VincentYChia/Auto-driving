@@ -22,6 +22,9 @@ scanned; the 10 warm-up logs without a located token are not in the index at all
 (``not_located``).
 
     python -m data_pipeline.v1.scene_exclusion from-filter <scene filter .yaml> --out <tokens .txt>
+
+The same command wrote navtrain's list (``NAVTRAIN_FILE``), which the v1.0-pool plan trains on instead of
+excluding (``token_sets.py``).
 """
 
 from __future__ import annotations
@@ -49,8 +52,27 @@ WARMUP_SOURCE = {  # V: the file on Anvil and its local copy, 2026-11-08
     "tokens": 563,
     "log_names": 62,
 }
+# NAVSIM's navtrain, the token list of the v1-nt training set (``token_sets.listed_train_rows``) [proposed 2026-11-09].
+# A training filter, not an exclusion: it is recorded here because the plan records every list's source the same way.
+NAVTRAIN_FILE = "navsim_navtrain_tokens.txt"
+NAVTRAIN_SHA256 = "5614a8a32a7030bda7cc71696e085f59116df442ba6c0b2604bb0649fea7f083"  # 103,288 tokens (V, 2026-11-09)
+NAVTRAIN_SOURCE = {  # V: copies of both Anvil devkits' files, 2026-11-09; both give this list byte for byte
+    "filter": "navtrain",
+    "repo": "https://github.com/autonomousvision/navsim.git",
+    "path": "navsim/planning/script/config/common/train_test_split/scene_filter/navtrain.yaml",
+    "devkits": [
+        {"devkit": "NAVSIM main (Anvil checkout /home/x-vchia/navsim)",
+         "commit": "0a380a9063d7162ec93d0f51e9990ebac585f720",
+         "sha256": "5f3c406a06c961e75d69d33bc127acd5704a3a440a7186bfa2212493ecf9fc01"},
+        {"devkit": "NAVSIM v1.1 (Anvil checkout /home/x-vchia/navsim-v1.1)",
+         "commit": "3e8291bfa89ff247231e0227778840cd0a036896",
+         "sha256": "c37fea567a0cfdbc29076cca893d4f5dd32db59baec18ae214527206d6b64e6f"},
+    ],
+    "tokens": 103_288,
+    "log_names": 1_192,  # 978 nuPlan train and 214 val logs
+}
 # Token lists whose source is known, by the list file's SHA-256 (the plan records the source in its manifest).
-KNOWN_LISTS: Dict[str, Dict[str, Any]] = {WARMUP_SHA256: WARMUP_SOURCE}
+KNOWN_LISTS: Dict[str, Dict[str, Any]] = {WARMUP_SHA256: WARMUP_SOURCE, NAVTRAIN_SHA256: NAVTRAIN_SOURCE}
 
 
 def read_tokens(path: str) -> List[str]:

@@ -33,12 +33,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from navsim_eval.predictions import load_predictions  # noqa: E402
+# The maneuver labels and speed bands are shared with the training data (navsim_tools/maneuvers.py).
+from navsim_tools.maneuvers import SPEED_EDGES, SPEED_NAMES, TURN_RAD, maneuver, speed_band  # noqa: E402,F401
 
 COMMANDS = ["left", "straight", "right", "unknown"]
 T = 0.5 * np.arange(1, 9)  # the 8 planned poses, 0.5 s apart
-TURN_RAD = 0.35  # heading change over 4 s that counts as a turn (about 20 degrees)
-SPEED_EDGES = [0.5, 4.0, 8.0, 12.0]  # m/s
-SPEED_NAMES = ["stopped (<0.5 m/s)", "slow (0.5-4)", "medium (4-8)", "fast (8-12)", "very fast (>12)"]
 
 
 def load_scores(path: str):
@@ -78,26 +77,6 @@ def read_scenes(tokens: List[str], cache: str) -> Dict[str, np.ndarray]:
     if cache:
         np.savez_compressed(cache, **out)
     return out
-
-
-def maneuver(human: np.ndarray, speed: np.ndarray) -> np.ndarray:
-    """What the human did over the next 4 s, one label per scene (later assignments take priority)."""
-    heading = np.arctan2(np.sin(human[:, -1, 2]), np.cos(human[:, -1, 2]))
-    travelled = np.linalg.norm(human[:, -1, :2], axis=1)
-    end_speed = np.linalg.norm(human[:, -1, :2] - human[:, -2, :2], axis=1) / 0.5
-    lateral = human[:, -1, 1]
-    label = np.full(len(human), "keep going", dtype=object)
-    label[np.abs(lateral) > 2.0] = "sideways shift (>2 m, lane change or curve)"
-    label[(speed >= 2.0) & (end_speed < 0.5)] = "brake to a stop"
-    label[(speed < 0.5) & (travelled >= 1.0)] = "start from a stop"
-    label[(speed < 0.5) & (travelled < 1.0)] = "stay stopped"
-    label[heading > TURN_RAD] = "turn left (>20 deg)"
-    label[heading < -TURN_RAD] = "turn right (>20 deg)"
-    return label
-
-
-def speed_band(speed: np.ndarray) -> np.ndarray:
-    return np.array(SPEED_NAMES, dtype=object)[np.digitize(speed, SPEED_EDGES)]
 
 
 def errors(pred: np.ndarray, human: np.ndarray) -> Dict[str, np.ndarray]:

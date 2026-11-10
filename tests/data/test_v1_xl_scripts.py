@@ -1,5 +1,6 @@
-"""The v1-xl Anvil scripts (PRETRAIN_V1_PLAN.md §10): static safety checks, the bash helpers with stubbed
-``myquota`` / ``squeue``, the CLI contract the sbatch relies on (spec I4), and ``verify_v1_xl.py`` on a tiny build."""
+"""The v1-xl and v1.0-pool Anvil scripts (PRETRAIN_V1_PLAN.md §10, §11): static safety checks, the bash helpers
+with stubbed ``myquota`` / ``squeue``, the CLI contract the sbatch relies on (spec I4), and ``verify_v1_xl.py`` on a
+tiny build (``verify_v1_pool.py`` on a synthetic plan: test_v1_pool_verify.py)."""
 
 import hashlib
 import importlib.util
@@ -8,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import zipfile
 
 import pytest
@@ -17,6 +19,9 @@ HERE = os.path.join(ROOT, "scripts", "anvil", "data_pipeline")
 SH = os.path.join(HERE, "build_v1_xl.sh")
 SBATCH = os.path.join(HERE, "build_v1_xl.sbatch")
 VERIFY = os.path.join(HERE, "verify_v1_xl.py")
+POOL_SH = os.path.join(HERE, "build_v1_pool.sh")
+POOL_SBATCH = os.path.join(HERE, "build_v1_pool.sbatch")
+POOL_VERIFY = os.path.join(HERE, "verify_v1_pool.py")
 SRC = ("/anvil/scratch/x-vchia/navsim_workspace/training_data/v1.0-large/archives_hf/openscene-v1.1/"
        "openscene_sensor_trainval_camera")
 MYQUOTA = """
@@ -62,7 +67,7 @@ def posix(path):
 # --- static checks -------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", [SH, SBATCH])
+@pytest.mark.parametrize("path", [SH, SBATCH, POOL_SH, POOL_SBATCH])
 def test_shell_scripts_are_strict_and_never_delete_or_move(path):
     text = read(path)
     assert "set -euo pipefail" in text
@@ -75,44 +80,80 @@ def test_shell_scripts_are_strict_and_never_delete_or_move(path):
 
 
 @needs_bash
-@pytest.mark.parametrize("path", [SH, SBATCH])
+@pytest.mark.parametrize("path", [SH, SBATCH, POOL_SH, POOL_SBATCH])
 def test_shell_scripts_parse(path):
     subprocess.run([BASH, "-n", posix(path)], check=True)
 
 
-def test_source_dir_is_explicit_and_only_read():
+@pytest.mark.parametrize("path", [SBATCH, POOL_SBATCH])
+def test_source_dir_is_explicit_and_only_read(path):
     assert f"V1XL_SRC={SRC}\n" in read(SH)
-    sbatch = read(SBATCH)
+    sbatch = read(path)
     assert 'SRC="$V1XL_SRC"' in sbatch and not re.search(r'SRC="\$OUT', sbatch)
     assert '--source-dir "$SRC" --storage pack' in sbatch
 
 
-def test_sbatch_takes_account_from_the_command_line_and_stays_cpu_only():
-    directives = [line for line in read(SBATCH).splitlines() if line.startswith("#SBATCH")]
+def test_pool_scripts_reuse_the_v1_xl_helpers_and_constants():
+    text = read(POOL_SH)
+    sourcing = 'source "$(dirname "${BASH_SOURCE[0]}")/build_v1_xl.sh"'
+    assert sourcing in text and "BUILD_TAG=v1-pool" in text
+    assert text.index(sourcing) < text.index('if [[ "${BASH_SOURCE[0]}" != "$0" ]]')  # defined when sourced too
+    for name in ("V1XL_SHA_CANDIDATES", "V1XL_SHA_LOGS", "V1XL_SHA_INDEX_MANIFEST", "V1XL_SHA_ARCHIVES_JSON"):
+        assert f'"${name}"' in text, name
+    assert 'source "$REPO_ROOT/scripts/anvil/data_pipeline/build_v1_pool.sh"' in read(POOL_SBATCH)
+
+
+@pytest.mark.parametrize("path, time, partition", [(SBATCH, "00:30:00", "debug"), (POOL_SBATCH, "04:00:00", "shared")])
+def test_sbatch_takes_account_from_the_command_line_and_stays_cpu_only(path, time, partition):
+    directives = [line for line in read(path).splitlines() if line.startswith("#SBATCH")]
     assert not any(re.search(r"--account|-A\b|--gpus|--gres", d) for d in directives), directives
-    assert "#SBATCH --time=00:30:00" in directives and "#SBATCH --partition=debug" in directives
-    assert "gpu|gpu-debug|ai)" in read(SBATCH)
+    assert f"#SBATCH --time={time}" in directives and f"#SBATCH --partition={partition}" in directives
+    assert "gpu|gpu-debug|ai)" in read(path)
 
 
-def test_sbatch_runs_the_spec_steps_with_guards():
-    text = read(SBATCH)
-    assert "SETS=(v1-xl v1-xl-nd v1-large)" in text and '--sets "${SETS[@]}"' in text
-    assert "VIEWS=(v1-xl v1-xl-nd)" in text and "--storage zip" in text
-    steps = ["fetch", "repro", "crosscheck", "canonical", "qa", '"view $view"', "verify"]
+@pytest.mark.parametrize("path, sets, views, steps", [
+    (SBATCH, "SETS=(v1-xl v1-xl-nd v1-large)", "VIEWS=(v1-xl v1-xl-nd)",
+     ["fetch", "repro", "crosscheck", "canonical", "qa", '"view $view"', "verify"]),
+    (POOL_SBATCH, "SETS=(v1-nt v1-xl-mix v1-nt-mix v1-all)", "VIEWS=(v1-nt v1-xl-mix v1-nt-mix v1-all)",
+     ["fetch", "crosscheck", "canonical", "qa", '"view $view"', "verify"]),
+])
+def test_sbatch_runs_the_spec_steps_with_guards(path, sets, views, steps):
+    text = read(path)
+    assert sets in text and '--sets "${SETS[@]}"' in text
+    assert views in text and "--storage zip" in text
     for step in steps:
         assert f"quota_guard {step}" in text, step
     assert text.count("quota_guard ") >= len(steps)
 
 
-def test_sbatch_runs_one_build_at_a_time():
-    text = read(SBATCH)
-    assert "#SBATCH --dependency=singleton" in text.splitlines()  # Slurm holds a second v1-xl job
-    assert 'exec 9>> "$OUT/.build_v1_xl.lock"' in text and "flock -n 9 ||" in text
+@pytest.mark.parametrize("path, name", [(SBATCH, "v1-xl"), (POOL_SBATCH, "v1-pool")])
+def test_sbatch_runs_one_build_at_a_time(path, name):
+    text = read(path)
+    assert "#SBATCH --dependency=singleton" in text.splitlines()  # Slurm holds a second job of this name
+    assert f"#SBATCH --job-name={name}" in text.splitlines()
+    assert f'exec 9>> "$OUT/.build_{name.replace("-", "_")}.lock"' in text and "flock -n 9 ||" in text
     assert text.index("flock -n 9") < text.index("# --- step 4")  # before the first write
 
 
-def test_verify_never_deletes_or_moves():
-    text = read(VERIFY)
+def test_pool_sbatch_memory_workers_and_time_guards():
+    """--mem=200G and 16 view workers (v1-xl: 64 ran out at 120 GB, 16 peaked at 44 GB, V); guards cover the steps."""
+    text = read(POOL_SBATCH)
+    assert "#SBATCH --mem=200G" in text.splitlines() and 'WORKERS="${WORKERS:-16}"' in text
+    assert 'SHARDS="${SHARDS:-64}"' in text and "#SBATCH --cpus-per-task=64" in text.splitlines()
+    guards = dict((step, int(minutes)) for minutes, step in re.findall(r"need_minutes (\d+) (\w+)", text))
+    assert guards["canonical"] >= 45  # ~43 min for 428,694 frames (D: v1-xl's 20.6 min for 203,727, V)
+    assert guards["fetch"] >= 10 and guards["qa"] >= 5 and guards["verify"] >= 10
+    view_minutes = dict(re.findall(r"(v1-[\w-]+)\) echo (\d+)", text))
+    samples = {"v1-nt": 82_626, "v1-xl-mix": 240_034, "v1-nt-mix": 261_929}  # with dev
+    for view, n in samples.items():  # ~2.0 ms per sample at 16 workers (v1-xl: 6.6 min for 202,000, V)
+        assert int(view_minutes[view]) >= 1.5 * n * 0.002 / 60, view
+    assert re.search(r"\*\) echo (\d+)", text) and int(re.search(r"\*\) echo (\d+)", text).group(1)) >= 1.5 * 428_694 * 0.002 / 60
+    assert 'need_minutes "$(view_minutes "$view")" "view $view"' in text
+
+
+@pytest.mark.parametrize("path", [VERIFY, POOL_VERIFY])
+def test_verify_never_deletes_or_moves(path):
+    text = read(path)
     assert not re.search(r"os\.(remove|unlink|rmdir|rename|removedirs)|shutil\.(rmtree|move)", text)
     assert all(".part" in line for line in text.splitlines() if "os.replace" in line)
 
@@ -165,6 +206,69 @@ def test_need_minutes_stops_cleanly_for_the_next_submission():
     assert "RAN" in result.stdout
 
 
+@needs_bash
+def test_pool_helpers_are_v1_xl_s_with_the_pool_tag():
+    body = (f'source "{posix(POOL_SH)}"\n' + quota_stub("919.4K")
+            + 'echo "SRC=$V1XL_SRC"\nquota_guard fetch\nsqueue() { echo "9:00"; }\nneed_minutes 50 canonical; echo RAN\n')
+    result = subprocess.run([BASH, "-c", body], capture_output=True, text=True, env={**os.environ, "SLURM_JOB_ID": "1"})
+    assert f"SRC={SRC}" in result.stdout, result.stderr
+    assert "[v1-pool] quota guard (fetch): 80600 files free" in result.stdout
+    assert "[v1-pool] RESUBMIT: canonical needs ~50 min" in result.stdout and "RAN" not in result.stdout
+    assert "[v1-xl] quota guard" in run_helper(quota_stub("919.4K") + "quota_guard fetch").stdout  # v1-xl's unchanged
+
+
+def pool_gate():
+    """The pool sbatch's gate on setup's checks (``setup_passed`` and the loop over them), as a bash snippet."""
+    text = read(POOL_SBATCH)
+    start = text.index("setup_passed() {")
+    return text[start:text.index("\ndone\n", start) + len("\ndone\n")]
+
+
+def test_pool_sbatch_starts_only_after_setup_s_checks_passed():
+    text = read(POOL_SBATCH)
+    assert "for check in splits rules leakage; do" in pool_gate()  # every check setup runs
+    assert text.index("setup_passed \"$check\" ||") < text.index("flock -n 9") < text.index("# --- step 4")
+    sh = read(POOL_SH)  # what setup runs, and writes to <out>/verify/<check>.json
+    for check in ("splits", "rules", "leakage"):
+        assert f'python "$VERIFY" {check} --out "$OUT"' in sh, check
+
+
+@needs_bash
+def test_pool_gate_needs_passing_setup_reports_newer_than_the_inputs(tmp_path):
+    out = tmp_path / "out"
+    for folder in ("splits", "index", "verify"):
+        (out / folder).mkdir(parents=True)
+    inputs = [out / "splits" / "manifest.json", out / "index" / "candidates.parquet"]
+    for path in inputs:
+        path.write_text("{}")
+        os.utime(path, (1_900_000_000, 1_900_000_000))
+
+    def report(check, ok):
+        path = out / "verify" / f"{check}.json"
+        path.write_text(json.dumps({"command": check, "ok": ok}))
+        os.utime(path, (2_000_000_000, 2_000_000_000))
+
+    def run():
+        script = (f'set -euo pipefail\npython() {{ "{posix(sys.executable)}" "$@"; }}\nOUT="{posix(str(out))}"\n'
+                  f"{pool_gate()}echo PASSED\n")
+        return subprocess.run([BASH, "-c", script], capture_output=True, text=True)
+
+    report("splits", True)
+    report("rules", True)
+    result = run()  # setup stopped before its leakage check
+    assert result.returncode == 1 and "PASSED" not in result.stdout
+    assert "'verify leakage' has not passed" in result.stderr, result.stderr
+    report("leakage", False)  # setup's leakage check failed
+    result = run()
+    assert result.returncode == 1 and "'verify leakage' has not passed" in result.stderr
+    report("leakage", True)
+    result = run()
+    assert result.returncode == 0 and "PASSED" in result.stdout, result.stderr
+    os.utime(inputs[1], (2_100_000_000, 2_100_000_000))  # an input changed after setup's checks
+    result = run()
+    assert result.returncode == 1 and "'verify splits' has not passed" in result.stderr
+
+
 # --- the CLI the sbatch calls (spec I4) ----------------------------------------------------------
 
 
@@ -207,6 +311,17 @@ def test_pipeline_clis_take_the_sbatch_arguments(monkeypatch):
     assert seen["views"] == ["v1-xl", "v1-xl-nd"]
     assert all("zip" in args or kwargs.get("storage") == "zip" for args, kwargs in seen["view_args"])
     assert all(64 in args or kwargs.get("workers") == 64 for args, kwargs in seen["view_args"])
+    # the v1.0-pool job: its four sets, 16 view workers
+    pool_sets = ["v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all"]
+    with pytest.raises(SystemExit):
+        canonical.main(["--out", "o", "--sets", *pool_sets, "--metadata", "m.tgz"])
+    assert seen["canonical"] == pool_sets
+    qa_report.main(["--out", "o", "--set", "v1-all"])
+    seen["views"], seen["view_args"] = [], []
+    for name in pool_sets:
+        pilot_view.main(["build", "--out", "o", "--set", name, "--storage", "zip", "--workers", "16"])
+    assert seen["views"] == pool_sets
+    assert all(16 in args or kwargs.get("workers") == 16 for args, kwargs in seen["view_args"])
 
 
 # --- verify_v1_xl.py on a tiny build -------------------------------------------------------------

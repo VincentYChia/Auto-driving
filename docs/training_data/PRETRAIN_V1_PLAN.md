@@ -309,7 +309,9 @@ Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs wi
 | v1-xl selection: superset of fixed rows; v1-xl-nd filter and label-conflict list | `selection.py` (`XL`, `select(..., fixed=)`), `data_pipeline/v1/novelty.py`, `openscene_images.py plan --extends` | **Written 2026-11-08** [proposed]. `fixed=None` keeps every earlier selection byte-identical |
 | Warm-up exclusion: no train anchor within ±7 s of a NAVSIM v1.1 `warmup_test_e2e` scene | `data_pipeline/v1/scene_exclusion.py`, `select(..., train_excluded=)`, `openscene_images.py plan --exclude-scenes --exclude-window-s --exclude-metadata` | **Written 2026-11-09** [proposed], §10. `train_excluded=None` changes nothing |
 | Packed images: originals and views | `openscene_images.py fetch --storage pack`, `data_pipeline/v1/image_store.py`; `pilot_view.py build --storage zip`, `pilot_sft/view_images.py` | **Written 2026-11-08** [proposed format]. Default `loose` keeps today's layout; readers take the loose file first |
-| Anvil build and checks of v1-xl | `scripts/anvil/data_pipeline/build_v1_xl.{sh,sbatch}`, `verify_v1_xl.py` | **Written 2026-11-08**; not yet run on Anvil (§10) |
+| Anvil build and checks of v1-xl | `scripts/anvil/data_pipeline/build_v1_xl.{sh,sbatch}`, `verify_v1_xl.py` | **Written 2026-11-08**; built and verified on Anvil 2026-11-09 (§10) |
+| v1.0-pool sets: a token list by rules (v1-nt), the 0.5 s pool (v1-all), the city × maneuver mix (v1-xl-mix) | `data_pipeline/v1/token_sets.py`, `openscene_images.py plan --set v1-all --navtrain`; maneuver labels in `navsim_tools/maneuvers.py` (shared with `navsim_eval/failure_analysis.py`) | **Written 2026-11-09** [proposed], §11. Plan committed; the real-index test reproduces it byte for byte |
+| Anvil build and checks of v1.0-pool | `scripts/anvil/data_pipeline/build_v1_pool.{sh,sbatch}`, `verify_v1_pool.py` (`verify_v1_xl.py`'s checks through a `Build`) | **Written 2026-11-09**; not yet run on Anvil (§11) |
 | Tests | `tests/data/test_v1_index.py`, `tests/data/test_v1_select_audit.py`, `test_v1_images.py`, `test_v1_canonical.py` | Pass on Python 3.9 + numpy 1.23.4 (NAVSIM's pins) + pyarrow 16, and on Python 3.13 + numpy 2 |
 
 **Facts checked while writing the code (V):**
@@ -347,7 +349,7 @@ Following the repo rules (`CLAUDE.md`, `README.md`), nothing runs on all logs wi
 2. **Balance:** cap "keep speed + straight" at 40%; thin standstills to 1 anchor per 5 s; space anchors ≥ 2 s apart. **Changed for v1-xl [agreed 2026-11-08]:** train anchors ≥ 1.0 s apart; dev unchanged (§10).
 3. **Wide window:** store −4 … +6 s per anchor, although the pilot uses −1.5 … +4.0.
 4. **Privileged table:** keep boxes and lights for later teacher labels.
-5. **Sizes:** smoke set 10k, then 50k. **Changed at Gate 0 [agreed 2026-10-31]:** v1-pilot 45k + 2k dev (~10 GB), from all 200 archives. **Changed [agreed 2026-11-08]:** v1-large 100k and v1-xl 200k train, each with v1-pilot's 2k dev (§10).
+5. **Sizes:** smoke set 10k, then 50k. **Changed at Gate 0 [agreed 2026-10-31]:** v1-pilot 45k + 2k dev (~10 GB), from all 200 archives. **Changed [agreed 2026-11-08]:** v1-large 100k and v1-xl 200k train, each with v1-pilot's 2k dev (§10). **Changed [agreed 2026-11-09]:** collect lots of data, navtrain's included; proposed: the v1.0-pool build, the whole 0.5 s pool (426,694 train) with four views (§11).
 6. **Storage [agreed 2026-10-27]:** local, inside the repo (`data/pretrain/`). No persistent storage for now (§5). **Changed [agreed 2026-11-08]:** v1-large and v1-xl on Anvil scratch; v1-xl's images packed (§10).
 7. **Compute [agreed 2026-10-29]:** the data build runs on your own computer. Fine-tuning compute is still open: a cloud GPU or Anvil (§6). **Changed [agreed 2026-11-08]:** the v1-large and v1-xl builds run on Anvil (§10).
 
@@ -477,3 +479,95 @@ sbatch -A cis220051 -p debug --gpus-per-node=0 scripts/anvil/data_pipeline/build
    - Scene-level with ±7 s, as now, or whole warm-up logs? Whole logs would take the 52 indexed warm-up logs out of train; 43 of them are nuPlan train logs (V).
    - Retrain the runs on v1-pilot and v1-large, whose train sets contain warm-up tokens, or keep them and flag them?
    - Should NAVSIM v1.1's filters go into the index guard? `navsim_splits.py` reads NAVSIM main today. Rebuilding the index with the v1.1 devkit would guard all 62 warm-up logs as a whole, which is the log-level choice.
+
+## 11. v1.0-pool: the whole 0.5 s pool, extracted once, and four views of it
+Evidence marks: **V** measured, **R** reported and not re-checked, **D** derived.
+
+**The decision [agreed 2026-11-09].** The researcher: "I like the navtrain data. I mean any extra data will always boost performance. So we should aim to collect lots of data." With 2026-11-08's "curate for quality and variety, no overly repetitive data" [agreed]. Everything below (the four sets, their rules, the build) is [proposed].
+
+**What is built [proposed].** One new folder, `$TRAINING_DATA_ROOT/v1.0-pool`; its plan files are committed in `data/pretrain/v1.0-pool/splits/`. It extracts the whole 0.5 s train pool once, in a fresh pack folder (v1-xl's packs are not reused): v1-all's 426,694 train rows and v1-xl's pinned 2,000 dev rows, 428,694 frames. Every later choice from the pool is then a view rebuild, with no re-streaming. All four sets have the pinned dev (SHA-256 79090629…, byte for byte).
+
+| Set (V, 2026-11-09) | Train rows | Logs | Train SHA-256 | Rule |
+|---|---|---|---|---|
+| v1-nt | 80,626 | 975 | ecd1b538… | navtrain, minus dev logs, minus the ±7 s warm-up window |
+| v1-xl-mix | 238,034 | 1,084 | 05a88a8c… | v1-xl-nd plus pool rows by city and maneuver (option A), stay-stopped thinned to 1% |
+| v1-nt-mix | 259,929 | 1,084 | 00ed5a88… | v1-nt ∪ v1-xl-mix (58,731 rows in both) |
+| v1-all | 426,694 | 1,085 | 92081c07… | the pool ∪ v1-nt; v1-nt adds nothing, so it is the pool |
+
+A plan and an independent recount (own scripts, the index, both Anvil devkits' YAMLs, a full metadata scan) agree on every count and hash above (V). `tests/data/test_v1_pool_plan.py` re-plans on the real index and checks them byte for byte.
+
+`splits/v1-all_label_conflicts.tsv` (report only, as v1-xl's) lists the 108 rows that fail a hard-bad label test (`novelty.label_conflicts`: 107 train, 1 dev; v1-xl-mix 94 + 1, v1-nt-mix 95 + 1, v1-nt 31 + 1, V). The sets are not nested (v1-nt and v1-xl-mix overlap and neither holds the other), so its `set` column names every set that holds the row, then the split: e.g. `v1-all,v1-nt-mix,v1-xl-mix,v1-nt/train` (30 rows) or `v1-all,v1-nt-mix,v1-nt/train` (1 row, not in v1-xl-mix).
+
+**The rules** (`data_pipeline/v1/token_sets.py`; plan: `openscene_images.py plan --set v1-all`):
+- **The pool:** eligible TRAIN anchors (rules 2, 3, 5), standstill-thinned (rule 6, one per 5 s, before the window, as in v1-xl), outside ±7 s of every warm-up scene (§10), at the index's 0.5 s spacing; rules 7 and 8 are not applied. 604,071 → 435,274 → 426,694 (V).
+- **v1-nt:** the committed list `splits/navsim_navtrain_tokens.txt` (103,288 tokens, SHA-256 5614a8a3…; NAVSIM main 0a380a9 and v1.1 3e8291bf give it byte for byte, V; its source is recorded in `scene_exclusion.KNOWN_LISTS`, and the plan refuses an unknown list). Each excluded token's reason is the first rule it fails, in this order:
+
+  | Rule (in order) | Rows left | Excluded here |
+  |---|---|---|
+  | a row of the index (rule 1) | 102,373 | 915 |
+  | in a TRAIN log | 84,325 | 18,048 dev-log rows: 18,010 in 210 of the pinned dev's 221 logs, 38 in 3 other val logs; 0 guarded |
+  | eligible | 84,325 | 0 |
+  | outside the warm-up window | **80,626** | 3,699: 361 are warm-up tokens, 2 are caught only through the 6 frames placed from the metadata |
+
+  800 tokens fail two rules (a dev log and the window); they count once, under "TRAIN log" (V). The 915 are frames of 123 indexed logs with a dropped frame in the window: 671 in the future part only, 235 in the history only, 9 in both; 913 have a 1.0 s gap, 2 only a 1.5 s gap (V). 475 of the pinned dev's tokens are navtrain tokens; dev is unchanged (V).
+- **v1-xl-mix** (option A of the 2026-11-09 proposal, with "not already in v1-xl-nd"): v1-xl-nd's 176,352 rows, plus (a) pool rows outside Las Vegas that are not stay-stopped (+54,231), plus (b) Las Vegas turns, sideways shifts and brakes (+28,957): 259,540 (V). Stay-stopped (23,886 rows, all from v1-xl-nd) is then thinned to 1% of the set: round(235,654 / 99) = 2,380 kept.
+  - The draw is pinned in `token_sets.XL_MIX` (`DRAW`): `numpy.random.default_rng([20261027, 31]).choice` over the stay-stopped rows in index-row order, `round` not floor. Other orders or methods give other files (recount, V). The plan records numpy's version; verify re-draws it.
+  - One v1-xl-nd log (11 rows, all stay-stopped) drops out, so 1,084 logs. v1-xl-mix is not a superset of v1-xl-nd: it leaves out 21,506 of its stay-stopped rows.
+  - The proposal's "~238k" was pool_mix.py's rule (minus v1-xl, a window without the 6 metadata frames): 237,777. The rule above adds 255 rows that v1-xl-nd had dropped as Las Vegas near-duplicates, and 2 stay-stopped rows (V).
+- **Maneuver labels:** `navsim_tools/maneuvers.py`, on the index path at +0.5 … +4 s and the speed: turn (heading change > 0.35 rad) > stay stopped / start from a stop > brake to a stop > sideways shift (> 2 m) > keep going. The functions moved there from `navsim_eval/failure_analysis.py`, which imports them back, so its outputs are unchanged (no cross-imports between the workstreams).
+
+**The mix, in % of train (V):**
+
+| | navtest | v1-xl-nd | v1-nt | v1-xl-mix | v1-nt-mix | v1-all |
+|---|---|---|---|---|---|---|
+| Las Vegas | 33.5 | 72.3 | 73.6 | 58.3 | 61.8 | 75.5 |
+| Boston / Pittsburgh / Singapore | 30.7 / 20.1 / 15.8 | 13.0 / 10.8 / 3.9 | 11.1 / 9.3 / 5.9 | 19.5 / 16.2 / 6.0 | 17.9 / 14.8 / 5.5 | 11.5 / 9.5 / 3.5 |
+| turn left / right | 16.2 / 9.7 | 8.1 / 4.2 | 18.9 / 7.8 | 13.4 / 6.9 | 12.2 / 6.3 | 7.5 / 3.9 |
+| sideways shift | 13.2 | 4.2 | 8.2 | 7.0 | 6.4 | 3.9 |
+| brake to a stop | 6.7 | 3.4 | 6.8 | 5.7 | 5.3 | 3.2 |
+| start from a stop | 5.5 | 6.0 | 7.3 | 5.8 | 6.4 | 6.0 |
+| stay stopped | 0.07 | 13.5 | 0.09 | 1.00 | 0.94 | 7.7 |
+| keep going | 48.6 | 60.6 | 50.9 | 60.2 | 62.4 | 67.8 |
+| command unknown | 0.0 | 12.7 | 0.0 | 13.6 | 12.5 | 12.1 |
+| another row of the set ≤ 0.5 s away | – | 0 | 97.2 | 65.4 | 75.2 | 96.0 |
+| near-duplicate within 1 s (`novelty.near_duplicate`) | – | 7.6 | 21.2 | 24.5 | 27.0 | 54.6 |
+
+navtest's column is the committed failure analysis (12,146 scenes). The density rows are the plan's (V).
+
+**Leakage (V, `verify_v1_pool.py` on the local plan, against copies of both Anvil devkits).** All four train sets: 0 dev tokens, 0 pinned-dev logs, 0 nuPlan val or test logs, 0 warm-up tokens, 0 rows within ±7 s of a warm-up scene (the 6 metadata frames included), and 0 tokens and logs in every guarded list except the warm-up filter (main: 1,349 logs and 12,539 tokens; v1.1 without warm-up: 1,349 and 14,146).
+- **Caveat:** the warm-up filter is held to the scene-level rule (`SCENE_LEVEL_FILTERS` in `verify_v1_xl.py`), which is still [proposed] (open question 7 of §10). Guarded by whole log, as `navsim_splits.load` does with the v1.1 devkit, the sets would hit 41, 43, 43 and 43 warm-up logs, with 1,377, 7,851, 8,272 and 16,444 train rows (v1-nt, v1-xl-mix, v1-nt-mix, v1-all; V). verify reports these and does not fail them. v1-nt is the most exposed, since navtrain holds 446 warm-up tokens.
+
+**The build [proposed mechanics], cloned from v1-xl's:**
+- `build_v1_pool.sh setup` (login node) copies `index/` and `images/archives.json` from v1.0-large and `splits/` from the repo, SHA-checked, then runs `verify_v1_pool.py` `splits`, `rules` and `leakage` (both devkits: `NAVSIM_DEVKIT_ROOT` and `NAVSIM_MAIN_ROOT`, default `~/navsim`). The sbatch starts only when all three reports (`$OUT/verify/{splits,rules,leakage}.json`) say `"ok": true` and are newer than every file in `splits/` and `index/`, since setup copies those files before it checks them.
+- `build_v1_pool.sbatch`: `sbatch -A cis220051 -p shared --gpus-per-node=0 scripts/anvil/data_pipeline/build_v1_pool.sbatch`, repeated until verify prints `done`. It runs fetch (64 shards), a cross-check of the 202,000 frames v1.0-xl also packed against its records, canonical for the four sets, the QA summary of v1-all, the four zip views (`WORKERS=16`), the links `$TRAINING_DATA_ROOT/pilot_v1/{v1-nt,v1-xl-mix,v1-nt-mix,v1-all}` and `verify_v1_pool.py all`.
+- **Safety, as v1-xl:** job name `v1-pool` with `--dependency=singleton`, a `flock` on `$OUT/.build_v1_pool.lock`, a quota guard before every step, archives read in place from `V1XL_SRC` and never deleted or moved. Never run `build_v1_large.sbatch`. v1.0-large and v1.0-xl are only read.
+- **Time (D, from v1-xl's measured build):** fetch ~5–10 min, canonical ~43 min (20.6 min for 203,727 frames, V), QA ~2 min, the four views ~33 min (6.6 min for 202,000 samples at 16 workers, V), verify ~6 min. About 1.5 h, so one 4 h `shared` slot. The `need_minutes` guards are these times plus a margin: canonical 50, views 6–24, verify 15. It must finish before the Nov 16 04:00 maintenance of the CPU nodes.
+- **Memory (D): `--mem=200G`.**
+  - Fetch: each of the 64 shards holds its frame map (~0.65 GB, V locally) and its current archive's frames. The largest archive holds 7,447 frames (~1.5 GB, V: the plan); at most 207,387 frames are held at once (42.7 GB), so ~85 GB in all.
+  - Canonical holds every frame's privileged data and its columns: ~167 KB per frame (V: 30,000 real frames, locally), so ~75 GB for 428,694 frames.
+  - Views: v1-xl's build peaked at 41.6 GiB with 16 view workers (V), and 64 workers ran out at 120 GB (V). Twice the samples gives ~90 GB.
+- **Size (D):** packs ~88 GB (205.7 KB per frame, V for v1-xl), the four views ~52 GB (51.0 KB per sample), ~0.5K files. Scratch held 920.3K of its 1.0M files on 2026-11-09 (V).
+- **Verify:** `verify_v1_pool.py` reuses `verify_v1_xl.py`'s checks through a `Build` object and adds the checks below. v1-xl's CLI and tests are unchanged, and so are its checks except in `leakage` against a devkit: the guarded-list check now names the scene-level exemption, and an information check reports the train rows in warm-up logs (v1-xl 7,899 and v1-xl-nd 6,641, in 43 logs). What passes is unchanged; v1-xl's leakage report against the v1.1 devkit goes from 14 to 15 checks, all passing (V, 2026-11-09, locally).
+  - `rules`: the four sets recomputed from the index, the lists and the metadata, as described above. Every excluded navtrain token has exactly one reason. v1-xl-mix holds every row its rule adds and nothing else, its stay-stopped rows are round(others / 99), all from v1-xl-nd, and the pinned draw reproduces them.
+  - the navtrain list of each devkit equals the committed one.
+  - the scene-level warm-up exemption is stated, with the train rows in warm-up logs reported.
+- **Training needs no change:** `SET=v1-nt-mix sbatch scripts/anvil/pilot_sft/train_lora.sbatch`, or any of the four.
+
+**How to run:**
+```bash
+python -m data_pipeline.v1.openscene_images plan --out data/pretrain/v1.0-pool --set v1-all \
+    --extends data/pretrain/v1.0-xl/splits/v1-xl-nd \
+    --navtrain data/pretrain/v1.0-pool/splits/navsim_navtrain_tokens.txt \
+    --exclude-scenes data/pretrain/v1.0-xl/splits/navsim_v1.1_warmup_test_e2e_tokens.txt \
+    --exclude-metadata data/pretrain/downloads/openscene_metadata_trainval.tgz   # locally, ~2 min; commit splits/
+bash scripts/anvil/data_pipeline/build_v1_pool.sh setup     # login node: copies, SHA checks, verify splits/rules/leakage
+sbatch -A cis220051 -p shared --gpus-per-node=0 scripts/anvil/data_pipeline/build_v1_pool.sbatch  # repeat until "done"
+```
+The plan reads `index/candidates.parquet` inside `--out` (locally a link to v1.0-large's, git-ignored) and the archive map (Hugging Face by default; local copies with `--map` / `--tree`).
+
+**Open questions for the researcher [open]:**
+1. **Warm-up, scene-level or whole logs** (§10, question 7)? Whole logs would take 1,377 / 7,851 / 8,272 / 16,444 train rows out of the four sets.
+2. **Navtrain's dev-log rows.** 18,048 navtrain rows (17.5%) sit in nuPlan val logs, which our rules make dev logs; only 38 are outside the pinned dev's logs. They are mostly outside Las Vegas (Singapore 6,616, V). A NAVSIM-faithful navtrain set would need a new dev.
+3. **Density.** 97.2% of v1-nt's rows and 96.0% of v1-all's have another row 0.5 s away (V). `novelty.nested_filter` over every city would keep 71,946 of v1-nt's 80,626 (V). Should a view thin them, given "no overly repetitive data"?
+4. **v1-xl-mix and v1-xl-nd.** v1-xl-mix drops 21,506 of v1-xl-nd's stay-stopped rows. "Pool minus v1-xl" (237,777) would also keep v1-xl-nd's near-duplicate filter.
+5. **Navtrain scenes with a dropped frame.** NAVSIM windows by frame count, so for 680 of the 915 its 4 s pose lies at 4.5 s (660) or 5.0 s (20) (V, recount). They stay out by rule 1.

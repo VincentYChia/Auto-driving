@@ -69,7 +69,7 @@ PROMPT = (
 COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "path_xyyaw", "path_valid",
            "speed", "accel_lon", "command")
 PAIR = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
-SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd")
+SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd", "v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all")
 STORAGE = ("loose", "zip")
 ZIP_NAME = "images.zip"  # pilot_sft/view_images.ZIP_NAME
 ZIP_CHUNK = 4096  # resized images held in memory at once by a zip build (about 40 kB each at 640 px, D)

@@ -27,7 +27,8 @@ What is checked:
   v1-xl is inside the window; dev's warm-up tokens (3) and v1-large's (57) are reported, not failed (dev is
   evaluation only and pinned; v1-large is an earlier set, kept as committed). With ``--navsim-root``, also
   against NAVSIM's own lists: ``warmup_test_e2e`` (NAVSIM v1.1) is held to the same scene-level rule (train
-  clean, dev hits reported, its logs not guarded as a whole) and must equal the committed list; every other
+  clean, dev hits reported, its logs not guarded as a whole: an information check reports the train rows in
+  them) and must equal the committed list; every other
   guarded list (nuPlan test logs, navtest, navhard, private_test_e2e, competition_private_tokens, …) must have
   0 tokens and 0 logs in train and dev of all three sets.
 * ``fetched``: a clean record for each of the first ``--archives`` archives of the plan (no missing or
@@ -45,6 +46,9 @@ What is checked:
 Each command writes ``<out>/verify/<command>.json`` and exits 0 when every check passes, 1 when one fails, and
 2 when the step's output is not there yet (``fetched``, ``canonical``: the job then runs that step).
 It only reads the build; it deletes, moves and rewrites nothing.
+
+What a build holds and expects is a ``Build`` (``XL`` here); every check takes one, so ``verify_v1_pool.py``
+(the v1.0-pool build, PRETRAIN_V1_PLAN.md §11) reuses them with its own.
 """
 
 from __future__ import annotations
@@ -57,7 +61,7 @@ import os
 import random
 import sys
 import zipfile
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, Iterable, List, NamedTuple, Optional, Sequence, Set, Tuple, Union
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if REPO_ROOT not in sys.path:
@@ -91,6 +95,41 @@ VIEW = "pilot_v1"
 NOT_YET = 2  # exit code: the step's output is not there yet
 
 Check = Dict[str, Any]
+Splits = Dict[str, Set[str]]  # set name -> its tokens of one split
+
+
+class Build(NamedTuple):
+    """What one build folder holds and what its checks expect.
+
+    ``ref`` is the earlier build it is checked against: ``ref_sets``' frames it also packed must carry the same
+    SHA-256 and archive (``crosscheck``; ``shared_frames`` of them in a full build), ``copied_set``'s token files
+    are byte copies of ``ref``'s, and ``ref_view``'s dev.jsonl and dev images must equal each view's.
+    ``relations(out_dir, train, dev, manifest)`` adds the build's own split checks (nesting, base, lists).
+    ``left_out`` = (earlier set, set): every train row of the earlier set that the set leaves out is inside the
+    warm-up window. ``reported`` sets are earlier sets whose warm-up hits are reported, not failed.
+    """
+
+    name: str
+    sets: Tuple[str, ...]
+    views: Tuple[str, ...]
+    trained: Tuple[str, ...]
+    expected: Dict[str, Dict[str, Any]]
+    frames_to_keep: int
+    conflicts_file: str
+    ref: str
+    ref_sets: Tuple[str, ...]
+    ref_view: str
+    copied_set: str
+    shared_frames: int
+    shared_check: str
+    relations: Callable[[str, Splits, Splits, Dict[str, Any]], List[Check]]
+    left_out: Optional[Tuple[str, str]] = None
+    reported: Tuple[str, ...] = ()
+    warmup_note: str = "dev is evaluation only and pinned"
+
+
+def _words(n: int) -> str:
+    return {2: "two", 3: "three", 4: "four"}.get(n, str(n))
 
 
 # --- helpers -------------------------------------------------------------------------------------
@@ -190,6 +229,34 @@ def token_of(item: Dict[str, Any]) -> str:
     return str(item["id"]).rsplit("/", 1)[-1]
 
 
+# --- the v1-xl build -----------------------------------------------------------------------------
+
+
+def _xl_relations(out_dir: str, train: Splits, dev: Splits, m: Dict[str, Any]) -> List[Check]:
+    """v1-xl's own split checks: (v1-large minus the warm-up window) ⊂ v1-xl-nd ⊂ v1-xl, ``BASE_DROPPED`` left out."""
+    exclusion = m.get("scene_exclusion") if isinstance(m.get("scene_exclusion"), dict) else {}
+    kept_large = train["v1-large"] & train["v1-xl"]
+    out = [_check(kept_large <= train["v1-xl-nd"] <= train["v1-xl"],
+                  "train: (v1-large minus the warm-up window) ⊂ v1-xl-nd ⊂ v1-xl",
+                  {"v1-large in v1-xl, not in v1-xl-nd": len(kept_large - train["v1-xl-nd"]),
+                   "v1-xl-nd not in v1-xl": len(train["v1-xl-nd"] - train["v1-xl"])})]
+    left_out = len(train["v1-large"] - train["v1-xl"])
+    out.append(_check(left_out == BASE_DROPPED == exclusion.get("base_train_dropped"),
+                      f"{BASE_DROPPED:,} v1-large train rows are left out of v1-xl (= manifest scene_exclusion), "
+                      "the same in v1-xl-nd", {"left_out": left_out, "manifest": exclusion.get("base_train_dropped"),
+                                               "left_out_of_nd": len(train["v1-large"] - train["v1-xl-nd"])}))
+    out.append(_check(train["v1-large"] - train["v1-xl"] == train["v1-large"] - train["v1-xl-nd"],
+                      "v1-xl-nd leaves out the same v1-large rows as v1-xl"))
+    return out
+
+
+XL = Build(name="v1-xl", sets=SETS, views=VIEWS, trained=TRAINED, expected=EXPECTED, frames_to_keep=FRAMES_TO_KEEP,
+           conflicts_file="v1-xl_label_conflicts.tsv", ref="v1.0-large", ref_sets=("v1-large",), ref_view="v1-large",
+           copied_set="v1-large", shared_frames=LARGE_FRAMES, shared_check="all {n:,} v1-large frames are packed",
+           relations=_xl_relations, left_out=("v1-large", "v1-xl"), reported=("v1-large",),
+           warmup_note="dev is evaluation only and pinned; v1-large is an earlier set kept as committed")
+
+
 # --- splits and leakage --------------------------------------------------------------------------
 
 
@@ -234,10 +301,11 @@ def check_warmup_list(out_dir: str, exclusion: Dict[str, Any]) -> List[Check]:
     ]
 
 
-def check_splits(out_dir: str, large_dir: Optional[str]) -> List[Check]:
+def check_splits(out_dir: str, large_dir: Optional[str], build: Build = XL) -> List[Check]:
+    """``large_dir``: the reference build's folder (``build.ref``), whose ``build.copied_set`` files ours copy."""
     out: List[Check] = []
     tokens: Dict[Tuple[str, str], List[str]] = {}
-    for name in SETS:
+    for name in build.sets:
         for split in SPLITS:
             path = token_file(out_dir, name, split)
             if not os.path.exists(path):
@@ -249,51 +317,44 @@ def check_splits(out_dir: str, large_dir: Optional[str]) -> List[Check]:
             tokens[(name, split)] = lines
             out.append(_check(b"\r" not in data and data.endswith(b"\n") and lines == sorted(set(lines)),
                               f"{name} {split}: sorted, unique, LF, trailing newline"))
-            want = EXPECTED[name][split]
+            want = build.expected[name][split]
             out.append(_check(len(lines) == want, f"{name} {split}: {want:,} tokens", len(lines)))
             sha = hashlib.sha256(data).hexdigest()
-            want_sha = DEV_SHA256 if split == "dev" else EXPECTED[name]["train_sha256"]
+            want_sha = DEV_SHA256 if split == "dev" else build.expected[name]["train_sha256"]
             out.append(_check(sha == want_sha, f"{name} {split}: SHA-256 {want_sha[:8]}… (spec §3)", sha))
-    if len(tokens) < 2 * len(SETS):
+    if len(tokens) < 2 * len(build.sets):
         return out
-    train = {name: set(tokens[(name, "train")]) for name in SETS}
-    dev = {name: set(tokens[(name, "dev")]) for name in SETS}
-    kept_large = train["v1-large"] & train["v1-xl"]
-    out.append(_check(kept_large <= train["v1-xl-nd"] <= train["v1-xl"],
-                      "train: (v1-large minus the warm-up window) ⊂ v1-xl-nd ⊂ v1-xl",
-                      {"v1-large in v1-xl, not in v1-xl-nd": len(kept_large - train["v1-xl-nd"]),
-                       "v1-xl-nd not in v1-xl": len(train["v1-xl-nd"] - train["v1-xl"])}))
+    train = {name: set(tokens[(name, "train")]) for name in build.sets}
+    dev = {name: set(tokens[(name, "dev")]) for name in build.sets}
     m = manifest(out_dir)
     exclusion = m.get("scene_exclusion") if isinstance(m.get("scene_exclusion"), dict) else {}
-    left_out = len(train["v1-large"] - train["v1-xl"])
-    out.append(_check(left_out == BASE_DROPPED == exclusion.get("base_train_dropped"),
-                      f"{BASE_DROPPED:,} v1-large train rows are left out of v1-xl (= manifest scene_exclusion), "
-                      "the same in v1-xl-nd", {"left_out": left_out, "manifest": exclusion.get("base_train_dropped"),
-                                               "left_out_of_nd": len(train["v1-large"] - train["v1-xl-nd"])}))
-    out.append(_check(train["v1-large"] - train["v1-xl"] == train["v1-large"] - train["v1-xl-nd"],
-                      "v1-xl-nd leaves out the same v1-large rows as v1-xl"))
-    out.append(_check(dev["v1-xl"] == dev["v1-xl-nd"] == dev["v1-large"], "dev is the same 2,000 in all three sets"))
-    out.append(_check(not (train["v1-xl"] & dev["v1-xl"]), "no token is in both train and dev"))
+    out.extend(build.relations(out_dir, train, dev, m))
+    words = _words(len(build.sets))
+    out.append(_check(all(dev[name] == dev[build.sets[0]] for name in build.sets),
+                      f"dev is the same 2,000 in all {words} sets"))
+    out.append(_check(not any(train[name] & dev[name] for name in build.sets), "no token is in both train and dev"))
     union = set().union(*train.values(), *dev.values())
-    out.append(_check(len(union) == FRAMES_TO_KEEP, f"the three sets hold {FRAMES_TO_KEEP:,} frames", len(union)))
+    out.append(_check(len(union) == build.frames_to_keep, f"the {words} sets hold {build.frames_to_keep:,} frames",
+                      len(union)))
 
     if large_dir:
         same = {}
         for split in SPLITS:
-            theirs = token_file(large_dir, "v1-large", split)
-            same[split] = os.path.exists(theirs) and sha256_file(theirs) == sha256_file(token_file(out_dir, "v1-large", split))
-        out.append(_check(all(same.values()), "v1-large token files are byte-identical to v1.0-large's", same))
+            theirs, ours = token_file(large_dir, build.copied_set, split), token_file(out_dir, build.copied_set, split)
+            same[split] = os.path.exists(theirs) and os.path.exists(ours) and sha256_file(theirs) == sha256_file(ours)
+        out.append(_check(all(same.values()), f"{build.copied_set} token files are byte-identical to {build.ref}'s",
+                          same))
 
     out.extend(check_warmup_list(out_dir, exclusion))
-    out.append(_check(set(SETS) <= set(m.get("selections", {})), "manifest selections list v1-xl, v1-xl-nd, v1-large",
-                      sorted(m.get("selections", {}))))
-    out.append(_check(m.get("frames_to_keep") == FRAMES_TO_KEEP, f"manifest frames_to_keep = {FRAMES_TO_KEEP:,}",
-                      m.get("frames_to_keep")))
+    out.append(_check(set(build.sets) <= set(m.get("selections", {})),
+                      f"manifest selections list {', '.join(build.sets)}", sorted(m.get("selections", {}))))
+    out.append(_check(m.get("frames_to_keep") == build.frames_to_keep,
+                      f"manifest frames_to_keep = {build.frames_to_keep:,}", m.get("frames_to_keep")))
     order = m.get("archive_order", [])
     out.append(_check(len(order) == 200 and len(set(order)) == 200, "archive order lists 200 distinct archives",
                       len(order)))
     found, bad = 0, []
-    for name in SETS:
+    for name in build.sets:
         for split, sha in _manifest_shas(m.get("selections", {}).get(name)).items():
             found += 1
             if sha != sha256_file(token_file(out_dir, name, split)):
@@ -306,7 +367,7 @@ def check_splits(out_dir: str, large_dir: Optional[str]) -> List[Check]:
     out.append(_check(found > 0 and not bad, "manifest SHA-256 entries match the token files",
                       {"entries": found, "mismatched": bad}))
 
-    tsv = os.path.join(out_dir, "splits", "v1-xl_label_conflicts.tsv")
+    tsv = os.path.join(out_dir, "splits", build.conflicts_file)
     if os.path.exists(tsv):
         with open(tsv, encoding="utf-8") as f:
             header = f.readline().rstrip("\n").split("\t")
@@ -318,14 +379,14 @@ def check_splits(out_dir: str, large_dir: Optional[str]) -> List[Check]:
                           "label-conflict list: columns token, set, reasons; every token selected (report only)",
                           {"rows": len(rows), "by_set": by_set}))
     else:
-        out.append(_check(False, "label-conflict list splits/v1-xl_label_conflicts.tsv exists"))
+        out.append(_check(False, f"label-conflict list splits/{build.conflicts_file} exists"))
     return out
 
 
-def selected(out_dir: str) -> Dict[str, Dict[str, str]]:
+def selected(out_dir: str, build: Build = XL) -> Dict[str, Dict[str, str]]:
     """Set → token → split."""
     return {name: {t: split for split in SPLITS for t in read_tokens(token_file(out_dir, name, split))}
-            for name in SETS}
+            for name in build.sets}
 
 
 def _nearest_s(times: Dict[str, List[int]], log: str, t_us: int) -> Optional[float]:
@@ -338,7 +399,7 @@ def _nearest_s(times: Dict[str, List[int]], log: str, t_us: int) -> Optional[flo
 
 
 def check_warmup(out_dir: str, sel: Dict[str, Dict[str, str]], cands: Dict[str, Any], row_of: Dict[str, int],
-                 metadata: Optional[str] = None) -> List[Check]:
+                 metadata: Optional[str] = None, build: Build = XL) -> List[Check]:
     """The scene-level warm-up exclusion, from the committed list and the index (module docstring)."""
     path = warmup_path(out_dir)
     if not os.path.exists(path):
@@ -360,7 +421,7 @@ def check_warmup(out_dir: str, sel: Dict[str, Dict[str, str]], cands: Dict[str, 
         # (a frame in a log with no train row cannot be near one). ~1,100 logs, ~1 min locally (V, 2026-11-09).
         from data_pipeline.v1 import scene_exclusion
 
-        logs = {str(cands["log_name"][row_of[t]]) for n in SETS for t, s in sel[n].items()
+        logs = {str(cands["log_name"][row_of[t]]) for n in build.sets for t, s in sel[n].items()
                 if s == "train" and t in row_of}
         logs |= {str(cands["log_name"][row_of[t]]) for t in listed if t in row_of}
         scanned = len(logs)
@@ -381,29 +442,32 @@ def check_warmup(out_dir: str, sel: Dict[str, Dict[str, str]], cands: Dict[str, 
                 out.append(t)
         return out
 
-    split_tokens = {(n, s): [t for t, sp in sel[n].items() if sp == s] for n in SETS for s in SPLITS}
+    split_tokens = {(n, s): [t for t, sp in sel[n].items() if sp == s] for n in build.sets for s in SPLITS}
     exact = {f"{n} {s}": sum(t in listed for t in ts) for (n, s), ts in split_tokens.items()}
     inside = {f"{n} {s}": len(near(ts)) for (n, s), ts in split_tokens.items()}
-    left_out = set(sel["v1-large"]) - set(sel["v1-xl"])
-    left_out_inside = set(near(left_out))
-    unplaced_logs = set() if placed else set(by_metadata.values())  # windows this run cannot place
-    unchecked = {t for t in left_out - left_out_inside if str(cands["log_name"][row_of[t]]) in unplaced_logs}
-    trained = {n: inside[f"{n} train"] for n in TRAINED}
+    trained = {n: inside[f"{n} train"] for n in build.trained}
+    names = " / ".join(build.trained)
     out = [
-        _check(all(exact[f"{n} train"] == 0 for n in TRAINED),
-               f"no v1-xl / v1-xl-nd train token is a {WARMUP_FILTER} token (CLAUDE.md: never train on warmup)",
-               {n: exact[f"{n} train"] for n in TRAINED}),
+        _check(all(exact[f"{n} train"] == 0 for n in build.trained),
+               f"no {names} train token is a {WARMUP_FILTER} token (CLAUDE.md: never train on warmup)",
+               {n: exact[f"{n} train"] for n in build.trained}),
         _check(all(v == 0 for v in trained.values()),
-               f"no v1-xl / v1-xl-nd train anchor within ±{window_s} s of a {WARMUP_FILTER} scene in its log",
-               {n: inside[f"{n} train"] for n in TRAINED}),
-        _check(len(left_out_inside) + len(unchecked) == len(left_out),
-               "every v1-large train row left out of v1-xl is inside the window",
-               {"left_out": len(left_out), "inside": len(left_out_inside),
-                "near_frames_placed_only_with_metadata": len(unchecked)}),
-        _check(True, f"information: {WARMUP_FILTER} tokens and rows within ±{window_s} s per set and split (dev is "
-                     "evaluation only and pinned; v1-large is an earlier set kept as committed)",
-               {"tokens": exact, "within_window": inside, "expected_dev_tokens": 3}),
+               f"no {names} train anchor within ±{window_s} s of a {WARMUP_FILTER} scene in its log",
+               {n: inside[f"{n} train"] for n in build.trained}),
     ]
+    if build.left_out:
+        earlier, later = build.left_out
+        left_out = set(sel[earlier]) - set(sel[later])
+        left_out_inside = set(near(left_out))
+        unplaced_logs = set() if placed else set(by_metadata.values())  # windows this run cannot place
+        unchecked = {t for t in left_out - left_out_inside if str(cands["log_name"][row_of[t]]) in unplaced_logs}
+        out.append(_check(len(left_out_inside) + len(unchecked) == len(left_out),
+                          f"every {earlier} train row left out of {later} is inside the window",
+                          {"left_out": len(left_out), "inside": len(left_out_inside),
+                           "near_frames_placed_only_with_metadata": len(unchecked)}))
+    out.append(_check(True, f"information: {WARMUP_FILTER} tokens and rows within ±{window_s} s per set and split "
+                            f"({build.warmup_note})",
+                      {"tokens": exact, "within_window": inside, "expected_dev_tokens": 3}))
     if missing:  # without --metadata they cannot be placed, so the window checks above are incomplete: fail
         found = {t: log for t, (log, _) in placed.items()}
         out.append(_check(bool(metadata) and found == dict(by_metadata),
@@ -417,12 +481,14 @@ def check_warmup(out_dir: str, sel: Dict[str, Dict[str, str]], cands: Dict[str, 
     return out
 
 
-def check_leakage(out_dir: str, navsim_root: Optional[str] = None, metadata: Optional[str] = None) -> List[Check]:
+def check_leakage(out_dir: str, navsim_root: Union[None, str, Sequence[str]] = None, metadata: Optional[str] = None,
+                  build: Build = XL) -> List[Check]:
+    """``navsim_root``: one devkit or several (each is checked; with several, each check names its devkit)."""
     from data_pipeline.v1 import tables
 
-    sel = selected(out_dir)
+    sel = selected(out_dir, build)
     split_of: Dict[str, str] = {}
-    for name in SETS:
+    for name in build.sets:
         split_of.update(sel[name])
     cands = tables.read(os.path.join(out_dir, "index", "candidates.parquet"),
                         ["token", "log_name", "our_split", "guard_reason", "t_us"])
@@ -456,15 +522,25 @@ def check_leakage(out_dir: str, navsim_root: Optional[str] = None, metadata: Opt
         _check(all(log_info.get(l, ("", "", ""))[2] == "val" for l in log_split["dev"]), "dev logs are nuPlan val logs",
                {"train_logs": len(log_split["train"]), "dev_logs": len(log_split["dev"])}),
     ]
-    out += check_warmup(out_dir, sel, cands, row_of, metadata)
-    if navsim_root:
-        out += check_devkit(out_dir, sel, log_split, cands, row_of, navsim_root)
+    out += check_warmup(out_dir, sel, cands, row_of, metadata, build)
+    roots = [navsim_root] if isinstance(navsim_root, str) else [r for r in (navsim_root or []) if r]
+    for root in roots:
+        checks = check_devkit(out_dir, sel, log_split, cands, row_of, root, build)
+        if len(roots) > 1:  # say which devkit each check is about
+            label = os.path.basename(os.path.normpath(root))
+            checks = [{**c, "check": f"{c['check']} [{label}]"} for c in checks]
+        out += checks
     return out
 
 
 def check_devkit(out_dir: str, sel: Dict[str, Dict[str, str]], log_split: Dict[str, Set[str]],
-                 cands: Dict[str, Any], row_of: Dict[str, int], navsim_root: str) -> List[Check]:
-    """NAVSIM's own lists: scene-level filters (warm-up) by the window rule, every other guarded list at 0 hits."""
+                 cands: Dict[str, Any], row_of: Dict[str, int], navsim_root: str, build: Build = XL) -> List[Check]:
+    """NAVSIM's own lists: scene-level filters (warm-up) by the window rule, every other guarded list at 0 hits.
+
+    ``SCENE_LEVEL_FILTERS`` are exempt from the log-level guard: their logs hold train rows by design (outside the
+    window of every listed scene), so those rows and logs are reported, not failed, and the 0-hit check is over the
+    other lists only. ``navsim_splits.load`` itself guards a scene-level filter's logs as a whole.
+    """
     from data_pipeline.v1 import navsim_splits
 
     guard = navsim_splits.load(navsim_root)
@@ -474,7 +550,7 @@ def check_devkit(out_dir: str, sel: Dict[str, Dict[str, str]], log_split: Dict[s
 
     strict_tokens = {t for t, r in guard.guarded_tokens.items() if strict(r)}
     strict_logs = {l for l, r in guard.guarded_logs.items() if strict(r)}
-    all_tokens = {t for name in SETS for t in sel[name]}
+    all_tokens = {t for name in build.sets for t in sel[name]}
     all_logs = log_split["train"] | log_split["dev"]
     hits: Dict[str, int] = {}
     for t in all_tokens & strict_tokens:
@@ -483,23 +559,42 @@ def check_devkit(out_dir: str, sel: Dict[str, Dict[str, str]], log_split: Dict[s
     for l in all_logs & strict_logs:
         for r in guard.guarded_logs[l].split("+"):
             hits[f"log:{r}"] = hits.get(f"log:{r}", 0) + 1
-    out = [_check(not hits, "no token or log of any set is in NAVSIM's other guarded lists (devkit: nuPlan test, "
-                            "navtest, navhard, private tests, ...), train or dev",
+    scene_level = ", ".join(SCENE_LEVEL_FILTERS)
+    out = [_check(not hits, f"no token or log of any set is in NAVSIM's other guarded lists (every list but the "
+                            f"scene-level {scene_level}: nuPlan test, navtest, navhard, private tests, ...), train or dev",
                   {"guarded_logs": len(strict_logs), "guarded_tokens": len(strict_tokens), "hits": hits,
+                   "exempt_scene_level": list(SCENE_LEVEL_FILTERS),
+                   "guarded_logs_with_scene_level": len(guard.guarded_logs),
+                   "guarded_tokens_with_scene_level": len(guard.guarded_tokens),
                    "devkit_commit": guard.devkit_commit})]
     warm = {t for t, r in guard.guarded_tokens.items() if WARMUP_FILTER in r.split("+")}
     if warm:
         committed = set(read_tokens(warmup_path(out_dir))) if os.path.exists(warmup_path(out_dir)) else set()
-        train_hits = {n: sum(t in warm for t, s in sel[n].items() if s == "train") for n in TRAINED}
+        train_hits = {n: sum(t in warm for t, s in sel[n].items() if s == "train") for n in build.trained}
+        reported = {f"{n} train": sum(t in warm for t, s in sel[n].items() if s == "train") for n in build.reported}
         out.append(_check(warm == committed, f"the devkit's {WARMUP_FILTER} tokens = the committed list",
                           {"devkit": len(warm), "committed": len(committed)}))
         out.append(_check(not any(train_hits.values()),
-                          f"devkit {WARMUP_FILTER}: no v1-xl / v1-xl-nd train token (dev and v1-large reported)",
-                          {"train": train_hits,
-                           "v1-large train": sum(t in warm for t, s in sel["v1-large"].items() if s == "train"),
-                           "dev": sum(t in warm for t, s in sel["v1-xl"].items() if s == "dev"),
+                          f"devkit {WARMUP_FILTER}: no {' / '.join(build.trained)} train token "
+                          f"(dev{''.join(' and ' + n for n in build.reported)} reported)",
+                          {"train": train_hits, **reported,
+                           "dev": sum(t in warm for t, s in sel[build.sets[0]].items() if s == "dev"),
                            "logs_listed_not_guarded_by_log": sum(WARMUP_FILTER in r.split("+")
                                                                  for r in guard.guarded_logs.values())}))
+        scene_logs = {l for l, r in guard.guarded_logs.items() if not strict(r)}  # only scene-level reasons
+
+        def in_scene_logs(name: str, split: str) -> List[str]:
+            return [str(cands["log_name"][row_of[t]]) for t, s in sel[name].items()
+                    if s == split and t in row_of and str(cands["log_name"][row_of[t]]) in scene_logs]
+
+        rows = {name: in_scene_logs(name, "train") for name in build.trained}
+        out.append(_check(True, f"information: {scene_level} is held to the scene-level rule (SCENE_LEVEL_FILTERS: no "
+                                "train anchor within the window of a listed scene), not by log, so train rows in its "
+                                "logs are reported here, not failed (the log-level choice is open)",
+                          {"scene_level_logs": len(scene_logs),
+                           "train_rows_in_them": {n: len(v) for n, v in rows.items()},
+                           "train_logs_in_them": {n: len(set(v)) for n, v in rows.items()},
+                           "dev_rows_in_them": len(in_scene_logs(build.sets[0], "dev"))}))
     return out
 
 
@@ -528,7 +623,8 @@ def check_pack(out_dir: str, n: int, record: Dict[str, Any], deep: bool) -> List
     return out
 
 
-def check_fetched(out_dir: str, n_archives: int, full: bool, deep: bool = False) -> Tuple[List[Check], bool]:
+def check_fetched(out_dir: str, n_archives: int, full: bool, deep: bool = False,
+                  build: Build = XL) -> Tuple[List[Check], bool]:
     """Checks, and whether every record is there yet."""
     order = manifest(out_dir)["archive_order"][:n_archives]
     recs = records(out_dir, order)
@@ -551,11 +647,11 @@ def check_fetched(out_dir: str, n_archives: int, full: bool, deep: bool = False)
     packs_ok = all(c["ok"] for c in out if c["check"].startswith("archive "))
     out.append(_check(packs_ok, "every pack holds exactly its record's frames", {"packs": len(recs), "frames": kept}))
     if full and not left:
-        out.append(_check(kept == FRAMES_TO_KEEP, f"{FRAMES_TO_KEEP:,} frames kept", kept))
-        sel = selected(out_dir)
+        out.append(_check(kept == build.frames_to_keep, f"{build.frames_to_keep:,} frames kept", kept))
+        sel = selected(out_dir, build)
         union = set().union(*(set(s) for s in sel.values()))
         got = {i["token"] for r in recs.values() for i in r["images"]}
-        out.append(_check(got == union, "the packed frames are exactly the three sets' frames",
+        out.append(_check(got == union, f"the packed frames are exactly the {_words(len(build.sets))} sets' frames",
                           {"not packed": len(union - got), "not selected": len(got - union)}))
     return out, not left
 
@@ -571,46 +667,52 @@ def check_repro(out_dir: str, other_dir: str) -> List[Check]:
             _check(sha_a == sha_b, f"archive {n}: the two packs are byte-identical (reproducible)", sha_a)]
 
 
-def check_crosscheck(out_dir: str, large_dir: str, full: bool) -> List[Check]:
+def check_crosscheck(out_dir: str, large_dir: str, full: bool, build: Build = XL) -> List[Check]:
+    """``large_dir``: the reference build's folder (``build.ref``): the frames both packed must agree."""
     ours = frame_records(out_dir)
     theirs = frame_records(large_dir)
-    large_tokens = {t for split in SPLITS for t in read_tokens(token_file(large_dir, "v1-large", split))}
-    shared = [t for t in sorted(large_tokens) if t in ours]
-    absent_large = [t for t in large_tokens if t not in theirs]
+    ref_tokens = {t for name in build.ref_sets for split in SPLITS
+                  for t in read_tokens(token_file(large_dir, name, split))}
+    shared = [t for t in sorted(ref_tokens) if t in ours]
+    absent = [t for t in ref_tokens if t not in theirs]
     sha_bad = [t for t in shared if t in theirs and ours[t]["sha256"] != theirs[t]["sha256"]]
     archive_bad = [t for t in shared if t in theirs and ours[t]["archive"] != theirs[t]["archive"]]
+    ref_sets = " / ".join(build.ref_sets)
     out = [
-        _check(not absent_large, "v1.0-large has a record for every v1-large frame", len(absent_large)),
-        _check(not sha_bad, "shared frames: SHA-256 = v1.0-large's record", {"compared": len(shared), "mismatched": len(sha_bad)}),
-        _check(not archive_bad, "shared frames: same source archive as in v1.0-large", len(archive_bad)),
+        _check(not absent, f"{build.ref} has a record for every {ref_sets} frame", len(absent)),
+        _check(not sha_bad, f"shared frames: SHA-256 = {build.ref}'s record",
+               {"compared": len(shared), "mismatched": len(sha_bad)}),
+        _check(not archive_bad, f"shared frames: same source archive as in {build.ref}", len(archive_bad)),
     ]
     if full:
-        out.append(_check(len(shared) == LARGE_FRAMES, f"all {LARGE_FRAMES:,} v1-large frames are packed", len(shared)))
+        out.append(_check(len(shared) == build.shared_frames, build.shared_check.format(n=build.shared_frames),
+                          len(shared)))
     else:
-        out.append(_check(len(shared) > 0, "some v1-large frames are packed (smoke)", len(shared)))
+        out.append(_check(len(shared) > 0, f"some {ref_sets} frames are packed (smoke)", len(shared)))
     return out
 
 
-def check_canonical(out_dir: str, full: bool) -> Tuple[List[Check], bool]:
-    """Checks, and whether canonical.json is there for these three sets."""
+def check_canonical(out_dir: str, full: bool, build: Build = XL) -> Tuple[List[Check], bool]:
+    """Checks, and whether canonical.json is there for the build's sets."""
     path = os.path.join(out_dir, "canonical.json")
     if not os.path.exists(path):
         return [_check(False, "canonical.json exists")], False
     report = load_json(path)
-    if set(report.get("sets", {})) != set(SETS):
-        return [_check(False, "canonical.json covers v1-xl, v1-xl-nd, v1-large", sorted(report.get("sets", {})))], False
+    if set(report.get("sets", {})) != set(build.sets):
+        return [_check(False, f"canonical.json covers {', '.join(build.sets)}", sorted(report.get("sets", {})))], False
     failed = [c["check"] for c in report["checks"] if not c["ok"]]
     out = [_check(not failed, "every canonical check passed", failed),
            _check(any(c["check"].startswith("every image file matches") for c in report["checks"]),
                   "the image SHA-256 check ran (not --no-verify-images)")]
     if full:
-        counts = {name: report["sets"][name] for name in SETS}
+        counts = {name: report["sets"][name] for name in build.sets}
         out.append(_check(all(c["missing_image"] == 0 for c in counts.values()), "no selected frame lacks its image",
                           {n: c["missing_image"] for n, c in counts.items()}))
-        out.append(_check(all(counts[n]["by_split"] == {"train": EXPECTED[n]["train"], "dev": EXPECTED[n]["dev"]}
-                              for n in SETS), "canonical counts per set and split = spec §3",
-                          {n: c["by_split"] for n, c in counts.items()}))
-        out.append(_check(report.get("frames") == FRAMES_TO_KEEP, f"{FRAMES_TO_KEEP:,} canonical frames", report.get("frames")))
+        out.append(_check(all(counts[n]["by_split"] == {"train": build.expected[n]["train"],
+                                                       "dev": build.expected[n]["dev"]} for n in build.sets),
+                          "canonical counts per set and split = spec §3", {n: c["by_split"] for n, c in counts.items()}))
+        out.append(_check(report.get("frames") == build.frames_to_keep, f"{build.frames_to_keep:,} canonical frames",
+                          report.get("frames")))
     return out, True
 
 
@@ -618,7 +720,9 @@ def check_canonical(out_dir: str, full: bool) -> Tuple[List[Check], bool]:
 
 
 def check_view(out_dir: str, name: str, large_view: str, full: bool, samples: int, seed: int,
-               deep: bool) -> List[Check]:
+               deep: bool, build: Build = XL) -> List[Check]:
+    """``large_view``: the reference view (``build.ref_view``), whose dev.jsonl and dev images ours must equal."""
+    ref = build.ref_view
     folder = view_dir(out_dir, name)
     spec_path = os.path.join(folder, "view.json")
     if not os.path.exists(spec_path):
@@ -628,7 +732,7 @@ def check_view(out_dir: str, name: str, large_view: str, full: bool, samples: in
     out = [_check(spec.get("storage") == "zip" and spec.get("set") == name, f"view {name}: storage zip, set {name}",
                   spec.get("storage")),
            _check(spec.get("prompt_version") == large_spec.get("prompt_version"),
-                  f"view {name}: prompt version = the v1-large view's", spec.get("prompt_version"))]
+                  f"view {name}: prompt version = the {ref} view's", spec.get("prompt_version"))]
     items = {split: jsonl(os.path.join(folder, f"{split}.jsonl")) for split in SPLITS}
     for split in SPLITS:
         ids = {token_of(i) for i in items[split]}
@@ -656,13 +760,13 @@ def check_view(out_dir: str, name: str, large_view: str, full: bool, samples: in
     ours_dev = os.path.join(folder, "dev.jsonl")
     if full:
         out.append(_check(sha256_file(ours_dev) == sha256_file(large_dev),
-                          f"view {name}: dev.jsonl byte-identical to the v1-large view's", sha256_file(ours_dev)))
+                          f"view {name}: dev.jsonl byte-identical to the {ref} view's", sha256_file(ours_dev)))
     else:
         with open(large_dev, encoding="utf-8") as f:
             theirs = set(f)
         with open(ours_dev, encoding="utf-8") as f:
             ours = list(f)
-        out.append(_check(all(line in theirs for line in ours), f"view {name}: every dev.jsonl line is in the v1-large view's",
+        out.append(_check(all(line in theirs for line in ours), f"view {name}: every dev.jsonl line is in the {ref} view's",
                           len(ours)))
 
     dev = sorted(items["dev"], key=lambda i: i["id"])
@@ -673,7 +777,7 @@ def check_view(out_dir: str, name: str, large_view: str, full: bool, samples: in
     finally:
         ours_r.close()
         theirs_r.close()
-    out.append(_check(bool(pick) and not differ, f"view {name}: {len(pick)} dev images byte-identical to the v1-large view's",
+    out.append(_check(bool(pick) and not differ, f"view {name}: {len(pick)} dev images byte-identical to the {ref} view's",
                       {"differ": differ[:5]}))
 
     frames = frame_records(out_dir)
@@ -692,9 +796,9 @@ def check_view(out_dir: str, name: str, large_view: str, full: bool, samples: in
     return out
 
 
-def check_links(out_dir: str, links_root: str) -> List[Check]:
+def check_links(out_dir: str, links_root: str, build: Build = XL) -> List[Check]:
     out = []
-    for name in VIEWS:
+    for name in build.views:
         link = os.path.join(links_root, name)
         ok = os.path.islink(link) and os.path.realpath(link) == os.path.realpath(view_dir(out_dir, name))
         out.append(_check(ok, f"{link} → the {name} view"))

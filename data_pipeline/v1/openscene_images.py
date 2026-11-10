@@ -12,6 +12,12 @@ from OpenScene's camera archives.
         --exclude-scenes data/pretrain/v1.0-xl/splits/navsim_v1.1_warmup_test_e2e_tokens.txt \
         --exclude-metadata data/pretrain/downloads/openscene_metadata_trainval.tgz
         # 200k train ⊇ v1-large minus the warm-up window (±7 s, train only), plus v1-xl-nd (PRETRAIN_V1_PLAN.md §10)
+    python -m data_pipeline.v1.openscene_images plan   --out data/pretrain/v1.0-pool --set v1-all \
+        --extends data/pretrain/v1.0-xl/splits/v1-xl-nd \
+        --navtrain data/pretrain/v1.0-pool/splits/navsim_navtrain_tokens.txt \
+        --exclude-scenes data/pretrain/v1.0-xl/splits/navsim_v1.1_warmup_test_e2e_tokens.txt \
+        --exclude-metadata data/pretrain/downloads/openscene_metadata_trainval.tgz
+        # the 0.5 s train pool (v1-all) and v1-nt, v1-xl-mix, v1-nt-mix, v1-xl's dev (token_sets.py, §11)
 
 ``plan`` reads only the metadata index (minutes, no images) [agreed 2026-10-31]:
 * selects v1-pilot (``selection.PILOT``: 45k train + 2k dev, train balanced) from every log;
@@ -62,8 +68,9 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 
 import numpy as np
 
-from data_pipeline.v1 import image_store, novelty, provenance, scene_exclusion, selection, stats, tables
+from data_pipeline.v1 import image_store, novelty, provenance, scene_exclusion, selection, stats, tables, token_sets
 from data_pipeline.v1.openscene_index import CAMERA
+from navsim_tools import maneuvers
 
 HF_ROOT = "https://huggingface.co/datasets/OpenDriveLab/OpenScene/resolve/main/openscene-v1.1/"
 ARCHIVE_MAP_URL = HF_ROOT + "openscene_sensor_trainval_0-199.json"
@@ -216,8 +223,11 @@ def _sha256(path: str) -> str:
 def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = ARCHIVE_TREE_URL,
          set_name: str = selection.PILOT.name, extends: Optional[str] = None,
          exclude_scenes: Optional[str] = None, exclude_window_s: float = scene_exclusion.WINDOW_S,
-         exclude_metadata: Optional[str] = None, allow_unlocated: bool = False) -> Dict[str, Any]:
+         exclude_metadata: Optional[str] = None, allow_unlocated: bool = False,
+         navtrain: Optional[str] = None) -> Dict[str, Any]:
     """``set_name`` v1-pilot selects v1-pilot and smoke; v1-large selects only v1-large (its own dataset folder).
+
+    v1-all (``token_sets.POOL``) plans the v1.0-pool folder's four sets instead, with no draw: ``_plan_pool``.
 
     v1-xl [agreed 2026-11-08; superset mechanics proposed] needs ``extends``, the prefix of the base
     set's token files (``data/pretrain/v1.0-large/splits/v1-large``). Every base row is fixed in the
@@ -239,6 +249,13 @@ def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = A
     such a token can be a frame of an indexed log with train rows around it (6 warm-up tokens are, V), so a
     plan without it fails open. ``allow_unlocated`` plans anyway and only reports them (tests, other lists).
     """
+    if set_name == token_sets.POOL:
+        if allow_unlocated:
+            raise ValueError(f"allow_unlocated is not for {token_sets.POOL}: its plan places every listed warm-up frame")
+        return _plan_pool(out_dir, archive_map, archive_tree, extends, navtrain, exclude_scenes, exclude_window_s,
+                          exclude_metadata)
+    if navtrain is not None:
+        raise ValueError(f"navtrain is for {token_sets.POOL} only")
     xl = set_name == selection.XL.name
     if xl and extends is None:
         raise ValueError("v1-xl extends a base set: pass extends=<splits dir>/<base set name>, e.g. .../splits/v1-large")
@@ -256,15 +273,7 @@ def plan(out_dir: str, archive_map: str = ARCHIVE_MAP_URL, archive_tree: str = A
                          "images/archives.json would be replaced; plan v1-xl into a folder of its own")
     list_copy = None  # where the exclusion list goes in splits/, when it is not there already
     if exclude_scenes is not None:
-        with open(exclude_scenes, "rb") as f:
-            data = f.read()
-        if b"\r" in data:
-            raise ValueError(f"{exclude_scenes} has CRLF line ends; the manifest records its SHA-256, so use an LF copy")
-        target = os.path.join(split_dir, os.path.basename(exclude_scenes))
-        if not (os.path.exists(target) and os.path.samefile(target, exclude_scenes)):
-            if os.path.exists(target) and _sha256(target) != hashlib.sha256(data).hexdigest():
-                raise ValueError(f"{target} exists and differs from {exclude_scenes}")
-            list_copy = None if os.path.exists(target) else target
+        list_copy = _list_target(exclude_scenes, split_dir)
     columns = list(PLAN_COLUMNS)
     if xl:  # the near-duplicate and label-conflict tests need the path and the prompt values
         columns += [c for c in dict.fromkeys(novelty.NEAR_DUP_COLUMNS + novelty.CONFLICT_COLUMNS) if c not in columns]
@@ -374,9 +383,33 @@ def _same_dir(a: str, b: str) -> bool:
     return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
 
 
+def _list_target(path: str, split_dir: str, name: Optional[str] = None) -> Optional[str]:
+    """Where the token list ``path`` is to be copied in ``split_dir`` (None: it is there already, byte for byte).
+
+    The copy is named ``name`` (default: the list's own file name). Refuses a CRLF list (the manifest records its
+    SHA-256) and a different file of that name in ``split_dir``.
+    """
+    with open(path, "rb") as f:
+        data = f.read()
+    if b"\r" in data:
+        raise ValueError(f"{path} has CRLF line ends; the manifest records its SHA-256, so use an LF copy")
+    target = os.path.join(split_dir, name or os.path.basename(path))
+    if os.path.exists(target) and os.path.samefile(target, path):
+        return None
+    if os.path.exists(target) and _sha256(target) != hashlib.sha256(data).hexdigest():
+        raise ValueError(f"{target} exists and differs from {path}")
+    return None if os.path.exists(target) else target
+
+
+XL_APPLIES_TO = ("train only: v1-xl and v1-xl-nd (base train rows in the window dropped); dev and the base's own "
+                 "token files unchanged")
+POOL_APPLIES_TO = ("train only: no train row of v1-all, v1-nt-mix, v1-xl-mix or v1-nt is in the window (the pool, "
+                   "the navtrain rows and the mix are cut by it); dev and the base v1-xl-nd unchanged")
+
+
 def _scene_exclusion(cands: tables.Columns, path: str, window_s: float, base: Dict[str, np.ndarray],
-                     metadata: Optional[str] = None, allow_unlocated: bool = False
-                     ) -> Tuple[np.ndarray, Dict[str, Any]]:
+                     metadata: Optional[str] = None, allow_unlocated: bool = False,
+                     applies_to: str = XL_APPLIES_TO) -> Tuple[np.ndarray, Dict[str, Any]]:
     """The train exclusion mask of a scene token list, and its manifest entry (``plan(exclude_scenes=)``).
 
     ``metadata`` (OpenScene's metadata tgz): listed tokens that are not index rows are looked up in the
@@ -410,8 +443,7 @@ def _scene_exclusion(cands: tables.Columns, path: str, window_s: float, base: Di
     entry = {
         "file": _repo_relative(path), "name": os.path.basename(path), "sha256": _sha256(path),
         "source": scene_exclusion.source_of(path),
-        "applies_to": "train only: v1-xl and v1-xl-nd (base train rows in the window dropped); dev and the base's "
-                      "own token files unchanged",
+        "applies_to": applies_to,
         **report,
         "metadata": None if metadata is None else {"file": os.path.basename(metadata), "logs_scanned": scanned},
         **({"unlocated_allowed": True} if metadata is None and allow_unlocated else {}),
@@ -423,8 +455,8 @@ def _scene_exclusion(cands: tables.Columns, path: str, window_s: float, base: Di
     print(f"[plan] scene exclusion {entry['name']} +/- {window_s} s: {report['tokens_in_index']} of {report['tokens']} "
           f"tokens in the index, {len(report['located_in_metadata'])} more found in the metadata, "
           f"{report['tokens_not_located']} not located; "
-          f"{len(dropped)} base train rows are inside the window and are dropped from "
-          f"the fixed rows; {entry['base_dev_in_window']} base dev rows inside it stay (dev unchanged)", flush=True)
+          f"{len(dropped)} base train rows are inside the window (left out of the train sets); "
+          f"{entry['base_dev_in_window']} base dev rows inside it stay (dev unchanged)", flush=True)
     return mask, entry
 
 
@@ -471,25 +503,33 @@ def _nested_sets(cands: tables.Columns, main_name: str, main_rows: np.ndarray, b
 
 
 def _write_label_conflicts(cands: tables.Columns, sets: Sequence[Tuple[str, np.ndarray, Any]], split_dir: str,
-                           main_name: str, target: Callable[[str], str] = lambda path: path) -> Dict[str, Any]:
+                           main_name: str, target: Callable[[str], str] = lambda path: path,
+                           nested: bool = True) -> Dict[str, Any]:
     """``splits/<main>_label_conflicts.tsv``: token, set, reasons for each flagged row (report only).
 
-    ``set`` is the smallest of the nested ``sets`` that holds the row, with its split, e.g.
-    ``v1-large/train`` (so it is in all three sets) or ``v1-xl/train`` (only in v1-xl).
+    ``nested`` (v1-xl: each of ``sets``, largest first, holds the next): ``set`` is the smallest set that holds
+    the row, with its split, e.g. ``v1-large/train`` (so it is in all three sets) or ``v1-xl/train`` (only in v1-xl).
     With a scene exclusion, base train rows in its window are in the base only, but are listed as
     ``v1-large/train`` too; the manifest's ``scene_exclusion.base_train_dropped`` counts them.
+    Not ``nested`` (the pool: v1-nt and v1-xl-mix overlap and neither holds the other): ``set`` names every set
+    that holds the row, comma-separated in ``sets`` order, then its split, e.g.
+    ``v1-all,v1-nt-mix,v1-xl-mix,v1-nt/train`` (in all four) or ``v1-all,v1-nt-mix,v1-nt/train`` (not in v1-xl-mix).
     The rows tested are the union of the sets (= v1-xl's rows without an exclusion).
     ``target`` maps the file's path to the path actually written (``plan`` writes ``.part`` first).
     """
-    smallest: Dict[int, str] = {}
-    for name, rows, _ in sets:  # largest first, so each smaller set overwrites
-        smallest.update({int(r): name for r in rows})
+    holders: Dict[int, List[str]] = {}
+    for name, rows, _ in sets:  # largest first
+        for r in rows.tolist():
+            if nested:  # each smaller set overwrites
+                holders[int(r)] = [name]
+            else:
+                holders.setdefault(int(r), []).append(name)
     conflicts = novelty.label_conflicts(cands, np.unique(np.concatenate([rows for _, rows, _ in sets])))
     path = os.path.join(split_dir, f"{main_name}_label_conflicts.tsv")
     with open(target(path), "w", encoding="utf-8", newline="\n") as f:
         f.write("token\tset\treasons\n")
         for r, reasons in sorted(conflicts, key=lambda item: cands["token"][item[0]]):
-            f.write(f"{cands['token'][r]}\t{smallest[r]}/{cands['our_split'][r]}\t{','.join(reasons)}\n")
+            f.write(f"{cands['token'][r]}\t{','.join(holders[r])}/{cands['our_split'][r]}\t{','.join(reasons)}\n")
     flagged = {r for r, _ in conflicts}
     return {
         "file": os.path.basename(path), "report_only": True, "tests": list(novelty.REASONS),
@@ -497,6 +537,186 @@ def _write_label_conflicts(cands: tables.Columns, sets: Sequence[Tuple[str, np.n
                         for s in ("train", "dev")} for name, rows, _ in sets},
         "by_reason": {k: sum(k in reasons for _, reasons in conflicts) for k in novelty.REASONS},
     }
+
+
+POOL_COLUMNS = list(dict.fromkeys(PLAN_COLUMNS + list(novelty.CONFLICT_COLUMNS) + ["speed", "in_navtrain"]))
+
+
+def _plan_pool(out_dir: str, archive_map: str, archive_tree: str, extends: Optional[str], navtrain: Optional[str],
+               exclude_scenes: Optional[str], window_s: float, metadata: Optional[str]) -> Dict[str, Any]:
+    """``plan(set_name="v1-all")``: the v1.0-pool folder's four sets (``token_sets``) [proposed 2026-11-09].
+
+    Every input is required: ``extends``, the prefix of v1-xl-nd's token files (the mix's base, and its dev is
+    every set's dev); ``navtrain``, NAVSIM's navtrain token list, which must be a known training list
+    (``scene_exclusion.KNOWN_LISTS``: a set trained on a list must name its source); ``exclude_scenes``, the
+    warm-up list; ``metadata``, OpenScene's metadata (it places the warm-up frames that are not index rows and
+    explains the navtrain tokens that are not).
+    Writes, in ``splits/``: ``<set>_tokens_{train,dev}.txt`` for v1-all, v1-nt-mix, v1-xl-mix and v1-nt (every dev
+    file is the base's, byte for byte), byte copies of the base's files and of both lists,
+    ``v1-all_label_conflicts.tsv`` (report only; the sets are not nested, so its ``set`` column names every set
+    that holds the row: ``_write_label_conflicts(nested=False)``) and ``manifest.json``, staged as ``.part`` like
+    ``plan``. The base
+    is recorded under ``base``, not ``selections``: ``fetch`` extracts the selections' frames, which already
+    hold every base row the mix keeps (v1-all holds them all).
+    """
+    missing = [name for name, value in (("extends", extends), ("navtrain", navtrain),
+                                        ("exclude_scenes", exclude_scenes), ("exclude_metadata", metadata))
+               if value is None]
+    if missing:
+        raise ValueError(f"{token_sets.POOL} needs {', '.join(missing)}: v1-xl-nd's token file prefix, NAVSIM's "
+                         f"navtrain list ({scene_exclusion.NAVTRAIN_FILE}), the warm-up list and OpenScene's metadata")
+    split_dir = os.path.join(out_dir, "splits")
+    if _same_dir(os.path.dirname(extends) or ".", split_dir):
+        raise ValueError(f"--out {out_dir} is the base set's own folder: plan {token_sets.POOL} into a folder of its own")
+    with open(navtrain, "rb") as f:
+        if b"\r" in f.read():
+            raise ValueError(f"{navtrain} has CRLF line ends; the manifest records its SHA-256, so use an LF copy")
+    source = scene_exclusion.source_of(navtrain)
+    if source is None or source.get("filter") != "navtrain":
+        raise ValueError(f"{navtrain} (SHA-256 {_sha256(navtrain)[:8]}…) is not a known navtrain token list "
+                         "(scene_exclusion.KNOWN_LISTS): a set trained on a list must name its source")
+    copies = [(navtrain, _list_target(navtrain, split_dir, scene_exclusion.NAVTRAIN_FILE)),
+              (exclude_scenes, _list_target(exclude_scenes, split_dir))]
+    listed = scene_exclusion.read_tokens(navtrain)
+    if listed != sorted(set(listed)):
+        raise ValueError(f"{navtrain} is not a sorted list of unique tokens")
+    base_name = os.path.basename(extends)
+    if base_name in token_sets.SETS:
+        raise ValueError(f"the base set cannot be {base_name}")
+
+    cands = tables.read(os.path.join(out_dir, "index", "candidates.parquet"), POOL_COLUMNS)
+    archives = load_archives(archive_map, archive_tree)
+    in_index = set(cands["log_name"].tolist())
+    in_map = {log for a in archives.values() for log in a["logs"]}
+    base = _base_rows(cands, extends)
+    window, exclusion = _scene_exclusion(cands, exclude_scenes, window_s, base, metadata, applies_to=POOL_APPLIES_TO)
+    pool, pool_report = token_sets.train_pool(cands, window)
+    exclusion["train_pool_excluded"] = pool_report["after_standstill_thinning"] - pool_report["after_window"]
+    nt = token_sets.listed_train_rows(cands, listed, window)
+    labels = token_sets.maneuver_labels(cands)
+    mix, mix_report = token_sets.mix_rows(cands, base["train"], pool, labels, token_sets.XL_MIX)
+    mix_report["numpy"] = np.__version__  # the draw is numpy's Generator.choice (token_sets.DRAW)
+    train_sets = token_sets.union_sets(pool, nt.selected, mix)
+    token_sets.check_sets(cands, train_sets, base["dev"], window)
+
+    # navtrain: what each rule removes (aggregates only)
+    listed_rows = np.sort(np.concatenate([nt.selected, *nt.dropped.values()]))
+    dev_logs = set(cands["log_name"][base["dev"]].tolist())
+    dev_log_rows = nt.dropped["train_log"]
+    in_pinned = np.array([log in dev_logs for log in cands["log_name"][dev_log_rows]], dtype=bool)
+    warm = set(scene_exclusion.read_tokens(exclude_scenes))
+    plain, _ = scene_exclusion.window_mask(cands, warm, window_s)  # without the frames placed from the metadata
+    in_window = nt.dropped["outside_window"]
+    listed_set = set(listed)
+    navtrain_entry = {
+        "file": _repo_relative(navtrain), "name": scene_exclusion.NAVTRAIN_FILE, "sha256": _sha256(navtrain),
+        "source": source, "used_as": f"{token_sets.NT}'s token list (trained on): its rows that pass every rule",
+        **nt.report,
+        "train_log_failures": {
+            "in_pinned_dev_logs": {"rows": int(in_pinned.sum()), "pinned_dev_logs": len(dev_logs),
+                                   "logs": len(set(cands["log_name"][dev_log_rows[in_pinned]].tolist()))},
+            "in_other_dev_logs": {"rows": int((~in_pinned).sum()),
+                                  "logs": len(set(cands["log_name"][dev_log_rows[~in_pinned]].tolist()))},
+            "pinned_dev_rows_listed": sum(t in listed_set for t in cands["token"][base["dev"]].tolist())},
+        "window_failures": {"warmup_tokens": sum(t in warm for t in cands["token"][in_window].tolist()),
+                            "only_through_frames_placed_from_the_metadata": int((~plain[in_window]).sum())},
+        "not_index_rows": token_sets.explain_unindexed(metadata, nt.unindexed),
+        "index_in_navtrain_matches": bool(np.array_equal(listed_rows, np.flatnonzero(cands["in_navtrain"]))),
+    }
+    rules = {
+        token_sets.POOL: "the pool (manifest pool) ∪ v1-nt",
+        token_sets.NT_MIX: "v1-nt ∪ v1-xl-mix",
+        token_sets.MIX: "base v1-xl-nd ∪ pool rows by city and maneuver, stay-stopped thinned to 1% (manifest mix)",
+        token_sets.NT: "the navtrain list's rows that pass every rule, in order (manifest navtrain)",
+    }
+    reference = {base_name: base["train"], "navtrain": listed_rows}
+    sets = []
+    for name in token_sets.SETS:
+        rows = np.sort(np.concatenate([train_sets[name], base["dev"]]))
+        sets.append((name, rows, {"rule": rules[name], "splits": _describe(cands, rows),
+                                  "train_detail": token_sets.describe_train(cands, labels, train_sets[name], reference)}))
+
+    os.makedirs(split_dir, exist_ok=True)
+    staged: List[str] = []
+
+    def part(path: str) -> str:
+        staged.append(path)
+        return path + ".part"
+
+    base_sha = {split: _sha256(f"{extends}_tokens_{split}.txt") for split in ("train", "dev")}
+    reports = {}
+    extra: Dict[str, Any] = {}
+    try:
+        for name, rows, report in sets:
+            for split in ("train", "dev"):
+                path = os.path.join(split_dir, f"{name}_tokens_{split}.txt")
+                _write_tokens(part(path), cands["token"][rows][cands["our_split"][rows] == split])
+                report[split] = int((cands["our_split"][rows] == split).sum())
+            report["sha256"] = {split: _sha256(os.path.join(split_dir, f"{name}_tokens_{split}.txt.part"))
+                                for split in ("train", "dev")}
+            report["images_gb_estimate"] = round(len(rows) * KB_PER_IMAGE / 1e6, 2)  # D
+            if report["sha256"]["dev"] != base_sha["dev"]:  # a bug, so it raises
+                raise RuntimeError(f"{name}'s dev tokens differ from the base's")
+            reports[name] = report
+        for split in ("train", "dev"):  # byte copies of the base, so the folder holds what the mix was built from
+            src = f"{extends}_tokens_{split}.txt"
+            dst = os.path.join(split_dir, f"{base_name}_tokens_{split}.txt")
+            shutil.copyfile(src, part(dst))
+            if _sha256(dst + ".part") != base_sha[split]:
+                raise RuntimeError(f"the copy of {src} differs from it")
+        for src, dst in copies:
+            if dst is not None:
+                shutil.copyfile(src, part(dst))
+        extra["label_conflicts"] = _write_label_conflicts(cands, sets, split_dir, token_sets.POOL, part,
+                                                           nested=False)  # v1-nt and v1-xl-mix overlap
+    except BaseException:  # leave the folder as it was: remove only this call's unfinished .part files
+        for path in staged:
+            if os.path.exists(path + ".part"):
+                os.remove(path + ".part")
+        raise
+    for path in staged:
+        os.replace(path + ".part", path)
+
+    all_rows = sets[0][1]  # v1-all with dev: every other set is inside it (check_sets)
+    order = archive_order(cands, all_rows, archives)
+    archive_of = {log: n for n, a in archives.items() for log in a["logs"]}
+    per_archive = Counter({n: 0 for n in archives})
+    per_archive.update(archive_of[cands["log_name"][r]] for r in all_rows.tolist())
+    image_dir = os.path.join(out_dir, "images")
+    os.makedirs(image_dir, exist_ok=True)
+    provenance.write_text(os.path.join(image_dir, "archives.json"),
+                          json.dumps({str(n): a for n, a in archives.items()}, indent=1))
+    manifest = {
+        "step": "3: selection and archive order (docs/training_data/PRETRAIN_V1_PLAN.md)",
+        "created_utc": provenance.utc_now(),
+        "repo_commit": provenance.git_commit(provenance.REPO_ROOT),
+        "repo_dirty": provenance.git_dirty(provenance.REPO_ROOT),
+        "archive_map_url": ARCHIVE_MAP_URL,
+        "archive_map_logs": len(in_map),
+        "index_logs_missing_from_map": len(in_index - in_map),
+        "map_logs_missing_from_index": len(in_map - in_index),
+        "archive_order": order,
+        "smoke_archives": [],
+        "download_gb": {"smoke": 0.0, "all": round(sum(a["bytes"] for a in archives.values()) / 1e9, 1)},
+        "frames_to_keep": len(all_rows),
+        "frames_to_keep_per_archive": {str(n): per_archive[n] for n in order},
+        "selections": reports,
+        "base": {"set": base_name, "prefix": _repo_relative(extends), "sha256": base_sha,
+                 "train": len(base["train"]), "dev": len(base["dev"]),
+                 "role": f"{token_sets.MIX}'s base; its dev is every set's dev; not a selection (not fetched)"},
+        "pool": pool_report,
+        "navtrain": navtrain_entry,
+        "mix": mix_report,
+        "maneuver_rules": {"module": "navsim_tools.maneuvers", "labels": list(maneuvers.LABELS),
+                           "turn_rad": maneuvers.TURN_RAD, "horizon_s": list(maneuvers.HORIZON_S),
+                           "input": "the index's path_xyyaw at +0.5 ... +4.0 s (float32, read as float64) and speed",
+                           "priority": "turn > stay stopped / start from a stop > brake to a stop > sideways shift > "
+                                       "keep going (navsim_tools/maneuvers.py)"},
+        "scene_exclusion": exclusion,
+        **extra,
+    }
+    provenance.write_text(os.path.join(split_dir, "manifest.json"), json.dumps(manifest, indent=1))  # last: a whole plan
+    return manifest
 
 
 # --- fetch ---------------------------------------------------------------------------------------
@@ -574,8 +794,9 @@ def _extract(tgz: str, archive: Dict[str, Any], wanted: Dict[str, Dict[str, str]
 
     ``pack`` None writes each JPEG as a loose file under ``image_root``. A path writes them all, byte
     for byte, as the members of one pack (``image_store.write_pack``: ``.part``, fsync, ``os.replace``),
-    with no file per frame; the frames of one archive (≤ 1,689 in v1-xl, ~0.4 GB, V/D) are held in
-    memory until then, because the members are sorted and the tar stream is not.
+    with no file per frame; the frames of one archive are held in memory until then, because the members are
+    sorted and the tar stream is not: at most 3,543 in v1-xl and 7,447 in v1.0-pool (V: the plans'
+    ``frames_to_keep_per_archive``), about 0.7 and 1.5 GB at v1-xl's 205.7 KB per packed frame (D).
     """
     start = time.time()
     logs_seen, images, undecodable = set(), [], []
@@ -855,13 +1076,17 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         p.add_argument("--out", required=True, help="dataset directory holding index/, e.g. data/pretrain/v1.0-pilot")
         if name == "plan":
             p.add_argument("--set", default=selection.PILOT.name,
-                           choices=(selection.PILOT.name, selection.LARGE.name, selection.XL.name),
-                           help="v1-pilot (with smoke), v1-large, or v1-xl (with v1-xl-nd; needs --extends), "
-                                "each in its own dataset directory")
+                           choices=(selection.PILOT.name, selection.LARGE.name, selection.XL.name, token_sets.POOL),
+                           help="v1-pilot (with smoke), v1-large, v1-xl (with v1-xl-nd; needs --extends), or "
+                                "v1-all (the v1.0-pool folder: v1-all, v1-nt-mix, v1-xl-mix, v1-nt; needs --extends, "
+                                "--navtrain, --exclude-scenes, --exclude-metadata), each in its own dataset directory")
             p.add_argument("--extends", help="v1-xl: prefix of the base token files, "
-                                             "e.g. data/pretrain/v1.0-large/splits/v1-large")
-            p.add_argument("--exclude-scenes", help="v1-xl: token list of NAVSIM scenes no train sample may come near, "
-                                                    "e.g. data/pretrain/v1.0-xl/splits/" + scene_exclusion.WARMUP_FILE)
+                                             "e.g. data/pretrain/v1.0-large/splits/v1-large; v1-all: v1-xl-nd's, "
+                                             "data/pretrain/v1.0-xl/splits/v1-xl-nd")
+            p.add_argument("--navtrain", help="v1-all: NAVSIM's navtrain token list, e.g. data/pretrain/v1.0-pool/splits/"
+                                              + scene_exclusion.NAVTRAIN_FILE)
+            p.add_argument("--exclude-scenes", help="v1-xl, v1-all: token list of NAVSIM scenes no train sample may come "
+                                                    "near, e.g. data/pretrain/v1.0-xl/splits/" + scene_exclusion.WARMUP_FILE)
             p.add_argument("--exclude-window-s", type=float, default=scene_exclusion.WINDOW_S,
                            help="with --exclude-scenes: same-log window around each listed scene, seconds, inclusive")
             p.add_argument("--exclude-metadata", help="with --exclude-scenes: openscene_metadata_trainval.tgz, to place "
@@ -888,15 +1113,27 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                            help="with --source-dir: archives extracted at once by a process pool")
     args = parser.parse_args(argv)
     if args.command == "plan":
-        if args.set == selection.XL.name and not args.extends:
-            parser.error(f"--set {selection.XL.name} needs --extends <base token file prefix>")
-        if args.extends and args.set != selection.XL.name:
-            parser.error(f"--extends is for --set {selection.XL.name} only")
-        if args.exclude_scenes and args.set != selection.XL.name:
-            parser.error(f"--exclude-scenes is for --set {selection.XL.name} only")
+        if args.set == token_sets.POOL:
+            need = [flag for flag, value in (("--extends", args.extends), ("--navtrain", args.navtrain),
+                                             ("--exclude-scenes", args.exclude_scenes),
+                                             ("--exclude-metadata", args.exclude_metadata)) if not value]
+            if need:
+                parser.error(f"--set {token_sets.POOL} needs {' '.join(need)}")
+            if args.allow_unlocated:
+                parser.error(f"--allow-unlocated is not for --set {token_sets.POOL}")
+        else:
+            if args.navtrain:
+                parser.error(f"--navtrain is for --set {token_sets.POOL} only")
+            if args.set == selection.XL.name and not args.extends:
+                parser.error(f"--set {selection.XL.name} needs --extends <base token file prefix>")
+            if args.extends and args.set != selection.XL.name:
+                parser.error(f"--extends is for --set {selection.XL.name} only")
+            if args.exclude_scenes and args.set != selection.XL.name:
+                parser.error(f"--exclude-scenes is for --set {selection.XL.name} only")
         manifest = plan(args.out, args.map, args.tree, set_name=args.set, extends=args.extends,
                         exclude_scenes=args.exclude_scenes, exclude_window_s=args.exclude_window_s,
-                        exclude_metadata=args.exclude_metadata, allow_unlocated=args.allow_unlocated)
+                        exclude_metadata=args.exclude_metadata, allow_unlocated=args.allow_unlocated,
+                        navtrain=args.navtrain)
         print(json.dumps({k: manifest[k] for k in ("frames_to_keep", "smoke_archives", "download_gb")}))
         for name, report in manifest["selections"].items():
             print(name, {s: (r["selected"], r.get("target"), r["logs"]) for s, r in report["splits"].items()},
@@ -908,6 +1145,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             print("scene exclusion:", json.dumps({k: e[k] for k in ("name", "window_s", "tokens_in_index",
                                                                      "tokens_not_in_index", "tokens_not_located", "train_pool_excluded",
                                                                      "base_train_dropped", "base_dev_in_window")}))
+        if "navtrain" in manifest:
+            nt = manifest["navtrain"]
+            print("navtrain:", json.dumps({k: nt[k] for k in ("tokens", "left_after", "excluded_by_first_failing_rule",
+                                                              "also_fail_a_later_rule")}))
+            print("mix:", json.dumps({k: manifest["mix"][k] for k in ("base", "added_outside_gated", "added_gated",
+                                                                      "union", "stay_in_union", "stay_kept", "selected")}))
     elif args.command == "fetch":
         if args.archives > SMOKE_ARCHIVES and not args.full:
             parser.error(f"more than {SMOKE_ARCHIVES} archives needs --full: the full run waits for Gate 1 (plan §6)")

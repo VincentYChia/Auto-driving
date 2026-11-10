@@ -57,7 +57,7 @@ quota_guard() {
         echo "quota guard ($1): only $free files free on scratch (< $V1XL_MIN_FREE_FILES); stopping" >&2
         exit 1
     fi
-    echo "[v1-xl] quota guard ($1): $free files free"
+    echo "[${BUILD_TAG:-v1-xl}] quota guard ($1): $free files free"
 }
 
 minutes_left() {
@@ -81,7 +81,7 @@ need_minutes() {
     local left
     left="$(minutes_left)"
     if [ "$left" -lt "$1" ]; then
-        echo "[v1-xl] RESUBMIT: $2 needs ~$1 min, $left left; submit the same command again"
+        echo "[${BUILD_TAG:-v1-xl}] RESUBMIT: $2 needs ~$1 min, $left left; submit the same command again"
         exit 0
     fi
 }

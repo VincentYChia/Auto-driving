@@ -41,7 +41,8 @@ from data_pipeline import labels
 from data_pipeline.v1 import image_store, openscene_index, projection, provenance, safe_pickle, stats, tables
 from data_pipeline.v1.openscene_index import ANCHOR, CAMERA, CORE, PATH_OFFSETS_S
 
-SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd")  # v1-xl-nd [proposed]: v1-xl spec §2.2
+SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd",  # v1-xl-nd [proposed]: v1-xl spec §2.2
+        "v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all")  # the v1.0-pool sets [proposed]: token_sets.py, plan §11
 METADATA = os.path.join("data", "pretrain", "downloads", "openscene_metadata_trainval.tgz")
 OTHER_CAMERAS = ("CAM_L0", "CAM_R0", "CAM_L1", "CAM_R1", "CAM_L2", "CAM_R2", "CAM_B0")
 LICENCE = "CC BY-NC-SA 4.0 (nuPlan, OpenScene)"
