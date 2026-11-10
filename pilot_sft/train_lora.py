@@ -16,6 +16,13 @@ or ``full`` (every vision weight trained, at ``--vision-lr``, saved inside the a
 Writes ``<out>/adapter/`` (PEFT), ``<out>/log.jsonl`` (loss per step, dev loss per evaluation) and
 ``<out>/run.json`` (settings, data checksums, timings, peak GPU memory). With ``--snapshot-epochs`` it also
 keeps the adapter at the end of every epoch but the last, as ``<out>/epoch_<k>/``.
+
+``--workers N`` builds the training micro-batches (prompts, JPEG decode, the processor, labels) in N threads,
+up to ``--prefetch`` ahead of the GPU, instead of in the loop (``batch_stream.py``). The micro-batches, and a
+resume from a checkpoint, are the same for any N [proposed]. ``--torch-threads T`` caps torch's CPU threads,
+which the processor's image ops use in each encode thread. On CPU with a simulated training step (2026-11-09),
+workers under torch's default thread count competed with the loop and gave no speed-up; with 2 torch threads,
+one worker gave about +30%. Not measured on a GPU yet [proposed].
 """
 
 from __future__ import annotations
@@ -27,10 +34,11 @@ import math
 import os
 import random
 import time
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 
+from batch_stream import Drawn, Draws, Prefetcher  # pilot_sft/: the draws in order, encoding ahead in threads
 from view_images import ViewImages  # pilot_sft/: images.zip if the view is packed, else the loose files
 
 
@@ -82,6 +90,10 @@ class Batches:
 
     With ``ego_dropout`` > 0, training batches hide the ego state and past positions of that share of
     samples (``mask_ego``), so the answer has to come from the image and the command. Dev batches never do.
+
+    ``collate`` is ``encode(items, draw(items, train))``: ``draw`` makes the batch's only random choice, and
+    ``encode`` is pure, so ``--workers`` threads can run it ahead of the GPU, each with its own processor and
+    ``ViewImages`` (``train_stream``).
     """
 
     def __init__(self, processor, view: str, items: List[Dict[str, Any]], ego_dropout: float = 0.0, seed: int = 0):
@@ -90,22 +102,55 @@ class Batches:
         self.end = answer_end(processor)
         self.ego_dropout, self.rng = ego_dropout, random.Random(seed + 1)
 
-    def collate(self, items: List[Dict[str, Any]], train: bool = False) -> Dict[str, torch.Tensor]:
+    def draw(self, items: List[Dict[str, Any]], train: bool = False) -> List[bool]:
+        """Which of ``items`` get ``mask_ego``: one ``self.rng`` draw per item in training batches with ego
+        dropout, none otherwise, as ``collate`` has always drawn them."""
         if train and self.ego_dropout > 0:
-            items = [mask_ego(it) if self.rng.random() < self.ego_dropout else it for it in items]
-        prompts = [prompt_text(self.processor, it) for it in items]
+            return [self.rng.random() < self.ego_dropout for _ in items]
+        return [False] * len(items)
+
+    def encode(self, items: List[Dict[str, Any]], masked: List[bool], processor=None,
+               images: Optional[ViewImages] = None) -> Dict[str, torch.Tensor]:
+        """The model inputs and labels for ``items``, ``mask_ego`` applied where ``masked``. Draws nothing.
+        An encode thread passes its own ``processor`` and ``images``; by default this batcher's are used."""
+        processor = self.processor if processor is None else processor
+        images = self.images if images is None else images
+        items = [mask_ego(it) if m else it for it, m in zip(items, masked)]
+        prompts = [prompt_text(processor, it) for it in items]
         texts = [p + it["target"] + self.end for p, it in zip(prompts, items)]
-        images = [self.images.open(it["image"]).convert("RGB") for it in items]
-        batch = self.processor(text=texts, images=images, padding=True, return_tensors="pt")
-        prompt_ids = self.processor(text=prompts, images=images, padding=False)["input_ids"]
+        pictures = [images.open(it["image"]).convert("RGB") for it in items]
+        batch = processor(text=texts, images=pictures, padding=True, return_tensors="pt")
+        prompt_ids = processor(text=prompts, images=pictures, padding=False)["input_ids"]
         labels = batch["input_ids"].clone()
         labels[batch["attention_mask"] == 0] = -100
         for row, ids in enumerate(prompt_ids):
             n_prompt = len(ids)
-            pad = int((batch["attention_mask"][row] == 0).sum()) if self.processor.tokenizer.padding_side == "left" else 0
+            pad = int((batch["attention_mask"][row] == 0).sum()) if processor.tokenizer.padding_side == "left" else 0
             labels[row, : pad + n_prompt] = -100
         batch["labels"] = labels
         return batch
+
+    def collate(self, items: List[Dict[str, Any]], train: bool = False) -> Dict[str, torch.Tensor]:
+        return self.encode(items, self.draw(items, train))
+
+
+def train_stream(batches: Batches, train: List[Dict[str, Any]], order: List[int], batch: int, workers: int = 0,
+                 prefetch: Optional[int] = None,
+                 make_tools: Optional[Callable[[], Tuple[Any, ViewImages]]] = None) -> Prefetcher:
+    """The training micro-batches from ``order`` on, as ``(drawn, encoded)``: the same for any ``workers``.
+
+    The draws take the ``random`` module's and ``batches.rng``'s current states (seeded, or restored from a
+    checkpoint). ``make_tools()`` gives each encode thread its own ``(processor, ViewImages)``; it is required
+    with ``workers``, and runs ``workers`` times when the stream is made, before anything is drawn.
+    """
+
+    def encode(drawn: Drawn, tools: Optional[Tuple[Any, ViewImages]]) -> Dict[str, torch.Tensor]:
+        processor, images = tools or (None, None)  # None: the batcher's own, in the calling thread
+        return batches.encode([train[i] for i in drawn.idx], drawn.masked, processor, images)
+
+    draws = Draws(len(train), batch, order, random, lambda idx: batches.draw([train[i] for i in idx], train=True),
+                  batches.rng)
+    return Prefetcher(draws, encode, workers, prefetch, make_tools)
 
 
 VISION_KEYS = ("visual", "vision", "merger", "multi_modal_projector")
@@ -161,7 +206,22 @@ def main() -> None:
                         help="save the adapter at the end of every epoch but the last, as <out>/epoch_<k>/")
     parser.add_argument("--save-every", type=int, default=50, help="optimizer steps between checkpoints; 0 = none")
     parser.add_argument("--resume", action="store_true", help="continue from <out>/checkpoint.pt if it exists")
+    parser.add_argument("--workers", type=int, default=0,
+                        help="threads that build training micro-batches ahead of the GPU; 0 = in the loop. "
+                             "Same micro-batches either way [proposed]")
+    parser.add_argument("--prefetch", type=int, default=None,
+                        help="micro-batches built ahead with --workers (default 2 x workers)")
+    parser.add_argument("--torch-threads", type=int, default=None,
+                        help="CPU threads for torch ops, the processor's in every encode thread included "
+                             "(default: torch's choice); with --workers, try 1-2 [proposed]")
     args = parser.parse_args()
+    args.prefetch = 2 * args.workers if args.prefetch is None else args.prefetch  # recorded in run.json
+    if args.workers < 0 or (args.workers and args.prefetch < 1):
+        parser.error("--workers must be >= 0, and --prefetch >= 1 with workers")
+    if args.torch_threads is not None and args.torch_threads < 1:
+        parser.error("--torch-threads must be >= 1")
+    if args.torch_threads:
+        torch.set_num_threads(args.torch_threads)  # threads started later (the encode threads) take it too
 
     from peft import LoraConfig, get_peft_model
     from transformers import AutoModelForImageTextToText, AutoProcessor
@@ -193,6 +253,12 @@ def main() -> None:
     total = sum(p.numel() for p in model.parameters())
 
     batches = Batches(processor, args.view, train, ego_dropout=args.ego_dropout, seed=args.seed)
+
+    def thread_tools() -> Tuple[Any, ViewImages]:  # an encode thread's own processor and images: not shareable
+        own = AutoProcessor.from_pretrained(args.model)
+        own.tokenizer.padding_side = processor.tokenizer.padding_side
+        return own, ViewImages(args.view)
+
     steps_per_epoch = math.ceil(len(train) / (args.batch * args.accum))
     steps = args.max_steps or math.ceil(steps_per_epoch * args.epochs)
     # with --vision full the copied vision tower ("modules_to_save") gets its own, lower learning rate
@@ -248,14 +314,15 @@ def main() -> None:
         state = {"trainable": {n: p.detach().cpu() for n, p in model.named_parameters() if p.requires_grad},
                  "optim": optim.state_dict(), "sched": sched.state_dict(), "step": step, "seen": seen,
                  "tokens": tokens, "order": order, "elapsed_s": time.time() - start, "dev_loss_start": first,
-                 "py_rng": random.getstate(), "dropout_rng": batches.rng.getstate(), "torch_rng": torch.get_rng_state(),
+                 "py_rng": py_rng, "dropout_rng": dropout_rng, "torch_rng": torch.get_rng_state(),
                  "cuda_rng": torch.cuda.get_rng_state_all() if device == "cuda" else None}
         torch.save(state, ckpt + ".part")
         os.replace(ckpt + ".part", ckpt)
 
     log = open(log_path, "a", encoding="utf-8")
     run = {"args": vars(args), "device": torch.cuda.get_device_name(0) if device == "cuda" else "cpu",
-           "dtype": str(dtype), "train_samples": len(train), "dev_samples_for_loss": len(dev),
+           "dtype": str(dtype), "torch_threads": torch.get_num_threads(),
+           "train_samples": len(train), "dev_samples_for_loss": len(dev),
            "trainable_params": trainable, "total_params": total, "lora_targets": len(targets),
            "vision_trainable_params": sum(p.numel() for n, p in model.named_parameters()
                                           if p.requires_grad and any(s in n for s in VISION_KEYS)),
@@ -265,38 +332,43 @@ def main() -> None:
     if first is None:
         first = dev_loss()
         log.write(json.dumps({"step": 0, "dev_loss": first}) + "\n")
+    # made before the clock starts, like the first dev loss: with --workers it loads a processor per thread
+    stream = train_stream(batches, train, order, args.batch, args.workers, args.prefetch, thread_tools)
     start = time.time() - done_s
     model.train()
-    while step < steps:
-        for _ in range(args.accum):
-            if len(order) < args.batch:
-                order += random.sample(range(len(train)), len(train))
-            idx, order = order[: args.batch], order[args.batch :]
-            batch = {k: v.to(device) for k, v in batches.collate([train[i] for i in idx], train=True).items()}
-            with torch.autocast(device_type=device, dtype=dtype, enabled=dtype != torch.float32):
-                loss = model(**batch).loss / args.accum
-            loss.backward()
-            seen += len(idx)
-            tokens += int(batch["attention_mask"].sum())
-        torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
-        optim.step()
-        sched.step()
-        optim.zero_grad(set_to_none=True)
-        step += 1
-        entry = {"step": step, "loss": round(loss.item() * args.accum, 4), "lr": sched.get_last_lr()[0],
-                 "samples": seen, "elapsed_s": round(time.time() - start, 1)}
-        if step % args.eval_every == 0 or step == steps:
-            entry["dev_loss"] = round(dev_loss(), 4)
-        log.write(json.dumps(entry) + "\n")
-        log.flush()
-        if step % 10 == 0 or "dev_loss" in entry:
-            print(json.dumps(entry), flush=True)
-        if args.snapshot_epochs and step % steps_per_epoch == 0 and step < steps:
-            snap = os.path.join(args.out, f"epoch_{step // steps_per_epoch}")
-            model.save_pretrained(snap)
-            processor.save_pretrained(snap)  # evaluate.py loads the processor from the adapter folder
-        if args.save_every and step % args.save_every == 0 and step < steps:
-            save_checkpoint()
+    # A checkpoint stores the draw state as it was right after the last micro-batch trained on, not the live one,
+    # which --workers keeps ahead; so a resume, with any --workers, draws what this run would have drawn next.
+    py_rng, dropout_rng = random.getstate(), batches.rng.getstate()
+    with stream:
+        while step < steps:
+            for _ in range(args.accum):
+                drawn, batch = next(stream)
+                order, py_rng, dropout_rng = drawn.state
+                batch = {k: v.to(device) for k, v in batch.items()}
+                with torch.autocast(device_type=device, dtype=dtype, enabled=dtype != torch.float32):
+                    loss = model(**batch).loss / args.accum
+                loss.backward()
+                seen += len(drawn.idx)
+                tokens += int(batch["attention_mask"].sum())
+            torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
+            optim.step()
+            sched.step()
+            optim.zero_grad(set_to_none=True)
+            step += 1
+            entry = {"step": step, "loss": round(loss.item() * args.accum, 4), "lr": sched.get_last_lr()[0],
+                     "samples": seen, "elapsed_s": round(time.time() - start, 1)}
+            if step % args.eval_every == 0 or step == steps:
+                entry["dev_loss"] = round(dev_loss(), 4)
+            log.write(json.dumps(entry) + "\n")
+            log.flush()
+            if step % 10 == 0 or "dev_loss" in entry:
+                print(json.dumps(entry), flush=True)
+            if args.snapshot_epochs and step % steps_per_epoch == 0 and step < steps:
+                snap = os.path.join(args.out, f"epoch_{step // steps_per_epoch}")
+                model.save_pretrained(snap)
+                processor.save_pretrained(snap)  # evaluate.py loads the processor from the adapter folder
+            if args.save_every and step % args.save_every == 0 and step < steps:
+                save_checkpoint()
     elapsed = time.time() - start
     model.save_pretrained(os.path.join(args.out, "adapter"))
     processor.save_pretrained(os.path.join(args.out, "adapter"))

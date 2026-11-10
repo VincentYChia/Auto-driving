@@ -28,12 +28,17 @@ VIEW="$TRAINING_DATA_ROOT/pilot_v1/$SET"
 RUN="${RUN_DIR:-$NAVSIM_EXP_ROOT/pilot_sft/$(basename "$MODEL")-$SET-${SLURM_JOB_ID:-local}}"
 # VISION=frozen|lora|full (VISION_LR for full) trains the vision encoder too; SNAPSHOTS=1 keeps and scores
 # the adapter at every epoch end; LIMIT=N uses the first N train samples and DEV_LOSS_SAMPLES the dev-loss
-# sample size (tests) [proposed 2026-11-08]
+# sample size (tests) [proposed 2026-11-08]. WORKERS=N builds the training micro-batches in N threads ahead of
+# the GPU; same batches for any N, and a resubmit may change it. TORCH_THREADS=T caps torch's CPU threads: on
+# CPU, workers without a cap gave no speed-up. Until a GPU timing run (MAX_STEPS=200, WORKERS 0/1/2, with and
+# without TORCH_THREADS=2) settles it, keep WORKERS at 1-2 with TORCH_THREADS=2 [proposed 2026-11-09]
 EXTRA=()
 [ -n "${MAX_STEPS:-}" ] && EXTRA+=(--max-steps "$MAX_STEPS")
 [ -n "${LIMIT:-}" ] && EXTRA+=(--limit "$LIMIT")
 [ -n "${SNAPSHOTS:-}" ] && EXTRA+=(--snapshot-epochs)
 [ -n "${DEV_LOSS_SAMPLES:-}" ] && EXTRA+=(--eval-samples "$DEV_LOSS_SAMPLES")
+[ -n "${WORKERS:-}" ] && EXTRA+=(--workers "$WORKERS")
+[ -n "${TORCH_THREADS:-}" ] && EXTRA+=(--torch-threads "$TORCH_THREADS")
 cd "$REPO_ROOT"
 # run.json is written once the adapter is saved; without this check a resubmit would start training over
 [ -f "$RUN/run.json" ] || python pilot_sft/train_lora.py --view "$VIEW" --model "$MODEL" --out "$RUN" \
