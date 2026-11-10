@@ -1004,6 +1004,247 @@
    },
    "zero_where_human_agent_also_zero": 0.0
   },
+  "large-ep3": {
+   "all": {
+    "scenes": 12146,
+    "pdms": 0.779,
+    "share_zero": 0.1396,
+    "share_collision": 0.0273,
+    "share_off_road": 0.115,
+    "ade_m": 0.7122,
+    "median_ade_m": 0.5462,
+    "fde_m": 1.7977
+   },
+   "zero_causes": {
+    "collision only": 0.0246,
+    "off road only": 0.1124,
+    "both": 0.0026,
+    "other": 0.0
+   },
+   "error_on_zero_vs_rest": {
+    "zero": {
+     "ade_m": 0.886,
+     "fde_m": 2.2439,
+     "along_m_mean": 0.2266,
+     "along_m_abs": 1.7669,
+     "across_m_abs": 0.9624,
+     "share_ending_ahead_by_over_2m": 0.1792,
+     "share_ending_behind_by_over_2m": 0.1321,
+     "share_ending_aside_by_over_1m": 0.3379
+    },
+    "rest": {
+     "ade_m": 0.684,
+     "fde_m": 1.7253,
+     "along_m_mean": -0.3782,
+     "along_m_abs": 1.5602,
+     "across_m_abs": 0.4268,
+     "share_ending_ahead_by_over_2m": 0.1011,
+     "share_ending_behind_by_over_2m": 0.1607,
+     "share_ending_aside_by_over_1m": 0.124
+    }
+   },
+   "by": {
+    "command": {
+     "left": {
+      "scenes": 2501,
+      "pdms": 0.741,
+      "share_zero": 0.1803,
+      "share_collision": 0.02,
+      "share_off_road": 0.1647,
+      "ade_m": 0.8048,
+      "median_ade_m": 0.6393,
+      "fde_m": 2.0097
+     },
+     "right": {
+      "scenes": 1575,
+      "pdms": 0.7098,
+      "share_zero": 0.1917,
+      "share_collision": 0.0286,
+      "share_off_road": 0.1676,
+      "ade_m": 0.8473,
+      "median_ade_m": 0.6836,
+      "fde_m": 2.1551
+     },
+     "straight": {
+      "scenes": 8070,
+      "pdms": 0.8043,
+      "share_zero": 0.1169,
+      "share_collision": 0.0292,
+      "share_off_road": 0.0893,
+      "ade_m": 0.6571,
+      "median_ade_m": 0.4945,
+      "fde_m": 1.6622
+     }
+    },
+    "ego_speed": {
+     "fast (8-12)": {
+      "scenes": 2282,
+      "pdms": 0.7367,
+      "share_zero": 0.195,
+      "share_collision": 0.0149,
+      "share_off_road": 0.1823,
+      "ade_m": 0.6999,
+      "median_ade_m": 0.5535,
+      "fde_m": 1.7234
+     },
+     "medium (4-8)": {
+      "scenes": 4906,
+      "pdms": 0.738,
+      "share_zero": 0.1837,
+      "share_collision": 0.0428,
+      "share_off_road": 0.1445,
+      "ade_m": 0.678,
+      "median_ade_m": 0.5608,
+      "fde_m": 1.6947
+     },
+     "slow (0.5-4)": {
+      "scenes": 3803,
+      "pdms": 0.8409,
+      "share_zero": 0.0776,
+      "share_collision": 0.0205,
+      "share_off_road": 0.0594,
+      "ade_m": 0.6638,
+      "median_ade_m": 0.485,
+      "fde_m": 1.6706
+     },
+     "stopped (<0.5 m/s)": {
+      "scenes": 848,
+      "pdms": 0.8288,
+      "share_zero": 0.0165,
+      "share_collision": 0.0094,
+      "share_off_road": 0.0071,
+      "ade_m": 1.1872,
+      "median_ade_m": 0.8961,
+      "fde_m": 3.2629
+     },
+     "very fast (>12)": {
+      "scenes": 307,
+      "pdms": 0.8464,
+      "share_zero": 0.1336,
+      "share_collision": 0.0033,
+      "share_off_road": 0.1303,
+      "ade_m": 0.6373,
+      "median_ade_m": 0.476,
+      "fde_m": 1.5235
+     }
+    },
+    "human_next_4s": {
+     "brake to a stop": {
+      "scenes": 815,
+      "pdms": 0.8457,
+      "share_zero": 0.081,
+      "share_collision": 0.0687,
+      "share_off_road": 0.0123,
+      "ade_m": 0.5214,
+      "median_ade_m": 0.3706,
+      "fde_m": 1.1646
+     },
+     "keep going": {
+      "scenes": 5902,
+      "pdms": 0.8052,
+      "share_zero": 0.1159,
+      "share_collision": 0.0286,
+      "share_off_road": 0.0898,
+      "ade_m": 0.6332,
+      "median_ade_m": 0.4747,
+      "fde_m": 1.6119
+     },
+     "sideways shift (>2 m, lane change or curve)": {
+      "scenes": 1605,
+      "pdms": 0.7451,
+      "share_zero": 0.19,
+      "share_collision": 0.0206,
+      "share_off_road": 0.172,
+      "ade_m": 0.6637,
+      "median_ade_m": 0.5634,
+      "fde_m": 1.6057
+     },
+     "start from a stop": {
+      "scenes": 668,
+      "pdms": 0.8345,
+      "share_zero": 0.018,
+      "share_collision": 0.0105,
+      "share_off_road": 0.0075,
+      "ade_m": 1.1498,
+      "median_ade_m": 0.878,
+      "fde_m": 3.1798
+     },
+     "stay stopped": {
+      "scenes": 8,
+      "pdms": 0.875,
+      "share_zero": 0.125,
+      "share_collision": 0.125,
+      "share_off_road": 0.0,
+      "ade_m": 0.5485,
+      "median_ade_m": 0.0947,
+      "fde_m": 1.1811
+     },
+     "turn left (>20 deg)": {
+      "scenes": 1971,
+      "pdms": 0.7452,
+      "share_zero": 0.1816,
+      "share_collision": 0.0152,
+      "share_off_road": 0.1684,
+      "ade_m": 0.7983,
+      "median_ade_m": 0.6388,
+      "fde_m": 1.9833
+     },
+     "turn right (>20 deg)": {
+      "scenes": 1177,
+      "pdms": 0.6722,
+      "share_zero": 0.2294,
+      "share_collision": 0.0297,
+      "share_off_road": 0.2073,
+      "ade_m": 0.9151,
+      "median_ade_m": 0.7453,
+      "fde_m": 2.3384
+     }
+    },
+    "map": {
+     "sg-one-north": {
+      "scenes": 1914,
+      "pdms": 0.7184,
+      "share_zero": 0.1724,
+      "share_collision": 0.0016,
+      "share_off_road": 0.1714,
+      "ade_m": 0.5875,
+      "median_ade_m": 0.4894,
+      "fde_m": 1.4987
+     },
+     "us-ma-boston": {
+      "scenes": 3731,
+      "pdms": 0.7666,
+      "share_zero": 0.1442,
+      "share_collision": 0.0448,
+      "share_off_road": 0.1064,
+      "ade_m": 0.7436,
+      "median_ade_m": 0.5757,
+      "fde_m": 1.89
+     },
+     "us-nv-las-vegas-strip": {
+      "scenes": 4064,
+      "pdms": 0.8571,
+      "share_zero": 0.0814,
+      "share_collision": 0.0212,
+      "share_off_road": 0.061,
+      "ade_m": 0.6654,
+      "median_ade_m": 0.5059,
+      "fde_m": 1.6418
+     },
+     "us-pa-pittsburgh-hazelwood": {
+      "scenes": 2437,
+      "pdms": 0.7156,
+      "share_zero": 0.2039,
+      "share_collision": 0.0308,
+      "share_off_road": 0.174,
+      "ade_m": 0.84,
+      "median_ade_m": 0.6286,
+      "fde_m": 2.1512
+     }
+    }
+   },
+   "zero_where_human_agent_also_zero": 0.0
+  },
   "constant velocity": {
    "all": {
     "scenes": 12146,
@@ -1259,6 +1500,10 @@
    "both_zero": 1448,
    "share_of_0.8B pilot_zeros": 0.7384
   },
+  "0.8B pilot & large-ep3": {
+   "both_zero": 1311,
+   "share_of_0.8B pilot_zeros": 0.6685
+  },
   "0.8B pilot & constant velocity": {
    "both_zero": 1832,
    "share_of_0.8B pilot_zeros": 0.9342
@@ -1271,6 +1516,10 @@
    "both_zero": 1596,
    "share_of_2B pilot_zeros": 0.818
   },
+  "2B pilot & large-ep3": {
+   "both_zero": 1264,
+   "share_of_2B pilot_zeros": 0.6479
+  },
   "2B pilot & constant velocity": {
    "both_zero": 1856,
    "share_of_2B pilot_zeros": 0.9513
@@ -1279,13 +1528,25 @@
    "both_zero": 1582,
    "share_of_MVLAD-AD_zeros": 0.2551
   },
+  "MVLAD-AD & large-ep3": {
+   "both_zero": 1345,
+   "share_of_MVLAD-AD_zeros": 0.2169
+  },
   "MVLAD-AD & constant velocity": {
    "both_zero": 5531,
    "share_of_MVLAD-AD_zeros": 0.8918
   },
+  "2B-large & large-ep3": {
+   "both_zero": 1284,
+   "share_of_2B-large_zeros": 0.6306
+  },
   "2B-large & constant velocity": {
    "both_zero": 1898,
    "share_of_2B-large_zeros": 0.9322
+  },
+  "large-ep3 & constant velocity": {
+   "both_zero": 1592,
+   "share_of_large-ep3_zeros": 0.9387
   }
  },
  "human_agent_zero_scenes": 0,
