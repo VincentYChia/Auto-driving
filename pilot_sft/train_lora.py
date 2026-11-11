@@ -80,6 +80,37 @@ def mask_ego(item: Dict[str, Any]) -> Dict[str, Any]:
     return {**item, "prompt": "\n".join(lines)}
 
 
+def check_adapter_config(config: Dict[str, Any], rank: int, alpha: int, vision: str) -> None:
+    """A saved adapter can seed a run only with the same LoRA rank and alpha and the same vision setting."""
+    trained_vision = "full" if config.get("modules_to_save") else None
+    problems = []
+    if config.get("r") != rank:
+        problems.append(f"rank {config.get('r')} vs --rank {rank}")
+    if config.get("lora_alpha") != alpha:
+        problems.append(f"alpha {config.get('lora_alpha')} vs --alpha {alpha}")
+    if (vision == "full") != (trained_vision == "full"):
+        problems.append(f"vision tower {'trained' if trained_vision else 'frozen'} vs --vision {vision}")
+    if problems:
+        raise SystemExit("--init-adapter does not match this run: " + "; ".join(problems))
+
+
+def load_adapter_weights(model: Any, folder: str, args: argparse.Namespace) -> int:
+    """Copy a saved adapter's weights (``adapter_model.safetensors``) into the fresh PEFT ``model``; returns how
+    many tensors it set. Every trainable LoRA tensor of the model must be in the file, and nothing else."""
+    from peft import set_peft_model_state_dict
+    from safetensors.torch import load_file
+
+    with open(os.path.join(folder, "adapter_config.json"), encoding="utf-8") as f:
+        check_adapter_config(json.load(f), args.rank, args.alpha, args.vision)
+    weights = load_file(os.path.join(folder, "adapter_model.safetensors"))
+    result = set_peft_model_state_dict(model, weights)
+    unexpected = list(getattr(result, "unexpected_keys", []) or [])
+    missing = [k for k in (getattr(result, "missing_keys", []) or []) if "lora_" in k or "modules_to_save" in k]
+    if unexpected or missing:
+        raise SystemExit(f"{folder} does not fit this model: unexpected {unexpected[:3]}, missing {missing[:3]}")
+    return len(weights)
+
+
 def view_prompt_version(view: str) -> str:
     """The view's prompt version (``view.json``), recorded in run.json so prediction can rebuild the same prompt;
     views without one are pilot_v1.1."""
@@ -217,6 +248,10 @@ def main() -> None:
                         help="save the adapter at the end of every epoch but the last, as <out>/epoch_<k>/")
     parser.add_argument("--save-every", type=int, default=50, help="optimizer steps between checkpoints; 0 = none")
     parser.add_argument("--resume", action="store_true", help="continue from <out>/checkpoint.pt if it exists")
+    parser.add_argument("--init-adapter", default=None,
+                        help="start from this saved adapter's weights instead of a fresh LoRA, for a staged run "
+                             "(e.g. navtrain after the 490k set); its rank, alpha and vision setting must match. "
+                             "A resumed run's checkpoint replaces them [proposed 2026-11-11]")
     parser.add_argument("--workers", type=int, default=0,
                         help="threads that build training micro-batches ahead of the GPU; 0 = in the loop. "
                              "Same micro-batches either way [proposed]")
@@ -260,6 +295,9 @@ def main() -> None:
     model = get_peft_model(model, LoraConfig(r=args.rank, lora_alpha=args.alpha, lora_dropout=0.05,
                                              target_modules=targets, modules_to_save=to_save,
                                              task_type="CAUSAL_LM"))
+    if args.init_adapter:
+        print(f"started from {args.init_adapter}: {load_adapter_weights(model, args.init_adapter, args)} tensors",
+              flush=True)
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
 

@@ -42,6 +42,9 @@ EXTRA=()
 # SEED=N (default 0) re-draws the LoRA init, the sample order, the ego-dropout draws and the dev-loss subset, for
 # seed replicates of one recipe; eval.json's 1,000 dev samples do not depend on it [proposed 2026-11-11]
 [ -n "${SEED:-}" ] && EXTRA+=(--seed "$SEED")
+# INIT_ADAPTER=<adapter folder> starts a staged run from a saved adapter (same LORA_RANK, LORA_ALPHA and VISION),
+# e.g. one epoch of navtrain after the 490k set [proposed 2026-11-11]
+[ -n "${INIT_ADAPTER:-}" ] && EXTRA+=(--init-adapter "$INIT_ADAPTER")
 cd "$REPO_ROOT"
 # run.json is written once the adapter is saved; without this check a resubmit would start training over
 [ -f "$RUN/run.json" ] || python pilot_sft/train_lora.py --view "$VIEW" --model "$MODEL" --out "$RUN" \
