@@ -73,13 +73,12 @@ def failure(row) -> str:
 
 
 def choose(scores: List, n_random: int, seed: int) -> List[Tuple[str, str]]:
-    """(token, why) pairs; scores[0] is the reference model, scores[1] the comparison."""
+    """(token, why) pairs; scores[0] is the reference model, scores[1] (if given) the comparison."""
     common = sorted(set.intersection(*(set(s.index) for s in scores)))
     rng = np.random.default_rng(seed)
     picked: List[Tuple[str, str]] = [(t, "random sample") for t in rng.choice(common, n_random, replace=False)]
     used = {t for t, _ in picked}
     a = scores[0].loc[common, "score"].astype(float)
-    b = scores[1].loc[common, "score"].astype(float)
 
     def extra(pool, why, k):
         pool = [t for t in pool if t not in used]
@@ -87,9 +86,70 @@ def choose(scores: List, n_random: int, seed: int) -> List[Tuple[str, str]]:
             picked.append((t, why))
             used.add(t)
 
-    extra(list(a[(a >= 0.8) & (b == 0)].index), "reference model far ahead", 3)
-    extra(list((b - a)[(b - a) > 0.3].index), "comparison model ahead", 2)
+    if len(scores) > 1:
+        b = scores[1].loc[common, "score"].astype(float)
+        extra(list(a[(a >= 0.8) & (b == 0)].index), "reference model far ahead", 3)
+        extra(list((b - a)[(b - a) > 0.3].index), "comparison model ahead", 2)
     extra(list(a[a == 0].index), "reference model fails", 2)
+    return picked
+
+
+# --pick hard [proposed 2026-11-11]: the researcher found the first pages "too many models at once and the drive is
+# too simple", so this mode picks scenes by what the human driver did next (navsim_tools.maneuvers, the labels the
+# training data and failure_analysis.py use), busiest first: (label, short name, scenes)
+HARD_PLAN = [("turn left (>20 deg)", "left turn", 3), ("turn right (>20 deg)", "right turn", 3),
+             ("sideways shift (>2 m, lane change or curve)", "lane change or curve", 2),
+             ("brake to a stop", "brake to a stop", 2), ("start from a stop", "start from a stop", 1)]
+HARD_POOL = 40  # seeded candidates per maneuver; the busiest of them are shown
+BUSY_M = 30.0  # road users (vehicles, pedestrians, cyclists) within this distance of the ego car at t = 0 count
+ROAD_USERS = ("vehicle", "pedestrian", "bicycle")
+
+
+def hard_candidates(scenes_npz: str, scores: List, seed: int, fails: int = 1) -> List[Tuple[str, str, str]]:
+    """(token, maneuver label, short name) candidates for --pick hard: per HARD_PLAN maneuver a seeded pool of the
+    scenes every model was scored on, plus a pool of hard scenes the reference model scored 0 (short name
+    "fails"). ``scenes_npz`` is failure_analysis.py's --cache (each navtest scene's recorded path and speed)."""
+    from navsim_tools.maneuvers import maneuver
+
+    d = np.load(scenes_npz, allow_pickle=False)
+    labels = dict(zip(d["tokens"].tolist(), maneuver(d["human"], d["speed"]).tolist()))
+    common = sorted(set(labels) & set.intersection(*(set(s.index) for s in scores)))
+    rng = np.random.default_rng(seed)
+    out: List[Tuple[str, str, str]] = []
+    for label, short, _ in HARD_PLAN:
+        pool = [t for t in common if labels[t] == label]
+        out += [(t, label, short) for t in rng.choice(pool, min(HARD_POOL, len(pool)), replace=False)] if pool else []
+    hard = {label for label, _, _ in HARD_PLAN}
+    ref = scores[0]["score"].astype(float)
+    pool = [t for t in common if labels[t] in hard and float(ref.loc[t]) == 0 and t not in {c[0] for c in out}]
+    if fails and pool:
+        out += [(t, labels[t], "fails") for t in rng.choice(pool, min(HARD_POOL, len(pool)), replace=False)]
+    return out
+
+
+def road_users_near(scene, radius: float = BUSY_M) -> int:
+    """Vehicles, pedestrians and cyclists within ``radius`` of the ego car at the planning moment (t = 0)."""
+    ann = scene.frames[scene.scene_metadata.num_history_frames - 1].annotations
+    boxes = np.asarray(ann.boxes, dtype=np.float64).reshape(-1, 7)
+    names = np.asarray(ann.names)
+    near = np.hypot(boxes[:, 0], boxes[:, 1]) < radius
+    return int((near & np.isin(names, ROAD_USERS)).sum())
+
+
+def pick_hard(candidates: List[Tuple[str, str, str]], busy: Dict[str, int], fails: int = 1) -> List[Tuple[str, str]]:
+    """The busiest loaded candidates of each maneuver (HARD_PLAN counts), then ``fails`` failures; ``busy`` maps a
+    loaded token to its road-user count (unloaded tokens are skipped). Ties keep the seeded candidate order."""
+    picked: List[Tuple[str, str]] = []
+    used = set()
+    for short, k in [(s, n) for _, s, n in HARD_PLAN] + [("fails", fails)]:
+        pool = [(t, label) for t, label, s in candidates if s == short and t in busy and t not in used]
+        pool.sort(key=lambda c: -busy[c[0]])  # stable: equal counts keep the seeded order
+        for t, label in pool[:k]:
+            name = next(s for lab, s, _ in HARD_PLAN if lab == label)
+            why = (f"reference model fails: {name}" if short == "fails" else name) + \
+                  f" · {busy[t]} road users within {BUSY_M:g} m"
+            picked.append((t, why))
+            used.add(t)
     return picked
 
 
@@ -250,7 +310,7 @@ def page_scene(scene, token: str, why: str, command: str, models: List[Dict], cv
             disagree.append(f"{key}: NAVSIM's scorer gives the simulated motion PDMS {pdms:.4f}, the CSV "
                             f"{float(rows[key]['score']):.4f}")
     page = demo_html.scene_payload(
-        token, why, demo_html.why_text(why, models[0]["name"], models[1]["name"]), command,
+        token, why, demo_html.why_text(why, models[0]["name"], models[1]["name"] if len(models) > 1 else ""), command,
         scene.scene_metadata.map_name, speed, demo_html.jpeg_data_uri(image) if image is not None else None,
         images, plans, scores, tracks, motion)
     return page, disagree
@@ -270,6 +330,12 @@ def main() -> None:
                    "from; the page moves each plan's ego box as NAVSIM's simulator drives it from that cache")
     p.add_argument("--random", type=int, default=6)
     p.add_argument("--turns", type=int, default=1, help="extra scenes per turn command (left, right)")
+    p.add_argument("--pick", choices=("mixed", "hard"), default="mixed",
+                   help="mixed: a seeded random sample plus labelled extras (--random, --turns); hard: scenes by what "
+                   "the human did next (left and right turns, lane changes and curves, braking to a stop, starting "
+                   "off), the busiest of a seeded pool each, plus one the reference model fails (needs --scenes)")
+    p.add_argument("--scenes", default=None,
+                   help="--pick hard: failure_analysis.py's --cache npz (each navtest scene's recorded path and speed)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--dpi", type=int, default=130)
     p.add_argument("--bev-px", type=int, default=800, help="page only: pixel width of each map background")
@@ -278,6 +344,8 @@ def main() -> None:
         p.error("give --out (PNG figures), --html (interactive page) or both")
     if args.html and not args.metric_cache:
         p.error("--html needs --metric-cache: the page shows the ego motion NAVSIM simulated and scored")
+    if args.pick == "hard" and not args.scenes:
+        p.error("--pick hard needs --scenes (failure_analysis.py's --cache npz)")
     if args.html:
         series = demo_html.series_specs([s.split("=", 1)[0] for s in args.model], SERIES, INK, GREY,
                                         with_cv=args.cv is not None)
@@ -295,15 +363,17 @@ def main() -> None:
     for spec in args.model:
         name, pred, csv = spec.split("=", 2)
         models.append({"name": name, "pred": load_predictions(pred), "score": load_scores(csv)})
-    picked = choose([m["score"] for m in models], args.random, args.seed)
+    hard = args.pick == "hard"
+    candidates = hard_candidates(args.scenes, [m["score"] for m in models], args.seed) if hard else []
+    picked = [] if hard else choose([m["score"] for m in models], args.random, args.seed)
     cv = load_scores(args.cv) if args.cv else None
 
     data = Path(os.environ["OPENSCENE_DATA_ROOT"])
     no_cam = dict(cam_l0=False, cam_l1=False, cam_l2=False, cam_r0=False, cam_r1=False, cam_r2=False,
                   cam_b0=False, lidar_pc=False)
     # turn commands need the agent input, so pick them after loading a pool of candidate scenes
-    pool_tokens = [t for t, _ in picked]
-    if args.turns:
+    pool_tokens = [t for t, _ in picked] + [t for t, _, _ in candidates]
+    if args.turns and not hard:
         common = sorted(set.intersection(*(set(m["score"].index) for m in models)))
         rng = np.random.default_rng(args.seed + 1)
         pool_tokens += [t for t in rng.choice(common, 400, replace=False) if t not in pool_tokens]
@@ -317,7 +387,11 @@ def main() -> None:
         c = np.asarray(scene.get_agent_input().ego_statuses[-1].driving_command).reshape(-1)
         return COMMANDS[int(np.argmax(c))] if c.size == 4 and c.max() > 0 else "unknown"
 
-    if args.turns:
+    if hard:
+        busy = {t: road_users_near(loader.get_scene_from_token(t)) for t in dict.fromkeys(pool_tokens) if t in available}
+        picked = pick_hard(candidates, busy)
+        print(f"[render] --pick hard: {len(picked)} scenes from {len(busy)} loaded candidates", flush=True)
+    elif args.turns:
         want = {"left": args.turns, "right": args.turns}
         for t in pool_tokens[len(picked):]:
             if t not in available or t in {x for x, _ in picked} or not any(want.values()):
