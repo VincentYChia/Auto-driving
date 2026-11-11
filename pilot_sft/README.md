@@ -111,12 +111,14 @@ linear 0.925 / 2.492, MLP 0.781 / 2.118, command mean 6.419 / 11.548.
 - **The past positions are still ignored:** drift follow −0.01 for both, 0.37 for the MLP.
 - **The two models are tied:** paired 2B − 0.8B on the same samples is −0.007 m ADE (95% bootstrap CI −0.028 to +0.014) and −0.028 m FDE (−0.087 to +0.031). NAVSIM decides between them.
 
-### NAVSIM navtest, full set (2026-11-08, updated 2026-11-09, V)
-PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (no fallbacks to constant velocity) and scored (0 failed). Aggregates in `../docs/navsim_eval/results/`.
+### NAVSIM navtest, full set (2026-11-08, updated 2026-11-11, V)
+PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted and scored (0 failed); no fallbacks to constant velocity except 1 scene for the v1.2 variant. Aggregates in `../docs/navsim_eval/results/`.
 
 | | PDMS (95% CI) | No collision | Drivable area | TTC | Comfort | Progress | Direction | Scenes scoring 0 |
 |---|---|---|---|---|---|---|---|---|
-| **0.8B, v1-large (100,000 samples), 3 epochs** | **0.779 (0.773–0.785)** | 0.970 | 0.885 | 0.907 | 1.000 | 0.720 | 0.972 | 14% |
+| **0.8B, v1-xl-nd (176,352 samples), 4 epochs** | **0.807 (0.802–0.813)** | 0.975 | 0.908 | 0.918 | 1.000 | 0.749 | 0.978 | 11% |
+| 0.8B, v1-large, 3 epochs, prompt v1.2 (4 past poses), poses never blinded | 0.784 (0.779–0.790) | 0.970 | 0.892 | 0.907 | 1.000 | 0.728 | 0.972 | 13% |
+| 0.8B, v1-large (100,000 samples), 3 epochs | 0.779 (0.773–0.785) | 0.970 | 0.885 | 0.907 | 1.000 | 0.720 | 0.972 | 14% |
 | 0.8B, v1-pilot, 2 epochs | 0.752 (0.746–0.759) | 0.962 | 0.870 | 0.886 | 1.000 | 0.700 | 0.968 | 16% |
 | 2B, v1-pilot, 2 epochs | 0.751 (0.745–0.757) | 0.962 | 0.871 | 0.884 | 1.000 | 0.697 | 0.968 | 16% |
 | 2B, v1-large (100,000 samples), 1 epoch | 0.748 (0.741–0.754) | 0.964 | 0.862 | 0.890 | 1.000 | 0.694 | 0.967 | 17% |
@@ -125,7 +127,9 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted (n
 | MVLAD-AD 8B (official weights, nuScenes adapter, no command) | 0.362 (0.355–0.369) | 0.764 | 0.652 | 0.609 | 0.751 | 0.344 | 0.829 | 51% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
 
-- **Three passes over v1-large are the best NAVSIM pilot so far (2026-11-09):** the 0.8B trained 3 epochs on v1-large's 100,000 samples scores 0.779, paired against the 0.8B on v1-pilot +0.027 PDMS (95% bootstrap CI +0.022 to +0.032), with every sub-score up: no collision +0.008, drivable area +0.016, TTC +0.022, progress +0.021 (all CIs above 0); scenes scoring 0 fall from 16.2% to 14.0%. It also beats both 2B pilots (vs 2B v1-pilot +0.028, CI +0.023 to +0.033; vs 2B v1-large 1 epoch +0.031, CI +0.026 to +0.037). Dev agreed (0.629 vs 0.661 m ADE), and train vs dev ADE (0.456 vs 0.629) shows it learning, not memorizing (the 6-epoch v1-pilot run memorized: 0.367 vs 0.689). So more data helps once it gets enough passes: the 1-epoch 2B on the same data did not move. Its shard 3 of 4 was predicted on the lab RTX 4090; on shard 2, which both machines predicted, 70% of answers were identical and the rest differ as greedy decoding does across GPUs (median 0 m, max 4.0 m).
+- **v1-xl-nd, 4 epochs, is the best NAVSIM pilot so far and the first above 0.80 (2026-11-11):** the 0.8B trained 4 epochs on v1-xl-nd's 176,352 samples (lab RTX 4090, batch 4 × accum 4) scores 0.807, paired against `large-ep3` +0.028 PDMS (95% bootstrap CI +0.024 to +0.033) and against the 0.8B on v1-pilot +0.055 (+0.049 to +0.060). Every sub-score is up against `large-ep3`: no collision +0.005, drivable area +0.023, TTC +0.011, progress +0.029 (all CIs above 0). Scenes scoring 0 fall from 14.0% to 11.5%. Dev agreed (0.604 vs 0.629 m ADE), and dev ADE still fell in epoch 4 (0.784, 0.641, 0.620, 0.604 by epoch) although dev loss bottomed at the end of epoch 3 (0.182) and rose to 0.190. More distinct data with more passes keeps paying.
+- **The 4-past-poses prompt, in a variant that never blinds the poses, is a small gain (2026-11-11):** v1-large, 3 epochs, prompt pilot_v1.2, trained before the dropout code covered the new "Past poses" line, so ego dropout hid the ego state but never the poses. Paired against `large-ep3` (same data and recipe, prompt v1.1): +0.005 PDMS (95% bootstrap CI +0.001 to +0.010), from drivable area +0.007 and progress +0.008; collisions and TTC unchanged. Dev ADE was a tie (0.629 both). This is not the clean prompt A/B: that re-run (dropout also blinding the poses) is training now.
+- **Three passes over v1-large were the best NAVSIM pilot until v1-xl-nd (2026-11-09):** the 0.8B trained 3 epochs on v1-large's 100,000 samples scores 0.779, paired against the 0.8B on v1-pilot +0.027 PDMS (95% bootstrap CI +0.022 to +0.032), with every sub-score up: no collision +0.008, drivable area +0.016, TTC +0.022, progress +0.021 (all CIs above 0); scenes scoring 0 fall from 16.2% to 14.0%. It also beats both 2B pilots (vs 2B v1-pilot +0.028, CI +0.023 to +0.033; vs 2B v1-large 1 epoch +0.031, CI +0.026 to +0.037). Dev agreed (0.629 vs 0.661 m ADE), and train vs dev ADE (0.456 vs 0.629) shows it learning, not memorizing (the 6-epoch v1-pilot run memorized: 0.367 vs 0.689). So more data helps once it gets enough passes: the 1-epoch 2B on the same data did not move. Its shard 3 of 4 was predicted on the lab RTX 4090; on shard 2, which both machines predicted, 70% of answers were identical and the rest differ as greedy decoding does across GPUs (median 0 m, max 4.0 m).
   - **Where the gain is (failure analysis, V):** every city gains about the same (+0.024 to +0.028 PDMS), and by what the human did next: keep going +0.035, sideways shift +0.047, brake to a stop +0.024. **Turns barely move:** turn left 0.733 → 0.745, turn right 0.677 → 0.672, with 23% of right-turn scenes still scoring 0 (by command: right −0.006, left +0.009, straight +0.038). Turns are 9.8% of v1-large's training samples (v1-pilot 15.2%) against 25.9% of navtest, so this is the gap the turn-rich sets target (v1-nt 26.7% turns, v1-xl-mix 20.3%).
 - **2B and 0.8B are tied on NAVSIM too:** paired 2B − 0.8B over all 12,146 scenes is −0.001 PDMS (95% bootstrap CI −0.006 to +0.004), and no sub-metric differs. The 2.5× larger model buys nothing here.
 - **The 0.8B pilot is far ahead of MVLAD-AD:** paired MVLAD − 0.8B over all 12,146 scenes is −0.391 PDMS (95% bootstrap CI −0.399 to −0.383); MVLAD scores higher on 12% of scenes, lower on 68%. MVLAD runs here with its nuScenes-trained adapter, no route command and history padded to 5 s (`../docs/navsim_eval/RUNBOOK.md` §2), so this is not a verdict on masked diffusion.
@@ -172,11 +176,15 @@ Each run scored on 1,000 of its own training samples (full input) next to its de
 | **0.8B, v1-large, 3 epochs** | 0.456 | **0.629** | +0.173 |
 | 2B, v1-pilot, 2 epochs | 0.607 | 0.655 | +0.048 |
 | 2B, v1-large, 1 epoch | 0.544 | 0.657 | +0.113 |
-| Constant velocity on the train samples | 1.73 | | |
+| **0.8B, v1-xl-nd, 4 epochs** (2026-11-11) | 0.410 | **0.604** | +0.194 |
+| 0.8B, v1-large, 3 epochs, prompt v1.2, poses never blinded | 0.449 | 0.629 | +0.180 |
+| 0.8B, v1-nt (NAVSIM's navtrain scenes, 80,626), 3 epochs, prompt v1.2 | 0.427 | 0.776 | +0.349 |
+| Constant velocity on the train samples (v1-pilot) | 1.73 | | |
 
 - **Two epochs over 45,000 samples underfit:** train is barely better than dev (0.62 vs 0.66). Nothing here comes close to a near-exact fit.
 - **Repetition fits train by memorizing:** 6 epochs takes train from 0.62 to 0.37 while dev gets worse (0.66 to 0.69).
-- **More distinct data fits train and improves dev together:** `large-ep3` reaches 0.46 on train and the best dev, 0.63. This is the direction for the instinctual layer; the v1-xl-nd runs extend it with per-epoch train and dev numbers.
+- **More distinct data fits train and improves dev together:** `large-ep3` reaches 0.46 on train and dev 0.63; v1-xl-nd (176,352 samples, 4 epochs) takes both further, train 0.41 and dev 0.60. By epoch, train and dev fall together: train 0.656, 0.545, 0.464, 0.410 and dev 0.784, 0.641, 0.620, 0.604. This is the direction for the instinctual layer.
+- **v1-nt fits train and misses dev:** 3 epochs over NAVSIM's 80,626 navtrain scenes reach 0.43 on train (constant velocity 2.75 on those samples: navtrain is the hard, maneuver-rich subset) but only 0.78 on dev, and dev does not improve after epoch 1 (0.790, 0.795, 0.776; dev loss lowest at step 8,600 of 15,120). Our dev is not NAVSIM-filtered, so its NAVSIM score (pending) decides whether this is memorization or a distribution difference.
 
 ### v1-large: 100,000 samples, 1 epoch, `--ego-dropout 0.5` (2026-11-05, V)
 Qwen3.5-2B on the same 1,000 dev samples. Aggregates in `results/qwen35-2b-v1large-egodrop50.json`.
