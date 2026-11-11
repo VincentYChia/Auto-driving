@@ -42,6 +42,8 @@ The researcher: "Ok keep going I want to see how far we get with just this. Then
 
 **Minis:** 2,500 optimizer steps (40,000 samples, a random draw of the set; the cosine schedule ends at the mini's last step, `MAX_STEPS`), small post-training evals (`EVAL_SAMPLES=200`), then all 12,146 navtest scenes and the same 1,000 dev-v2 samples. About 2.4 h each on one queue. Every setting runs on both sets, in this order: the standard recipe with seeds 0 and 1 (the noise floor, and a first dataset hint); ego dropout 0.25, 0.7 and 0 (standard 0.5); vision encoder trained; learning rate 1e-4 and 4e-4 (standard 2e-4); LoRA rank 64 (alpha 128, the same alpha/rank ratio). A setting wins when its paired NAVSIM gain over the seed-0 mini is larger than the seed-to-seed gap, on both sets. If the gap is too large to separate settings, the minis get longer. Minis cannot test epochs: S1's snapshots and H1 vs H2 do. A small effect at mini length may not hold at full length; the full runs check the winners.
 
+**Applied on the desktop 2026-11-11 18:12** (after it hung ~14:31–14:54 and was rebooted at 17:44): queue 1 runs P1's remaining predictions, then S1, then F1 (`qwen35-0.8b-v1fullthin-p12-ep4-then-nt-ep1`, standard recipe from S1's adapter). Queue 2 runs the 18 minis as `qwen35-0.8b-mini-{thin,hard}-{base-s0, base-s1, drop25, drop70, drop0, visfull, lr1e-4, lr4e-4, rank64}`, each setting on the 490k set, then on v1-hard, then the older adapters' dev-v2 evals. The v1-hard view was cut on the desktop from its 490k view; its train and dev files match Anvil's sha256. P2 and its prediction job are parked with the step-11,000 checkpoint. The 176k factor runs and S2 are set aside, not deleted. First mini: ~0.55 steps/s while sharing the GPU with a prediction job.
+
 ## Earlier runs
 
 | ID | Run | Distinct samples | Epochs | Prompt | Answers | Against | Status (2026-11-11) |
@@ -50,10 +52,10 @@ The researcher: "Ok keep going I want to see how far we get with just this. Then
 | B1 | `large-ep3` | 100k | 3 | v1.1 | | | 0.779 |
 | B2 | `xlnd-ep4s` | 176k | 4 | v1.1 | | B1: +0.028 (+0.024 to +0.033) | **0.807** |
 | P0 | `v1large-p12-unmasked-ep3` | 100k | 3 | v1.2, poses never blinded | variant | B1: +0.005 (+0.001 to +0.010) | 0.784 |
-| P1 | `v1large-p12-ep3` | 100k | 3 | v1.2 | prompt at 100k | B1 | queue 1, training: was 77% done when 100k was dropped, so it finishes; scored tonight |
+| P1 | `v1large-p12-ep3` | 100k | 3 | v1.2 | prompt at 100k | B1 | trained (14:02); its navtest predictions were cut at shard 2 of 4 when the desktop hung (2026-11-11 ~14:31–14:54, rebooted 17:44) and resumed at 18:12; scored tonight |
 | C1 | `v1nt-p12-ep3` | 81k navtrain | 3 | v1.2 | composition: NAVSIM's own scenes | P1 | **0.829, best**; +0.021 vs B2 (+0.017 to +0.026) with half the data. Dev ADE ranked it worst |
 | **P2** | `xlnd-p12-ep4` | 176k | 4 | v1.2 | prompt at 176k; the frozen 176k reference | B2 | parked 2026-11-11 evening (176k is no longer one of the two sets); checkpoint kept, so it resumes exactly if wanted |
-| **S1** | `v1fullthin-p12-ep4` | 490k | 4 | v1.2 | size 176k → 490k; best-capability candidate | P2 | queue 1, after P1; ~122k steps at ~0.5/s, predictions ~Sat 13:00, scored before the outage |
+| **S1** | `v1fullthin-p12-ep4` | 490k | 4 | v1.2 | size 176k → 490k; best-capability candidate | P2 | queue 1, after P1's predictions (~19:00 2026-11-11); ~122k steps at ~0.5/s, predictions ~Sat afternoon, scored before the outage |
 | VX, E1, D25, N1, D70 | `xlnd-p12-*` (vision, 6 epochs, dropout 0.25 / 0.7, seed 1) | 176k | | | | P2 | dropped 2026-11-11 evening: the same questions now run as minis on the 490k set and v1-hard |
 | S2, M2 | 490k with vision trained; 2B on 176k | | | | | | dropped: S3 takes the winning settings; 2B waits for a dataset winner |
 | V2 | `xlnd-visfull-ep4s` (H100) | 176k | 4 | v1.1, vision trained | vision encoder at v1.1 | B2 | Anvil `ai`, over half done; continuation queued |
