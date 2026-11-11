@@ -24,6 +24,8 @@ So every new run uses at least the 176k set and the v1.2 prompt, and the factors
 2. **dev-v2 ADE** on the same seeded 1,000 of dev-v2's 2,000 samples for every run, old and new: the prediction job runs it (`eval_dev_v2.json`). The old dev (dev-v1) stays in `eval.json` for runs whose view carries it.
 3. **Train ADE** on 1,000 of the run's own training samples, overall and per epoch: the fit and memorization check behind the instinctual-layer target.
 
+**Dev is not NAVSIM (V, 2026-11-11):** v1-nt has the worst dev ADE and the best PDMS. Our dev draws from all frames, while navtest keeps only NAVSIM's non-trivial scenes. So compare dev only between runs on the same training mix. The 743 navtrain tokens inside dev-v2's 2,000 could make a NAVSIM-matched dev subset [proposed].
+
 **Decision rule:** a level wins when its paired CI excludes 0 and the gain is larger than the seed-to-seed difference (run N1), with dev-v2 agreeing in direction. One seed per run otherwise; the paired CI covers scene sampling, not training noise, which is why N1 exists.
 
 ## Runs
@@ -35,7 +37,7 @@ So every new run uses at least the 176k set and the v1.2 prompt, and the factors
 | B2 | `xlnd-ep4s` | 176k | 4 | v1.1 | | B1: +0.028 (+0.024 to +0.033) | **0.807** |
 | P0 | `v1large-p12-unmasked-ep3` | 100k | 3 | v1.2, poses never blinded | variant | B1: +0.005 (+0.001 to +0.010) | 0.784 |
 | P1 | `v1large-p12-ep3` | 100k | 3 | v1.2 | prompt at 100k | B1 | queue 1, training: was 77% done when 100k was dropped, so it finishes; scored tonight |
-| C1 | `v1nt-p12-ep3` | 81k navtrain | 3 | v1.2 | composition: NAVSIM's own scenes | P1 | trained; NAVSIM score pending |
+| C1 | `v1nt-p12-ep3` | 81k navtrain | 3 | v1.2 | composition: NAVSIM's own scenes | P1 | **0.829, best**; +0.021 vs B2 (+0.017 to +0.026) with half the data. Dev ADE ranked it worst |
 | **P2** | `xlnd-p12-ep4` | 176k | 4 | v1.2 | prompt at 176k; the frozen 176k reference | B2 | queue 2, training since 09:13; ~Thu 11:00 |
 | **S1** | `v1fullthin-p12-ep4` | 490k | 4 | v1.2 | size 176k → 490k; best-capability candidate | P2 | queue 1, after P1; ~122k steps at ~0.5/s, predictions ~Sat 13:00, scored before the outage |
 | **VX** | `xlnd-p12-visfull-ep4` | 176k | 4 | v1.2, vision trained | vision encoder | P2 | queue 2, after P2; ~Fri 20:00 |
