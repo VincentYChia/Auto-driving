@@ -8,6 +8,8 @@ and reuses the same canonical record.
 Evidence marks as in `docs/RESEARCH_DIRECTION.md`: **V** checked against a primary source or measured
 here, **R** reported by others, **D** derived by us. Everything here is [proposed].
 
+The run plan (data size × epochs × prompt, with a seed replicate and one measurement protocol for every run) is in `EXPERIMENTS.md`.
+
 ## The two data sets
 | | Smoke set | v1-pilot (the full set) |
 |---|---|---|
