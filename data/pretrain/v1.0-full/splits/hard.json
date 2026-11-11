@@ -1,0 +1,106 @@
+{
+ "step": "derived_sets",
+ "created_utc": "2026-11-11T20:12:25Z",
+ "repo_commit": "c6b5a75803020fd4c864a82f1de6003157966f08",
+ "sets": {
+  "v1-hard": {
+   "parent": "v1-full-thin",
+   "rule": "v1-full-thin's train rows that are (a) navtrain scenes; (b) not standstill, where driving on at the anchor's speed and heading for 4 s ends at least 3.877 m from the human's pose then (the 0.25 quantile of that distance over v1-full-thin's navtrain rows: a proxy for NAVSIM's filter, which scores that constant-velocity path with the PDM score); or (c) standstill anchors thinned to at most one per 20 s in each log (rule 6 again, over v1-full-thin's standstill rows); dev = v1-full's dev (dev-v2)",
+   "cut_m": 3.8769,
+   "quantile": 0.25,
+   "standstill_period_s": 20.0,
+   "parts": {
+    "navtrain": 96353,
+    "hard_moving": 132344,
+    "standstill": 7436,
+    "dropped_moving_below_cut": 238158,
+    "dropped_standstill": 15480
+   },
+   "train": 236133,
+   "dev": 2000,
+   "sha256": {
+    "train": "51f0d56a9504fbcb76988d5441e3c1bdee5fa3a8e52a3472e937ee8e491228ca",
+    "dev": "0661d4815bd0cae50f1d3495ed1b024d2e40711965197603b9b1d593d36eb951"
+   },
+   "splits": {
+    "train": {
+     "selected": 236133,
+     "logs": 1268,
+     "cruise_share": 0.1102,
+     "city": {
+      "us-nv-las-vegas-strip": 155175,
+      "us-ma-boston": 32018,
+      "us-pa-pittsburgh-hazelwood": 29655,
+      "sg-one-north": 19285
+     },
+     "decision_lon": {
+      "decelerate": 75865,
+      "keep_speed": 64321,
+      "accelerate": 62797,
+      "start": 13305,
+      "stop": 12385,
+      "stopped": 7460
+     },
+     "decision_lat": {
+      "straight": 145431,
+      "turn_left": 29195,
+      "turn_right": 16649,
+      "curve_left": 16099,
+      "stationary": 14386,
+      "curve_right": 9244,
+      "lane_change_left": 2678,
+      "lane_change_right": 2451
+     },
+     "standstill_share": 0.0315
+    },
+    "dev": {
+     "selected": 2000,
+     "logs": 34,
+     "cruise_share": 0.413,
+     "city": {
+      "us-nv-las-vegas-strip": 669,
+      "us-ma-boston": 613,
+      "us-pa-pittsburgh-hazelwood": 402,
+      "sg-one-north": 316
+     },
+     "decision_lon": {
+      "keep_speed": 1082,
+      "decelerate": 311,
+      "accelerate": 301,
+      "stopped": 132,
+      "stop": 90,
+      "start": 84
+     },
+     "decision_lat": {
+      "straight": 1303,
+      "stationary": 225,
+      "turn_left": 129,
+      "curve_left": 105,
+      "turn_right": 104,
+      "curve_right": 102,
+      "lane_change_left": 16,
+      "lane_change_right": 16
+     },
+     "standstill_share": 0.0515
+    }
+   },
+   "train_detail": {
+    "maneuver": {
+     "turn left (>20 deg)": 33621,
+     "turn right (>20 deg)": 18780,
+     "sideways shift (>2 m, lane change or curve)": 16190,
+     "brake to a stop": 15738,
+     "start from a stop": 13446,
+     "stay stopped": 7513,
+     "keep going": 130845
+    },
+    "logs": 1268,
+    "shared_with": {
+     "v1-full-thin": 236133,
+     "navtrain": 96353
+    }
+   },
+   "removed_from_parent_train": 253638
+  }
+ }
+}

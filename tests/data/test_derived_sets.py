@@ -88,3 +88,44 @@ def test_a_derived_view_builds_without_a_membership_column(fetched):  # noqa: F8
     _splits(out, "v1-full-thin", train[:1] + dev[2:3], dev[:1])
     spec = pilot_view.build(str(out), "v1-full-thin", width=16, workers=1)
     assert spec["samples"] == {"train": 2, "dev": 1}
+
+
+def _hard_cands():
+    """One log, 12 rows 1 s apart, ego frame paths: rows 0-3 navtrain (endpoint errors 2, 4, 6, 8 m), rows 4-7
+    moving non-navtrain (1, 3, 5, 7 m), rows 8-11 standstill (0 m)."""
+    from data_pipeline.v1.openscene_index import PATH_OFFSETS_S
+    n, k = 12, len(PATH_OFFSETS_S)
+    err = [2.0, 4.0, 6.0, 8.0, 1.0, 3.0, 5.0, 7.0, 0.0, 0.0, 0.0, 0.0]
+    speed = np.array([5.0] * 8 + [0.0] * 4)
+    path = np.zeros((n, k, 3), dtype=np.float32)
+    for r in range(n):
+        for c, t in enumerate(PATH_OFFSETS_S):
+            if t > 0:  # straight ahead at the speed, then shifted sideways by the row's error at +4 s
+                path[r, c] = (speed[r] * t, err[r] * min(t, 4.0) / 4.0, 0.0)
+    return {"token": np.array([f"h{i:02d}" for i in range(n)], dtype=object),
+            "log_name": np.array(["a"] * n, dtype=object), "t_us": np.arange(n, dtype=np.int64) * 1_000_000,
+            "standstill": np.array([False] * 8 + [True] * 4), "in_navtrain": np.array([True] * 4 + [False] * 8),
+            "speed": speed, "path_xyyaw": path}
+
+
+def test_v1_hard_keeps_navtrain_the_rows_as_hard_as_navtrain_and_thinned_standstills():
+    cands = _hard_cands()
+    err = derived_sets.cv_endpoint_error(cands, np.arange(12))
+    assert np.allclose(err, [2, 4, 6, 8, 1, 3, 5, 7, 0, 0, 0, 0], atol=1e-4)
+    thin = np.arange(12)
+    hard, cut, parts = derived_sets.hard_rows(cands, thin, quantile=0.25, period_s=2.5)
+    assert cut == pytest.approx(3.5, abs=1e-4)  # navtrain errors 2, 4, 6, 8: the 0.25 quantile
+    assert list(hard) == [0, 1, 2, 3, 6, 7, 8, 11]  # 5 m and 7 m pass, 1 m and 3 m do not; stills 0 s and 3 s
+    assert parts == {"navtrain": 4, "hard_moving": 2, "standstill": 2, "dropped_moving_below_cut": 2,
+                     "dropped_standstill": 2}
+    derived_sets.check_hard(cands, hard, thin, cut, period_s=2.5)
+    with pytest.raises(RuntimeError, match="below the cut"):
+        derived_sets.check_hard(cands, np.append(hard, 5), thin, cut, period_s=2.5)
+    with pytest.raises(RuntimeError, match="at or above the cut"):
+        derived_sets.check_hard(cands, hard[hard != 7], thin, cut, period_s=2.5)
+    with pytest.raises(RuntimeError, match="navtrain"):
+        derived_sets.check_hard(cands, hard[hard != 0], thin, cut, period_s=2.5)
+    with pytest.raises(RuntimeError, match="never removed"):
+        derived_sets.check_hard(cands, hard[hard < 8], thin, cut, period_s=2.5)
+    with pytest.raises(RuntimeError, match="closer than"):
+        derived_sets.check_hard(cands, np.sort(np.append(hard, 9)), thin, cut, period_s=2.5)

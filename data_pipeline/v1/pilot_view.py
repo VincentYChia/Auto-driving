@@ -85,7 +85,7 @@ COLUMNS = ("frame_id", "log_name", "token", "our_split", "city", "image_path", "
 PAIR = re.compile(r"\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)")
 # Derived sets [proposed 2026-11-10] (data_pipeline/v1/derived_sets.py): cut from a built set with no canonical step,
 # so frames.parquet has no in_<set> column for them; their membership is their token files' (member_rows)
-DERIVED_SETS = ("v1-full-thin", "dev-v2")
+DERIVED_SETS = ("v1-full-thin", "dev-v2", "v1-hard")
 SETS = ("smoke", "v1-pilot", "v1-large", "v1-xl", "v1-xl-nd", "v1-nt", "v1-xl-mix", "v1-nt-mix", "v1-all",
         "v1-full") + DERIVED_SETS  # not v1-full-devlogs: the rows of dev-v2's held-out logs are in no view (plan §12)
 STORAGE = ("loose", "zip")
