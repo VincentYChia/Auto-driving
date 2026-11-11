@@ -28,7 +28,21 @@ So every new run uses at least the 176k set and the v1.2 prompt, and the factors
 
 **Decision rule:** a level wins when its paired CI excludes 0 and the gain is larger than the seed-to-seed difference (run N1), with dev-v2 agreeing in direction. One seed per run otherwise; the paired CI covers scene sampling, not training noise, which is why N1 exists.
 
-## Runs
+## Schedule from 2026-11-11 evening [agreed]
+The researcher: "Ok keep going I want to see how far we get with just this. Then we will introduce things like action heads and RL. As well as narrators I think." Two datasets, both with prompt v1.2: the 490k set (v1-full-thin) and **v1-hard** (236,133: every navtrain frame 96,353, the moving frames at least as hard as navtrain's easiest quarter 132,344, standstills thinned to one per 20 s 7,436; `data_pipeline/v1/derived_sets.py`, view cut from the 490k view by `subset_view.py`). The 176k set is no longer one of them, so P2 is parked (checkpoint kept) and its factor runs are replaced by minis.
+
+| ID | Run | Queue | What it answers | Est. scored |
+|---|---|---|---|---|
+| S1 | `v1fullthin-p12-ep4` (490k, standard recipe, 4 epochs, snapshots) | 1 | the 490k set; its epoch snapshots give an epochs curve | Sat Nov 14 |
+| m* | 18 minis (below) | 2 | which settings win, on both sets | Wed–Fri, as each lands |
+| F1 | S1's adapter + 1 epoch of v1-nt (`INIT_ADAPTER`) | 1, after S1 | big set first, then navtrain (the WAM-Diff / WAM-Flow / DriveVLA-W0 recipe) vs either alone | Sat Nov 14 |
+| H1 | v1-hard, winning settings, 4 epochs | 2, after the minis | v1-hard at its best settings | Sun Nov 15 |
+| S3 | 490k, winning settings, 4 epochs | 1, after F1 | the 490k set at its best settings: against H1 at equal epochs | Wed Nov 18 (after the outage) |
+| H2 | v1-hard, winning settings, 8 epochs | 2, after H1 | equal compute to S3 (1.89M vs 1.96M samples seen): which data per GPU-hour; and v1-hard's epochs | Wed–Thu Nov 18–19 |
+
+**Minis:** 2,500 optimizer steps (40,000 samples, a random draw of the set; the cosine schedule ends at the mini's last step, `MAX_STEPS`), small post-training evals (`EVAL_SAMPLES=200`), then all 12,146 navtest scenes and the same 1,000 dev-v2 samples. About 2.4 h each on one queue. Every setting runs on both sets, in this order: the standard recipe with seeds 0 and 1 (the noise floor, and a first dataset hint); ego dropout 0.25, 0.7 and 0 (standard 0.5); vision encoder trained; learning rate 1e-4 and 4e-4 (standard 2e-4); LoRA rank 64 (alpha 128, the same alpha/rank ratio). A setting wins when its paired NAVSIM gain over the seed-0 mini is larger than the seed-to-seed gap, on both sets. If the gap is too large to separate settings, the minis get longer. Minis cannot test epochs: S1's snapshots and H1 vs H2 do. A small effect at mini length may not hold at full length; the full runs check the winners.
+
+## Earlier runs
 
 | ID | Run | Distinct samples | Epochs | Prompt | Answers | Against | Status (2026-11-11) |
 |---|---|---|---|---|---|---|---|
@@ -38,15 +52,10 @@ So every new run uses at least the 176k set and the v1.2 prompt, and the factors
 | P0 | `v1large-p12-unmasked-ep3` | 100k | 3 | v1.2, poses never blinded | variant | B1: +0.005 (+0.001 to +0.010) | 0.784 |
 | P1 | `v1large-p12-ep3` | 100k | 3 | v1.2 | prompt at 100k | B1 | queue 1, training: was 77% done when 100k was dropped, so it finishes; scored tonight |
 | C1 | `v1nt-p12-ep3` | 81k navtrain | 3 | v1.2 | composition: NAVSIM's own scenes | P1 | **0.829, best**; +0.021 vs B2 (+0.017 to +0.026) with half the data. Dev ADE ranked it worst |
-| **P2** | `xlnd-p12-ep4` | 176k | 4 | v1.2 | prompt at 176k; the frozen 176k reference | B2 | queue 2, training since 09:13; ~Thu 11:00 |
+| **P2** | `xlnd-p12-ep4` | 176k | 4 | v1.2 | prompt at 176k; the frozen 176k reference | B2 | parked 2026-11-11 evening (176k is no longer one of the two sets); checkpoint kept, so it resumes exactly if wanted |
 | **S1** | `v1fullthin-p12-ep4` | 490k | 4 | v1.2 | size 176k → 490k; best-capability candidate | P2 | queue 1, after P1; ~122k steps at ~0.5/s, predictions ~Sat 13:00, scored before the outage |
-| **VX** | `xlnd-p12-visfull-ep4` | 176k | 4 | v1.2, vision trained | vision encoder | P2 | queue 2, after P2; ~Fri 20:00 |
-| **E1** | `xlnd-p12-ep6` | 176k | 6 | v1.2 | epochs 4 → 6 | P2 | queue 2, after VX; ~Sun 10:00 |
-| **D25** | `xlnd-p12-ep4-drop25` | 176k | 4 | v1.2, ego dropout 0.25 | less blinding | P2 | queue 2, after E1; ~Mon (scored after the outage) |
-| **N1** | `xlnd-p12-ep4-s1` | 176k | 4 | v1.2, seed 1 | run-to-run noise (the decision threshold) | P2 | queue 2, after D25 |
-| **D70** | `xlnd-p12-ep4-drop70` | 176k | 4 | v1.2, ego dropout 0.7 | more blinding | P2 | queue 2, after N1 |
-| S2 | `v1fullthin-p12-visfull-ep4` | 490k | 4 | v1.2, vision trained | best capability, if VX wins | S1 | queue 1, after S1, ~81 h; TENTATIVE: swapped for the epochs winner if VX loses |
-| M2 | `2b-xlnd-p12-ep4` | 176k | 4 | v1.2, 2B | model size with more data | P2 | queue 2, last; TENTATIVE: GPU memory beside queue 1 is checked first |
+| VX, E1, D25, N1, D70 | `xlnd-p12-*` (vision, 6 epochs, dropout 0.25 / 0.7, seed 1) | 176k | | | | P2 | dropped 2026-11-11 evening: the same questions now run as minis on the 490k set and v1-hard |
+| S2, M2 | 490k with vision trained; 2B on 176k | | | | | | dropped: S3 takes the winning settings; 2B waits for a dataset winner |
 | V2 | `xlnd-visfull-ep4s` (H100) | 176k | 4 | v1.1, vision trained | vision encoder at v1.1 | B2 | Anvil `ai`, over half done; continuation queued |
 | — | dropped 2026-11-11 (100k) | | | | | | `v1large-p12-visfull-ep3` stopped at 14%; the 100k seed replicate, v1-large 6 epochs, v1-nt-mix and 2B on 100k (4090 and H100) never started |
 
