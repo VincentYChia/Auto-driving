@@ -64,11 +64,24 @@ So every new run uses at least the 176k set and the v1.2 prompt, and the factors
 
 | Source | What it adds | Size | Cost and risk |
 |---|---|---|---|
-| Mirror augmentation (flip the image, negate y, heading and yaw rate, swap left and right) | A mirrored copy of every sample, no download | ×2 of any set | Code in training only. Mirroring flips the driving side: right-hand traffic becomes left-hand, which may cost direction compliance. Test it at 176k first |
+| Mirror augmentation | — | — | **Ruled out by the researcher (2026-11-11):** "Avoid mirroring I don't really want to deal with anything that adds in" |
 | nuReasoning (Motional, Sep 2026) | NAVSIM-like inputs (8 cameras, ego, route commands, map), the nuPlan maker's data | 20k × 20 s = 105 h at 10 Hz (V); at 0.5 s, with 1.5 s of history and 4 s of future inside each clip, about 29 anchors per clip, so roughly 580k samples (D) | Overlap with nuPlan logs, and so with navtest, is unknown and must be checked before any use. Rig differs (D). Non-commercial terms (V) |
 | nuPlan sensor blobs at 10 Hz | Frames between our 0.5 s anchors, same drives | 5× the frames; 19 TB (V) | Mostly near-duplicates of frames we have. Worth it only if S1 shows denser sampling helps |
 | L2D (Yaak) | 6 cameras, GPS, IMU, CAN, route waypoints | 100k episodes, 500+ h (V) | Germany, a different rig, some learner drivers (V); licence Apache-2.0 (R) |
 | CoVLA, ZOD, Waymo, WOD-E2E, Argoverse 2, nuScenes | Front camera + ego path | 30k to ~600k frames each (R/D) | New rigs and cities, left-hand traffic (CoVLA), a converter per dataset |
+
+### What the 490k set is made of (2026-11-11)
+One source: nuPlan through OpenScene's 2 Hz release, 1,270 training logs in 4 cities. Every one of the 489,771 rows carries four real past poses (−1.5 … 0 s; the build requires the whole −1.5 … +4.0 s window with no timing gap), and so does every dev-v2 row and every navtest scene. The rows by difficulty, where "hard" means a constant-speed, constant-heading path ends at least 3.9 m from the human's at 4 s (navtrain's 25th percentile; a proxy for NAVSIM's filter, which uses the score of that path; counts V, categories D):
+
+| | Rows | Share | Las Vegas |
+|---|---|---|---|
+| navtrain (NAVSIM's non-trivial scenes; 96,353 of its 103,288) | 96,353 | 19.7% | 66% |
+| Hard, not in navtrain (≥ 3.9 m) | 132,112 | 27.0% | 65% |
+| Medium (1–3.9 m) | 168,240 | 34.4% | 72% |
+| Easy, moving (< 1 m) | 60,125 | 12.3% | 74% |
+| Standing still (path under 0.5 m; thinned to one per 5 s per log) | 32,941 | 6.7% | 79% |
+
+v1-full (676k) holds the same moving rows plus 186k more standstill frames. Standstill frames stay in every set, thinned, never removed (researcher, 2026-11-11).
 
 ## Order and compute
 - Each 4090 queue trains about 8.4 samples/s (0.8B, both queues sharing the GPU), so roughly 0.73M samples a day per queue.
