@@ -39,6 +39,9 @@ EXTRA=()
 [ -n "${DEV_LOSS_SAMPLES:-}" ] && EXTRA+=(--eval-samples "$DEV_LOSS_SAMPLES")
 [ -n "${WORKERS:-}" ] && EXTRA+=(--workers "$WORKERS")
 [ -n "${TORCH_THREADS:-}" ] && EXTRA+=(--torch-threads "$TORCH_THREADS")
+# SEED=N (default 0) re-draws the LoRA init, the sample order, the ego-dropout draws and the dev-loss subset, for
+# seed replicates of one recipe; eval.json's 1,000 dev samples do not depend on it [proposed 2026-11-11]
+[ -n "${SEED:-}" ] && EXTRA+=(--seed "$SEED")
 cd "$REPO_ROOT"
 # run.json is written once the adapter is saved; without this check a resubmit would start training over
 [ -f "$RUN/run.json" ] || python pilot_sft/train_lora.py --view "$VIEW" --model "$MODEL" --out "$RUN" \
