@@ -4,7 +4,9 @@ The researcher's direction (2026-11-11):
 - More epochs, the 4-past-poses prompt (pilot_v1.2) and more data all look like they help, so keep going, and design the runs so we can say which data and training give the best results.
 - Then, the same day: "176k should always work better than 100k so we should not run 100k when we can run 176k. The larger the better." The goal is the best capability, as fast as possible, while still knowing what made it best.
 
-So every new run uses at least the 176k set, and the factors are tested there: vision encoder, epochs, prompt and seed. The 490k set carries the best-capability runs. Runs on 100k are only the ones already finished or nearly finished. This file is the plan and its status. Results land in `README.md` (tables) and `results/`.
+- And, later that day: "We are assuming more data in the dataset is better and 4 past poses is better (although blinding can be tested)." Blinding (ego dropout) and epochs are the factors to push, finding where each stops helping. The 490k result is wanted before the Nov 16 outage if possible, without skipping or weakening any comparison.
+
+So every new run uses at least the 176k set and the v1.2 prompt, and the factors are tested there: blinding, epochs, vision encoder and seed. Blinding so far: 0.8 lost to 0.5 on NAVSIM at 45k (−0.010, CI −0.014 to −0.006). 0 against 0.5 was only compared on dev, on the 11k smoke set, where 0.5 cost 0.05 m on full input. So the levels bracket 0.5: 0.25 and 0.7. The 490k set carries the best-capability runs. Runs on 100k are only the ones already finished or nearly finished. This file is the plan and its status. Results land in `README.md` (tables) and `results/`.
 
 ## Base recipe and what varies
 - **Fixed for every new run:** Qwen3.5-0.8B LoRA rank 32, lr 2e-4 cosine with 3% warm-up, ego dropout 0.5 (training batches only: dev and NAVSIM always see the ego state and the past poses), vision encoder frozen, batch 4 × accumulation 4 on the lab RTX 4090, per-epoch snapshots, prompt pilot_v1.2, seed 0.
@@ -35,17 +37,20 @@ So every new run uses at least the 176k set, and the factors are tested there: v
 | P1 | `v1large-p12-ep3` | 100k | 3 | v1.2 | prompt at 100k | B1 | queue 1, training: was 77% done when 100k was dropped, so it finishes; scored tonight |
 | C1 | `v1nt-p12-ep3` | 81k navtrain | 3 | v1.2 | composition: NAVSIM's own scenes | P1 | trained; NAVSIM score pending |
 | **P2** | `xlnd-p12-ep4` | 176k | 4 | v1.2 | prompt at 176k; the frozen 176k reference | B2 | queue 2, training since 09:13; ~Thu 11:00 |
-| **S1** | `v1fullthin-p12-ep4` | 490k | 4 | v1.2 | size 176k → 490k; best-capability candidate | P2 | queue 1, after P1; ~Sat 10:00 |
+| **S1** | `v1fullthin-p12-ep4` | 490k | 4 | v1.2 | size 176k → 490k; best-capability candidate | P2 | queue 1, after P1; ~122k steps at ~0.5/s, predictions ~Sat 13:00, scored before the outage |
 | **VX** | `xlnd-p12-visfull-ep4` | 176k | 4 | v1.2, vision trained | vision encoder | P2 | queue 2, after P2; ~Fri 20:00 |
 | **E1** | `xlnd-p12-ep6` | 176k | 6 | v1.2 | epochs 4 → 6 | P2 | queue 2, after VX; ~Sun 10:00 |
-| **N1** | `xlnd-p12-ep4-s1` | 176k | 4 | v1.2, seed 1 | run-to-run noise (the decision threshold) | P2 | queue 2, after E1; ~Mon (scored after the outage) |
+| **D25** | `xlnd-p12-ep4-drop25` | 176k | 4 | v1.2, ego dropout 0.25 | less blinding | P2 | queue 2, after E1; ~Mon (scored after the outage) |
+| **N1** | `xlnd-p12-ep4-s1` | 176k | 4 | v1.2, seed 1 | run-to-run noise (the decision threshold) | P2 | queue 2, after D25 |
+| **D70** | `xlnd-p12-ep4-drop70` | 176k | 4 | v1.2, ego dropout 0.7 | more blinding | P2 | queue 2, after N1 |
 | S2 | `v1fullthin-p12-visfull-ep4` | 490k | 4 | v1.2, vision trained | best capability, if VX wins | S1 | queue 1, after S1, ~81 h; TENTATIVE: swapped for the epochs winner if VX loses |
 | M2 | `2b-xlnd-p12-ep4` | 176k | 4 | v1.2, 2B | model size with more data | P2 | queue 2, last; TENTATIVE: GPU memory beside queue 1 is checked first |
 | V2 | `xlnd-visfull-ep4s` (H100) | 176k | 4 | v1.1, vision trained | vision encoder at v1.1 | B2 | Anvil `ai`, over half done; continuation queued |
 | — | dropped 2026-11-11 (100k) | | | | | | `v1large-p12-visfull-ep3` stopped at 14%; the 100k seed replicate, v1-large 6 epochs, v1-nt-mix and 2B on 100k (4090 and H100) never started |
 
 ## How the pairs combine
-- **Every factor against P2.** P2 (176k, 4 epochs, v1.2, frozen, seed 0) is the reference. VX changes only the vision encoder, E1 only the epochs, N1 only the seed, S1 only the set (490k), M2 only the model. P2 against B2 is the prompt at 176k, and P1 against B1 the prompt at 100k.
+- **Every factor against P2.** P2 (176k, 4 epochs, v1.2, ego dropout 0.5, frozen, seed 0) is the reference. VX changes only the vision encoder, E1 only the epochs, D25 and D70 only the blinding rate, N1 only the seed, S1 only the set (490k), M2 only the model.
+- **Blinding:** D25, P2 and D70 give three points (0.25, 0.5, 0.7). If 0.25 wins, 0 comes next. If both neighbours lose, 0.5 is near the best. P0 against P1 (tonight) also shows what blinding the poses line adds at 100k: P0 blinds only the ego state, P1 blinds both. P2 against B2 is the prompt at 176k, and P1 against B1 the prompt at 100k.
 - **Noise:** N1 against P2 is the seed-to-seed difference. A factor's gain counts only above it.
 - **Best capability:** S1 is the expected best. Its successor S2 combines the winners: vision trained if VX beats P2, otherwise the epochs E1 points to.
 - **Per-epoch curves:** dev and train curves come free from the snapshots. An epoch-k snapshot of a longer run is not the same as a k-epoch run, because its learning rate has not decayed. So snapshots show trends, and only final adapters are scored on NAVSIM.
