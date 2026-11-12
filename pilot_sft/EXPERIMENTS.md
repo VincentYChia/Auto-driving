@@ -31,6 +31,28 @@ So every new run uses at least the 176k set and the v1.2 prompt, and the factors
 ## Schedule from 2026-11-11 evening [agreed]
 The researcher: "Ok keep going I want to see how far we get with just this. Then we will introduce things like action heads and RL. As well as narrators I think." Two datasets, both with prompt v1.2: the 490k set (v1-full-thin) and **v1-hard** (236,133: every navtrain frame 96,353, the moving frames at least as hard as navtrain's easiest quarter 132,344, standstills thinned to one per 20 s 7,436; `data_pipeline/v1/derived_sets.py`, view cut from the 490k view by `subset_view.py`). The 176k set is no longer one of them, so P2 is parked (checkpoint kept) and its factor runs are replaced by minis.
 
+**Revised 2026-11-11 ~19:50 [agreed]:**
+- **Researcher's words:** "The prompt is fine. I like its minimal. Go for 7 minis... Right after that we should train the 490k versions. We should also test of Navsim the results of the minis as we get them."
+- **Prompt:** v1.2 stays.
+- **Minis (7 of the 18):** 4 references, on both sets at seeds 0 and 1, give the dataset answer and the noise floor. 3 settings run on v1-hard only: ego dropout 0.25, ego dropout 0, and the vision encoder trained.
+- **Why the rest were cut:**
+  - At 2,500 steps the learning-rate minis favour the higher rate whatever is true for a full run.
+  - Rank 64 is the setting least likely to matter at this size.
+  - Running every setting on both sets doubled the cost.
+- **Win rule:** a setting wins when its paired NAVSIM gain over `mini-hard-base-s0` is larger than the seed-to-seed gap. That gap is hard-s1 vs hard-s0, with thin-s1 vs thin-s0 as a second estimate.
+- **Full runs right after the minis, one per queue:** the 490k set (S3) and v1-hard (H1), both 4 epochs.
+  - Each starts at the standard recipe as soon as its queue frees, so the GPU doesn't idle while the mini scores come in. On queue 1 that is S1 resuming at its checkpoint.
+  - If a setting wins, both restart with it. If none does, S1 *is* S3.
+- **After them:** F1 (the 490k adapter + 1 epoch of v1-nt), then H2 (v1-hard, 8 epochs).
+- **Every mini is scored on NAVSIM as it lands.**
+
+| Queue | Order (2026-11-11 19:50) |
+|---|---|
+| 1 | mini-hard-base-s0 (running), mini-hard-base-s1, mini-hard-visfull, then the full 490k run (`v1fullthin-p12-ep4`, provisional standard recipe) + predictions, then F1 + predictions |
+| 2 | mini-thin-base-s0 (running), mini-thin-base-s1, mini-hard-drop25, mini-hard-drop0, older adapters' dev-v2 evals, then H1 (`v1hard-p12-ep4`, provisional standard recipe) + predictions |
+
+The plan before this revision:
+
 | ID | Run | Queue | What it answers | Est. scored |
 |---|---|---|---|---|
 | S1 | `v1fullthin-p12-ep4` (490k, standard recipe, 4 epochs, snapshots) | 1 | the 490k set; its epoch snapshots give an epochs curve | Sat Nov 14 |

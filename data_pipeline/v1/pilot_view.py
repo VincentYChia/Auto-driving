@@ -66,7 +66,7 @@ PROMPT = (
     "Route command: {command}.\n"
     "Predict the path for the next 4 seconds: 8 positions (x, y) in metres, one every 0.5 s."
 )
-# 1.1 -> 1.2 [proposed 2026-11-09]: the past as 4 poses with heading at -1.5, -1.0, -0.5 and 0 s (the last is the
+# 1.1 -> 1.2 [proposed 2026-11-09; agreed 2026-11-11, "The prompt is fine. I like its minimal"]: the past as 4 poses with heading at -1.5, -1.0, -0.5 and 0 s (the last is the
 # origin), the history ReCogDrive gives its VLM (4 timesteps of (x, y, heading), 2 decimals), written in our prompt's
 # wording; everything else is unchanged. Views of each version live side by side (VIEW_ROOTS); 1.1 stays the default.
 POSES_S = (-1.5, -1.0, -0.5, 0.0)
