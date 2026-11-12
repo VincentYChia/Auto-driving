@@ -74,7 +74,7 @@ The plan before this revision:
 | B1 | `large-ep3` | 100k | 3 | v1.1 | | | 0.779 |
 | B2 | `xlnd-ep4s` | 176k | 4 | v1.1 | | B1: +0.028 (+0.024 to +0.033) | **0.807** |
 | P0 | `v1large-p12-unmasked-ep3` | 100k | 3 | v1.2, poses never blinded | variant | B1: +0.005 (+0.001 to +0.010) | 0.784 |
-| P1 | `v1large-p12-ep3` | 100k | 3 | v1.2 | prompt at 100k | B1 | trained (14:02); its navtest predictions were cut at shard 2 of 4 when the desktop hung (2026-11-11 ~14:31–14:54, rebooted 17:44) and resumed at 18:12; scored tonight |
+| P1 | `v1large-p12-ep3` | 100k | 3 | v1.2 | prompt at 100k | B1 | **0.786**; B1: +0.007 (+0.003 to +0.012); P0: +0.002 (−0.003 to +0.006), so blinding the poses line makes no difference. Predictions resumed after the desktop hang |
 | C1 | `v1nt-p12-ep3` | 81k navtrain | 3 | v1.2 | composition: NAVSIM's own scenes | P1 | **0.829, best**; +0.021 vs B2 (+0.017 to +0.026) with half the data. Dev ADE ranked it worst |
 | **P2** | `xlnd-p12-ep4` | 176k | 4 | v1.2 | prompt at 176k; the frozen 176k reference | B2 | parked 2026-11-11 evening (176k is no longer one of the two sets); checkpoint kept, so it resumes exactly if wanted |
 | **S1** | `v1fullthin-p12-ep4` | 490k | 4 | v1.2 | size 176k → 490k; best-capability candidate | P2 | queue 1, after P1's predictions (~19:00 2026-11-11); ~122k steps at ~0.5/s, predictions ~Sat afternoon, scored before the outage |
