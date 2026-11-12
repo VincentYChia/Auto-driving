@@ -137,14 +137,22 @@ def map_frame(points: np.ndarray, margin: float = MAP_MARGIN, px_per_m: float = 
               max_px: int = MAP_MAX_PX) -> Dict:
     """The map render covering drive-frame ``points`` (N, 2) with ``margin`` metres: its centre ``(cx, cy)`` in the
     drive frame (the render is axis-aligned with the drive frame), its half sizes along x (up) and y (left) and its
-    pixel width (along y), at ``px_per_m`` or less so that neither side passes ``max_px``."""
+    pixel size.
+
+    The pixel sides are whole hundreds and the scale a power of two (8, 4, 2, 1 or 0.5 px per metre, the largest
+    within ``px_per_m`` that keeps both sides within ``max_px``), and the half sizes grow to match. bev_map_png
+    draws a figure of width_px / 100 by width_px * half_x / half_y / 100 inches at 100 dpi; with these values that
+    is exactly width_px by height_px pixels, so the render obeys demo_html.bev_pixel (check_bev_axes)."""
     p = np.asarray(points, dtype=np.float64).reshape(-1, 2)
     lo, hi = p.min(axis=0) - margin, p.max(axis=0) + margin
     cx, cy = (lo + hi) / 2
     half_x, half_y = (hi - lo) / 2
-    ppm = min(px_per_m, max_px / (2 * max(half_x, half_y)))
-    return {"cx": float(cx), "cy": float(cy), "half_x": float(half_x), "half_y": float(half_y),
-            "width_px": int(round(2 * half_y * ppm)), "px_per_m": float(ppm)}
+    scales = [s for s in (8.0, 4.0, 2.0, 1.0, 0.5) if s <= px_per_m] or [0.5]
+    ppm = next((s for s in scales if 2 * max(half_x, half_y) * s <= max_px), scales[-1])
+    width_px = int(math.ceil(2 * half_y * ppm / 100.0)) * 100
+    height_px = int(math.ceil(2 * half_x * ppm / 100.0)) * 100
+    return {"cx": float(cx), "cy": float(cy), "half_x": height_px / (2 * ppm), "half_y": width_px / (2 * ppm),
+            "width_px": width_px, "height_px": height_px, "px_per_m": ppm}
 
 
 def drive_tracks(ego_global: Sequence, boxes: Sequence, names: Sequence, tokens: Sequence, origin,

@@ -88,14 +88,28 @@ def test_reaches_measure_from_the_car():
     assert rd.reaches(ego[:1], [None], humans[:1])[0] == [None]
 
 
-def test_map_frame_covers_the_path_and_caps_pixels():
+def test_map_frame_covers_the_path_with_whole_pixel_sides():
     pts = np.array([[-50.0, -10.0], [150.0, 30.0]])
     m = rd.map_frame(pts, margin=20.0, px_per_m=5.0, max_px=2400)
     assert (m["cx"], m["cy"]) == pytest.approx((50.0, 10.0))
-    assert (m["half_x"], m["half_y"]) == pytest.approx((120.0, 40.0))
-    assert m["px_per_m"] == pytest.approx(5.0) and m["width_px"] == 400
-    big = rd.map_frame(np.array([[0.0, 0.0], [600.0, 0.0]]), margin=0.0, px_per_m=5.0, max_px=2400)
-    assert big["px_per_m"] == pytest.approx(4.0)  # 600 m tall at most 2,400 px
+    # 240 x 80 m at 4 px/m is 960 x 320 px, rounded up to 1000 x 400: the half sizes grow to 125 x 50 m
+    assert m["px_per_m"] == 4.0 and (m["height_px"], m["width_px"]) == (1000, 400)
+    assert (m["half_x"], m["half_y"]) == (125.0, 50.0)
+    # bev_map_png's figure: exactly width_px by height_px pixels at 100 dpi (matplotlib truncates)
+    w_in, h_in = m["width_px"] / 100, m["width_px"] * m["half_x"] / m["half_y"] / 100
+    assert int(w_in * 100) == m["width_px"] and int(h_in * 100) == m["height_px"]
+    big = rd.map_frame(np.array([[0.0, 0.0], [1000.0, 0.0]]), margin=0.0, px_per_m=5.0, max_px=2400)
+    assert big["px_per_m"] == 2.0 and big["height_px"] == 2000  # 1,000 m tall within 2,400 px
+
+
+@pytest.mark.parametrize("length", [37.3, 91.9, 133.7, 250.1, 401.4, 777.7])
+def test_map_frame_pixels_are_exact_for_any_drive(length):
+    for angle in (0.0, 0.7, 1.4):
+        pts = np.array([[0.0, 0.0], [length * math.cos(angle), length * math.sin(angle)]])
+        m = rd.map_frame(pts)
+        h_in = m["width_px"] * m["half_x"] / m["half_y"] / 100
+        assert int(h_in * 100) == m["height_px"] and int(m["width_px"] / 100 * 100) == m["width_px"]
+        assert m["half_x"] >= abs(pts[:, 0] - m["cx"]).max() and m["half_y"] >= abs(pts[:, 1] - m["cy"]).max()
 
 
 def box_in(ego, world, length=4.5, width=1.9):
