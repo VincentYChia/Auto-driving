@@ -89,8 +89,13 @@ button:hover { background: var(--btn-hover); }
 .facts dt { color: var(--ink-3); }
 .facts dd { margin: 0; min-width: 0; font-variant-numeric: tabular-nums; }
 .stage { display: flex; flex-direction: column; gap: 16px; }
+.col { display: contents; }
+#cam-panel { order: 1; }
+#bev-panel { order: 2; }
+.chart { order: 3; }
 @media (min-width: 920px) {
   .stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 }
 .panel { margin: 0; background: var(--raised); border: 1px solid var(--rule); border-radius: 12px; padding: 12px; min-width: 0; }
 figcaption { color: var(--ink-2); font-size: 13px; margin-top: 8px; }
@@ -107,8 +112,6 @@ figcaption { color: var(--ink-2); font-size: 13px; margin-top: 8px; }
 .seg button { border: 0; border-radius: 0; background: var(--btn); }
 .seg button + button { border-left: 1px solid var(--rule-strong); }
 .seg button[aria-pressed="true"] { background: var(--btn-hover); font-weight: 650; }
-.charts { display: grid; gap: 16px; margin-top: 16px; }
-@media (min-width: 920px) { .charts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .chart svg { display: block; width: 100%; height: 170px; overflow: visible; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 4px; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
 .legend li { display: inline-flex; align-items: center; gap: 6px; }
@@ -148,70 +151,71 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
   </dl>
 
   <div class="stage">
-    <figure class="panel" id="cam-panel">
-      <img id="cam" alt="">
-      <figcaption id="cam-cap"></figcaption>
-    </figure>
-    <figure class="panel" id="bev-panel">
-      <canvas id="bev" aria-label="Bird's-eye view of the drive"></canvas>
-      <div class="controls">
-        <button id="play" type="button" aria-label="Play">
-          <svg id="icon-play" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"/></svg>
-          <svg id="icon-pause" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" hidden><path d="M3 1.5h3v11H3zM8 1.5h3v11H8z"/></svg>
-          <span id="play-label">Play</span>
-        </button>
-        <input id="time" type="range" step="0.1" aria-label="Time in the drive (s)">
-        <output id="time-out"></output>
-      </div>
-      <div class="controls-2">
-        <div class="seg" id="view-buttons" role="group" aria-label="View">
-          <button type="button" data-view="follow" aria-pressed="true">Follow the car</button>
-          <button type="button" data-view="whole" aria-pressed="false">Whole drive</button>
+    <div class="col">
+      <figure class="panel" id="cam-panel">
+        <img id="cam" alt="">
+        <figcaption id="cam-cap"></figcaption>
+      </figure>
+      <figure class="panel chart">
+        <h3>How far ahead each plan reaches in 4 s</h3>
+        <ul class="legend">
+          <li><i style="border-color: var(--plan)"></i>model's plan</li>
+          <li><i style="border-color: var(--human)"></i>what the human then drove</li>
+        </ul>
+        <svg id="chart-reach" role="img" aria-label="Distance each plan reaches in 4 s, over the drive"></svg>
+        <div class="readout" id="readout-reach"></div>
+      </figure>
+      <figure class="panel chart">
+        <h3>Plan error and plan change</h3>
+        <ul class="legend">
+          <li><i style="border-color: var(--plan)"></i>plan vs human, mean over 4 s</li>
+          <li><i style="border-color: var(--change)"></i>moved since the last plan</li>
+        </ul>
+        <svg id="chart-err" role="img" aria-label="Plan error against the human and plan change, over the drive"></svg>
+        <div class="readout" id="readout-err"></div>
+      </figure>
+    </div>
+    <div class="col">
+      <figure class="panel" id="bev-panel">
+        <canvas id="bev" aria-label="Bird's-eye view of the drive"></canvas>
+        <div class="controls">
+          <button id="play" type="button" aria-label="Play">
+            <svg id="icon-play" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"/></svg>
+            <svg id="icon-pause" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" hidden><path d="M3 1.5h3v11H3zM8 1.5h3v11H8z"/></svg>
+            <span id="play-label">Play</span>
+          </button>
+          <input id="time" type="range" step="0.1" aria-label="Time in the drive (s)">
+          <output id="time-out"></output>
         </div>
-        <label>Earlier plans
-          <select id="trail">
-            <option value="0">none</option>
-            <option value="4" selected>last 4</option>
-            <option value="999">all so far</option>
-          </select>
-        </label>
-        <label>Speed
-          <select id="speed">
-            <option value="0.5">0.5x</option>
-            <option value="1" selected>1x</option>
-            <option value="2">2x</option>
-          </select>
-        </label>
-        <span class="seg" role="group" aria-label="Zoom">
-          <button type="button" id="zoom-out" aria-label="Zoom out">&#8722;</button>
-          <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
-        </span>
-      </div>
-      <figcaption>Keys: <kbd>space</kbd> play or pause, <kbd>,</kbd> <kbd>.</kbd> one plan back or forward,
-        <kbd>p</kbd> <kbd>n</kbd> previous or next drive. The plan drawn is the latest one: between re-plans it
-        stays where it was made, as a planner running at 2 Hz would leave it.</figcaption>
-    </figure>
-  </div>
-
-  <div class="charts">
-    <figure class="panel chart">
-      <h3>How far ahead each plan reaches in 4 s</h3>
-      <ul class="legend">
-        <li><i style="border-color: var(--plan)"></i>model's plan</li>
-        <li><i style="border-color: var(--human)"></i>what the human then drove</li>
-      </ul>
-      <svg id="chart-reach" role="img" aria-label="Distance each plan reaches in 4 s, over the drive"></svg>
-      <div class="readout" id="readout-reach"></div>
-    </figure>
-    <figure class="panel chart">
-      <h3>Plan error and plan change</h3>
-      <ul class="legend">
-        <li><i style="border-color: var(--plan)"></i>plan vs human, mean over 4 s</li>
-        <li><i style="border-color: var(--change)"></i>moved since the last plan</li>
-      </ul>
-      <svg id="chart-err" role="img" aria-label="Plan error against the human and plan change, over the drive"></svg>
-      <div class="readout" id="readout-err"></div>
-    </figure>
+        <div class="controls-2">
+          <div class="seg" id="view-buttons" role="group" aria-label="View">
+            <button type="button" data-view="follow" aria-pressed="true">Follow the car</button>
+            <button type="button" data-view="whole" aria-pressed="false">Whole drive</button>
+          </div>
+          <label>Earlier plans
+            <select id="trail">
+              <option value="0">none</option>
+              <option value="4" selected>last 4</option>
+              <option value="999">all so far</option>
+            </select>
+          </label>
+          <label>Speed
+            <select id="speed">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+            </select>
+          </label>
+          <span class="seg" role="group" aria-label="Zoom">
+            <button type="button" id="zoom-out" aria-label="Zoom out">&#8722;</button>
+            <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+          </span>
+        </div>
+        <figcaption>Keys: <kbd>space</kbd> play or pause, <kbd>,</kbd> <kbd>.</kbd> one plan back or forward,
+          <kbd>p</kbd> <kbd>n</kbd> previous or next drive. The plan drawn is the latest one: between re-plans it
+          stays where it was made, as a planner running at 2 Hz would leave it.</figcaption>
+      </figure>
+    </div>
   </div>
 
   <figure class="panel notes">
@@ -405,6 +409,7 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
     ctx.moveTo(18 * DPR, H - 18 * DPR); ctx.lineTo(18 * DPR, H - 14 * DPR); ctx.lineTo(18 * DPR + barPx, H - 14 * DPR);
     ctx.lineTo(18 * DPR + barPx, H - 18 * DPR); ctx.stroke();
     ctx.font = fs + "px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.fillStyle = MAP_INK;
     ctx.textAlign = "center"; ctx.fillText(bar + " m", 18 * DPR + barPx / 2, H - 20 * DPR); ctx.textAlign = "left";
   }
   function roundRect(x, y, w, h, r) {
@@ -475,7 +480,8 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
     if (big) {
       el("circle", { cx: X(big.t), cy: Y(big.v), r: 4, fill: css(big.c), stroke: css("--raised"), "stroke-width": 2 }, svg);
       var right = X(big.t) > w * 0.6;
-      el("text", { x: X(big.t) + (right ? -8 : 8), y: Y(big.v) + 4, "text-anchor": right ? "end" : "start", "font-size": 11, fill: css("--ink-2") }, svg)
+      el("text", { x: X(big.t) + (right ? -6 : 6), y: Math.max(T + 10, Y(big.v) - 8), "text-anchor": right ? "end" : "start", "font-size": 11, fill: css("--ink-2"),
+        stroke: css("--raised"), "stroke-width": 3, "paint-order": "stroke" }, svg)
         .textContent = "largest change " + big.v.toFixed(1) + " m at " + signed(big.t) + " s";
     }
     var cursor = el("line", { y1: T, y2: h - B, stroke: css("--ink"), "stroke-width": 1.5 }, svg);
@@ -666,7 +672,12 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
   $("generated").textContent = "Generated " + D.generated + " by navsim_eval/replay_demo.py: " + D.drives.length +
     " drives, a plan every 0.5 s." + (D.navtest_pdms ? " This model's full-navtest PDMS: " + D.navtest_pdms.toFixed(3) + "." : "");
   state.speed = parseFloat($("speed").value);
-  var m = /^#(\d+)(?:@([-\d.]+))?$/.exec(location.hash || "");
+  // address: #<drive>, optionally @<seconds> and ,whole; e.g. #3@-2.5,whole
+  var m = /^#(\d+)(?:@([-\d.]+))?(?:,(follow|whole))?$/.exec(location.hash || "");
+  if (m && m[3]) {
+    state.view = m[3];
+    Array.prototype.forEach.call($("view-buttons").children, function (o) { o.setAttribute("aria-pressed", String(o.dataset.view === m[3])); });
+  }
   setDrive(m ? parseInt(m[1], 10) - 1 : 0);
   if (m && m[2]) setTime(parseFloat(m[2]));
 })();
