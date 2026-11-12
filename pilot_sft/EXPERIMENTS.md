@@ -60,7 +60,7 @@ NAVSIM v1.1 PDMS on all 12,146 navtest scenes (0 failed, 0 fallbacks, 12,146 uni
 | hard, standard, seed 0 | 0.733 (0.726–0.739) | — | 18.8% | 0.821 | 0.742 |
 | hard, standard, seed 1 | 0.725 (0.718–0.732) | −0.007 (−0.012 to −0.003): the seed gap | 19.4% | 0.850 | 0.804 |
 | hard, ego dropout 0.25 | 0.725 (0.718–0.731) | −0.008 (−0.013 to −0.003); vs hard-s1 −0.000 | 19.6% | 0.852 | 0.809 |
-| hard, ego dropout 0 | pending | | | | |
+| hard, ego dropout 0 (never blinded) | 0.716 (0.710–0.723) | −0.016 (−0.022 to −0.011); vs hard-s1 −0.009 | 20.3% | 0.848 | 0.785 |
 | 490k, standard, seed 0 | 0.697 (0.690–0.704) | −0.036 (−0.041 to −0.031) | 21.6% | 0.740 | 0.700 |
 | 490k, standard, seed 1 | 0.688 (0.681–0.695) | vs hard-s1: −0.037 (−0.042 to −0.032); vs thin-s0: −0.009 (−0.014 to −0.004) | 22.5% | 0.784 | 0.715 |
 
@@ -70,12 +70,17 @@ NAVSIM v1.1 PDMS on all 12,146 navtest scenes (0 failed, 0 fallbacks, 12,146 uni
 - **Settings:**
   - **Vision encoder trained wins:** +0.036 vs seed 0 and +0.044 vs seed 1, 4–6× the seed gap, with every sub-score up (NC 0.966 vs 0.956, DAC 0.872 vs 0.845, EP 0.716 vs 0.682). It trains 122M parameters instead of 22M and is only 5–8% slower.
   - **Ego dropout 0.25 does not win:** within the seed gap.
+  - **Never blinding (ego dropout 0) loses:** −0.016 vs seed 0, about 2× the seed gap. Some blinding helps; 0.25 vs 0.5 makes no difference, so 0.5 stays.
 - **Decision (agreed rule):** both full runs restart with the vision encoder trained (2026-11-12 09:05).
   - S1 (the standard recipe) is parked at step 7,285 with its checkpoint kept.
   - S3 = `v1fullthin-p12-visfull-ep4` (queue 1) and H1 = `v1hard-p12-visfull-ep4` (queue 2, after the last mini and the dev-v2 evals).
   - Each trains (`TRAIN_ONLY=1`), then predicts navtest, then runs the remaining evals, so the NAVSIM score comes first.
   - F1 now starts from S3's adapter.
-  - If ego dropout 0 also wins, both restart with it too.
+  - If ego dropout 0 also wins, both restart with it too. (It lost; 0.5 stays.)
+- **Researcher, 2026-11-12 ~10:00:** "We run the full complete training on v1 hard I think. Then we run full training on full 490k. Make sense? Once we get one trained we should test it." Also: "You can train one at a time that is fine. It should train a bit faster if it fits too."
+  - One GPU job at a time on queue 1 (E-cores 16-31). Queue 2 stays empty.
+  - **Order:** H1 train (310, started 10:23) → H1 navtest predictions + dev-v2 (311) → S3 train (320, resumes at its step-2,300 checkpoint) → S3 predictions (321) → the long evals of both (330/331) → older adapters' dev-v2 evals (340).
+  - F1 and H2 are parked until these two results are in.
 
 The plan before this revision:
 
