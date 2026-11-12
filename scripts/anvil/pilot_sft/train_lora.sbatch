@@ -51,6 +51,9 @@ cd "$REPO_ROOT"
     --epochs "${EPOCHS:-2}" --batch "${BATCH:-8}" --accum "${ACCUM:-2}" --ego-dropout "${EGO_DROPOUT:-0}" \
     --lr "${LR:-2e-4}" --rank "${LORA_RANK:-32}" --alpha "${LORA_ALPHA:-64}" \
     --vision "${VISION:-frozen}" --vision-lr "${VISION_LR:-2e-5}" --resume ${EXTRA[@]+"${EXTRA[@]}"}
+# TRAIN_ONLY=1 stops after training, so a queue can run the NAVSIM predictions first and these evals afterwards
+# (rerun without it: training is skipped once run.json exists) [proposed 2026-11-12]
+[ -n "${TRAIN_ONLY:-}" ] && exit 0
 [ -f "$RUN/eval.json" ] || python pilot_sft/evaluate.py --view "$VIEW" --model "$MODEL" --adapter "$RUN/adapter" \
     --samples "${EVAL_SAMPLES:-1000}" --out "$RUN/eval.json"
 # fit on the training data: a fixed seeded sample of train.jsonl, full input (no ego masking). Train ADE well
