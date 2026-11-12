@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Re-planning replay</title>
+<!-- Template of navsim_eval/replay_demo.py page. It holds no data; the script puts its JSON in the replay-data element.
+     A filled copy embeds nuPlan camera images and map renders: keep it private and out of the repository. -->
+<style>
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --raised: #ffffff;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #6b6a65;
+  --rule: #e4e3df;
+  --rule-strong: #cfcdc7;
+  --btn: #f3f2ef;
+  --btn-hover: #e9e7e2;
+  --focus: #2a78d6;
+  --plan: #1baf7a;
+  --change: #eb6834;
+  --human: #0b0b0b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19;
+    --raised: #222220;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --ink-3: #a5a49b;
+    --rule: #383835;
+    --rule-strong: #4c4b47;
+    --btn: #2a2a28;
+    --btn-hover: #353532;
+    --focus: #3987e5;
+    --plan: #2fc28c;
+    --change: #f07a48;
+    --human: #f0efec;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19;
+  --raised: #222220;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --ink-3: #a5a49b;
+  --rule: #383835;
+  --rule-strong: #4c4b47;
+  --btn: #2a2a28;
+  --btn-hover: #353532;
+  --focus: #3987e5;
+  --plan: #2fc28c;
+  --change: #f07a48;
+  --human: #f0efec;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+main { max-width: 1380px; margin: 0 auto; padding: 20px 16px 40px; }
+h1 { font-size: 21px; line-height: 1.3; margin: 0 0 6px; font-weight: 650; }
+h2 { font-size: 18px; line-height: 1.35; margin: 0 0 4px; font-weight: 650; }
+h3 { font-size: 15px; margin: 0 0 6px; font-weight: 650; }
+p { margin: 0 0 8px; }
+.lede { color: var(--ink-2); max-width: 86ch; margin-bottom: 14px; }
+.small { font-size: 13px; color: var(--ink-2); }
+button, select {
+  font: inherit; color: var(--ink); background: var(--btn);
+  border: 1px solid var(--rule-strong); border-radius: 8px; padding: 6px 12px; min-height: 36px;
+}
+button { cursor: pointer; }
+button:hover { background: var(--btn-hover); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.nav select { flex: 1 1 280px; min-width: 0; max-width: 640px; }
+.counter { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.facts { display: flex; flex-wrap: wrap; gap: 2px 22px; margin: 0 0 14px; }
+.facts div { display: flex; gap: 6px; min-width: 0; }
+.facts dt { color: var(--ink-3); }
+.facts dd { margin: 0; min-width: 0; font-variant-numeric: tabular-nums; }
+.stage { display: flex; flex-direction: column; gap: 16px; }
+@media (min-width: 920px) {
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}
+.panel { margin: 0; background: var(--raised); border: 1px solid var(--rule); border-radius: 12px; padding: 12px; min-width: 0; }
+figcaption { color: var(--ink-2); font-size: 13px; margin-top: 8px; }
+#cam { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; background: var(--rule); }
+#bev { display: block; width: 100%; aspect-ratio: 1 / 1; border-radius: 6px; background: #ffffff; touch-action: none; }
+.controls { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.controls input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: var(--ink-2); height: 28px; }
+#play { display: inline-flex; align-items: center; gap: 6px; min-width: 92px; justify-content: center; }
+#play svg { fill: currentColor; }
+#time-out { font-variant-numeric: tabular-nums; min-width: 4.2em; text-align: right; }
+.controls-2 { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 8px; }
+.controls-2 label { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: var(--btn); }
+.seg button + button { border-left: 1px solid var(--rule-strong); }
+.seg button[aria-pressed="true"] { background: var(--btn-hover); font-weight: 650; }
+.charts { display: grid; gap: 16px; margin-top: 16px; }
+@media (min-width: 920px) { .charts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.chart svg { display: block; width: 100%; height: 170px; overflow: visible; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 4px; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
+.readout { font-size: 13px; color: var(--ink-2); min-height: 1.5em; font-variant-numeric: tabular-nums; }
+.keys { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
+.keys li { display: inline-flex; align-items: center; gap: 6px; }
+.keys svg { flex: none; }
+.notes { margin-top: 16px; }
+.notes ul { margin: 6px 0 0; padding-left: 20px; color: var(--ink-2); max-width: 96ch; }
+.notes li { margin-bottom: 4px; }
+kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border: 1px solid var(--rule-strong); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--btn); }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Re-planning replay</h1>
+  <p class="lede">Every 0.5 s along a 20 s stretch of a navtest drive, the model gets what NAVSIM gives a planner at
+    that moment: the front camera, the last 1.5 s of the car's own poses, its speed, acceleration and the route
+    command. From these it plans the next 4 s. The car then moves the way the human drove it (a replay, not closed
+    loop), so you can watch each new plan react to what the camera shows. NAVSIM's score only uses the plan made at
+    <strong>t = 0</strong>.</p>
+
+  <div class="nav">
+    <button id="prev" type="button" aria-label="Previous drive">&#8592; Prev</button>
+    <select id="drive-select" aria-label="Drive"></select>
+    <button id="next" type="button" aria-label="Next drive">Next &#8594;</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <h2 id="drive-title"></h2>
+  <dl class="facts">
+    <div><dt>Route command</dt><dd id="f-command"></dd></div>
+    <div><dt>Speed</dt><dd id="f-speed"></dd></div>
+    <div><dt>Plan vs human (mean / at 4 s)</dt><dd id="f-err"></dd></div>
+    <div><dt>Moved since the last plan</dt><dd id="f-change"></dd></div>
+    <div><dt>Map</dt><dd id="f-map"></dd></div>
+  </dl>
+
+  <div class="stage">
+    <figure class="panel" id="cam-panel">
+      <img id="cam" alt="">
+      <figcaption id="cam-cap"></figcaption>
+    </figure>
+    <figure class="panel" id="bev-panel">
+      <canvas id="bev" aria-label="Bird's-eye view of the drive"></canvas>
+      <div class="controls">
+        <button id="play" type="button" aria-label="Play">
+          <svg id="icon-play" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"/></svg>
+          <svg id="icon-pause" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" hidden><path d="M3 1.5h3v11H3zM8 1.5h3v11H8z"/></svg>
+          <span id="play-label">Play</span>
+        </button>
+        <input id="time" type="range" step="0.1" aria-label="Time in the drive (s)">
+        <output id="time-out"></output>
+      </div>
+      <div class="controls-2">
+        <div class="seg" id="view-buttons" role="group" aria-label="View">
+          <button type="button" data-view="follow" aria-pressed="true">Follow the car</button>
+          <button type="button" data-view="whole" aria-pressed="false">Whole drive</button>
+        </div>
+        <label>Earlier plans
+          <select id="trail">
+            <option value="0">none</option>
+            <option value="4" selected>last 4</option>
+            <option value="999">all so far</option>
+          </select>
+        </label>
+        <label>Speed
+          <select id="speed">
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1x</option>
+            <option value="2">2x</option>
+          </select>
+        </label>
+        <span class="seg" role="group" aria-label="Zoom">
+          <button type="button" id="zoom-out" aria-label="Zoom out">&#8722;</button>
+          <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+        </span>
+      </div>
+      <figcaption>Keys: <kbd>space</kbd> play or pause, <kbd>,</kbd> <kbd>.</kbd> one plan back or forward,
+        <kbd>p</kbd> <kbd>n</kbd> previous or next drive. The plan drawn is the latest one: between re-plans it
+        stays where it was made, as a planner running at 2 Hz would leave it.</figcaption>
+    </figure>
+  </div>
+
+  <div class="charts">
+    <figure class="panel chart">
+      <h3>How far ahead each plan reaches in 4 s</h3>
+      <ul class="legend">
+        <li><i style="border-color: var(--plan)"></i>model's plan</li>
+        <li><i style="border-color: var(--human)"></i>what the human then drove</li>
+      </ul>
+      <svg id="chart-reach" role="img" aria-label="Distance each plan reaches in 4 s, over the drive"></svg>
+      <div class="readout" id="readout-reach"></div>
+    </figure>
+    <figure class="panel chart">
+      <h3>Plan error and plan change</h3>
+      <ul class="legend">
+        <li><i style="border-color: var(--plan)"></i>plan vs human, mean over 4 s</li>
+        <li><i style="border-color: var(--change)"></i>moved since the last plan</li>
+      </ul>
+      <svg id="chart-err" role="img" aria-label="Plan error against the human and plan change, over the drive"></svg>
+      <div class="readout" id="readout-err"></div>
+    </figure>
+  </div>
+
+  <figure class="panel notes">
+    <h3>What the drawing shows</h3>
+    <ul class="keys" id="keys"></ul>
+    <ul>
+      <li><strong>Plan</strong>: the model's 8 positions for the next 4 s (one every 0.5 s), made from the frame shown
+        on the left. Fainter green lines are the plans before it.</li>
+      <li><strong>Human</strong>: where the human driver actually went over the same 4 s.</li>
+      <li><strong>Moved since the last plan</strong>: for the 3.5 s two plans in a row both cover, the mean distance
+        between them at the same moments. Large values are where the model changed its mind.</li>
+      <li><strong>Replay, not closed loop</strong>: the car always follows the human's path, so a plan that would
+        have gone elsewhere never moves the car. Road users replay their logged motion.</li>
+    </ul>
+    <p class="small" id="generated"></p>
+  </figure>
+</main>
+<script type="application/json" id="replay-data">__REPLAY_DATA_JSON__</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("replay-data").textContent);
+  var NS = "http://www.w3.org/2000/svg";
+  var STEP = D.step;
+  var STY = D.styles;
+  var MAP_INK = "#0b0b0b";
+  function $(id) { return document.getElementById(id); }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  var state = { i: 0, t: 0, playing: false, speed: 1, view: "follow", trail: 4, span: 70 };
+  var drive = null, mapImg = null, mapReady = false;
+
+  // ---------------------------------------------------------------- time and poses
+  function lerpPose(a, b, f) {
+    var dh = Math.atan2(Math.sin(b[2] - a[2]), Math.cos(b[2] - a[2]));
+    return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * dh];
+  }
+  function egoAt(t) { // ego poses: frames first - 3 ... last + 8, 0.5 s apart; re-plan frame k is ego[offset + k]
+    var u = (t - drive.t_first) / STEP + drive.replan_offset;
+    var a = Math.max(0, Math.min(drive.ego.length - 1, Math.floor(u + 1e-9)));
+    var b = Math.min(drive.ego.length - 1, a + 1);
+    return lerpPose(drive.ego[a], drive.ego[b], Math.max(0, Math.min(1, u - a)));
+  }
+  function planIndex(t) {
+    var k = Math.floor((t - drive.t_first) / STEP + 1e-9);
+    return Math.max(0, Math.min(drive.frames.length - 1, k));
+  }
+  function agentAt(p, t) { // between two logged frames: interpolate; next to an absent one: the nearer frame only
+    var u = (t - drive.t_first) / STEP, a = Math.floor(u + 1e-9), f = u - a;
+    var pa = p[a] || null, pb = p[a + 1] || null;
+    if (f < 1e-9) return pa;
+    if (pa && pb) return lerpPose(pa, pb, f);
+    if (f < 0.5) return pa;
+    return pb;
+  }
+
+  // ---------------------------------------------------------------- BEV canvas
+  var canvas = $("bev"), ctx = canvas.getContext("2d");
+  var W = 0, H = 0, DPR = 1;
+  function resize() {
+    var r = canvas.getBoundingClientRect();
+    DPR = window.devicePixelRatio || 1;
+    W = Math.max(1, Math.round(r.width * DPR)); H = Math.max(1, Math.round(r.height * DPR));
+    canvas.width = W; canvas.height = H;
+  }
+  // world (drive frame: x forward, y left) to canvas pixels: centre c, heading h up, s pixels per metre, c at (ax, ay)
+  function viewTransform(t) {
+    if (state.view === "whole") {
+      var m = drive.map_frame, s = Math.min(W / (2 * m.half_y), H / (2 * m.half_x));
+      return { cx: m.cx, cy: m.cy, h: 0, s: s, ax: W / 2, ay: H / 2 };
+    }
+    var e = egoAt(t);
+    return { cx: e[0], cy: e[1], h: e[2], s: H / state.span, ax: W / 2, ay: H * 0.66 };
+  }
+  function setWorld(v) {
+    var sn = Math.sin(v.h), cs = Math.cos(v.h), s = v.s;
+    var a = s * sn, c = -s * cs, b = -s * cs, d = -s * sn;
+    ctx.setTransform(a, b, c, d, v.ax - (a * v.cx + c * v.cy), v.ay - (b * v.cx + d * v.cy));
+  }
+  function poly(corners) {
+    ctx.beginPath();
+    ctx.moveTo(corners[0][0], corners[0][1]);
+    for (var i = 1; i < corners.length; i++) ctx.lineTo(corners[i][0], corners[i][1]);
+    ctx.closePath();
+  }
+  function boxCorners(cx, cy, h, l, w) {
+    var c = Math.cos(h), s = Math.sin(h), dl = l / 2, dw = w / 2;
+    return [[dl, dw], [-dl, dw], [-dl, -dw], [dl, -dw]].map(function (q) {
+      return [cx + q[0] * c - q[1] * s, cy + q[0] * s + q[1] * c];
+    });
+  }
+  function egoCorners(p) {
+    var r = STY.ego.rear_axle_to_center; // poses are rear-axle poses; the box centre sits r metres ahead
+    return boxCorners(p[0] + r * Math.cos(p[2]), p[1] + r * Math.sin(p[2]), p[2], STY.ego.length, STY.ego.width);
+  }
+  function path(points, origin) {
+    ctx.beginPath();
+    if (origin) ctx.moveTo(origin[0], origin[1]); else ctx.moveTo(points[0][0], points[0][1]);
+    for (var i = origin ? 0 : 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+  }
+  function stroke(color, px, alpha, dashPx) {
+    ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+    ctx.strokeStyle = color; ctx.lineWidth = px * DPR / currentScale;
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.setLineDash(dashPx ? dashPx.map(function (v) { return v * DPR / currentScale; }) : []);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+  function dots(points, color, rPx, ringPx) {
+    var r = rPx * DPR / currentScale;
+    points.forEach(function (p) {
+      ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 2 * Math.PI);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.lineWidth = ringPx * DPR / currentScale; ctx.strokeStyle = "#ffffff"; ctx.stroke();
+    });
+  }
+  var currentScale = 1;
+  function drawBev(t) {
+    if (!drive) return;
+    var v = viewTransform(t);
+    currentScale = v.s;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, W, H);
+    setWorld(v);
+    var m = drive.map_frame;
+    if (mapReady) { // render pixel (u, v) to drive frame: x = cx + half_x - v * 2 half_x / height, y = cy + half_y - u * 2 half_y / width
+      ctx.save();
+      var kx = 2 * m.half_x / mapImg.naturalHeight, ky = 2 * m.half_y / mapImg.naturalWidth;
+      ctx.transform(0, -ky, -kx, 0, m.cx + m.half_x, m.cy + m.half_y);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(mapImg, 0, 0);
+      ctx.restore();
+    }
+    var k = planIndex(t), fr = drive.frames[k];
+    // whole-drive view: the path the car drives, thin
+    if (state.view === "whole") {
+      path(drive.ego.slice(drive.replan_offset, drive.replan_offset + drive.frames.length));
+      stroke("#6b6a65", 1.5, 0.9);
+    }
+    // road users
+    drive.tracks.forEach(function (a) {
+      var p = agentAt(a.p, t);
+      if (!p) return;
+      var st = STY.agents[a.type] || STY.agents.generic_object || { fill: "#bab0ac", line: "#000000" };
+      poly(boxCorners(p[0], p[1], p[2], a.l, a.w));
+      ctx.fillStyle = st.fill; ctx.fill();
+      stroke(st.line, 1);
+      var reach = a.l / 2 + 0.8;
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + reach * Math.cos(p[2]), p[1] + reach * Math.sin(p[2]));
+      stroke(st.line, 1);
+    });
+    // ego car (where the human drove it at time t)
+    var e = egoAt(t);
+    poly(egoCorners(e));
+    ctx.fillStyle = STY.ego.fill; ctx.fill();
+    stroke(STY.ego.line, 1.2);
+    // human's next 4 s from the frame the current plan was made at
+    var o = drive.ego[drive.replan_offset + k];
+    var human = drive.ego.slice(drive.replan_offset + k + 1, drive.replan_offset + k + 9);
+    path(human, o); stroke("#ffffff", 5, 0.85); path(human, o); stroke(MAP_INK, 2.2);
+    dots(human, MAP_INK, 2.4, 1.2);
+    // earlier plans, fading with age
+    var n = Math.min(state.trail, k);
+    for (var j = n; j >= 1; j--) {
+      var old = drive.frames[k - j];
+      if (!old.plan) continue;
+      path(old.plan, drive.ego[drive.replan_offset + k - j]);
+      stroke("#1baf7a", 1.6, Math.max(0.12, 0.5 - 0.09 * j));
+    }
+    // the current plan
+    if (fr.plan) {
+      path(fr.plan, o); stroke("#ffffff", 6, 0.85);
+      path(fr.plan, o); stroke("#1baf7a", 3);
+      dots(fr.plan, "#1baf7a", 3.6, 1.5);
+    }
+    // overlays in screen pixels: time chip and scale bar
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    var fs = 12 * DPR;
+    ctx.font = "600 " + fs + "px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+    var label = "t = " + signed(t) + " s  ·  plan from " + signed(fr.t) + " s";
+    var tw = ctx.measureText(label).width;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    roundRect(8 * DPR, 8 * DPR, tw + 16 * DPR, 24 * DPR, 4 * DPR); ctx.fill();
+    ctx.fillStyle = MAP_INK; ctx.fillText(label, 16 * DPR, 24.5 * DPR);
+    var bar = niceBar(v.s / DPR), barPx = bar * v.s;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    roundRect(8 * DPR, H - 34 * DPR, barPx + 20 * DPR, 26 * DPR, 4 * DPR); ctx.fill();
+    ctx.strokeStyle = MAP_INK; ctx.lineWidth = 1.6 * DPR;
+    ctx.beginPath();
+    ctx.moveTo(18 * DPR, H - 18 * DPR); ctx.lineTo(18 * DPR, H - 14 * DPR); ctx.lineTo(18 * DPR + barPx, H - 14 * DPR);
+    ctx.lineTo(18 * DPR + barPx, H - 18 * DPR); ctx.stroke();
+    ctx.font = fs + "px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.textAlign = "center"; ctx.fillText(bar + " m", 18 * DPR + barPx / 2, H - 20 * DPR); ctx.textAlign = "left";
+  }
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+  }
+  function niceBar(cssPxPerM) { // a round length about 90 css px long
+    var target = 90 / cssPxPerM, opts = [2, 5, 10, 20, 25, 50, 100, 200];
+    for (var i = 0; i < opts.length; i++) if (opts[i] >= target * 0.6) return opts[i];
+    return opts[opts.length - 1];
+  }
+  function signed(v) { var r = Math.round(v * 10) / 10; return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r).toFixed(1); }
+
+  // ---------------------------------------------------------------- charts (one axis each, shared time axis)
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    Object.keys(attrs || {}).forEach(function (k) { if (attrs[k] !== null && attrs[k] !== undefined) e.setAttribute(k, String(attrs[k])); });
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  var charts = {};
+  function buildChart(id, series, unit, readoutId) {
+    var svg = $(id);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var w = Math.max(240, svg.getBoundingClientRect().width), h = 170;
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    var L = 40, R = 12, T = 10, B = 26;
+    var t0 = drive.t_first, t1 = drive.t_last;
+    var ymax = 0;
+    series.forEach(function (s) { drive.frames.forEach(function (f) { if (f[s.key] !== null && f[s.key] !== undefined) ymax = Math.max(ymax, f[s.key]); }); });
+    ymax = niceMax(ymax || 1);
+    function X(t) { return L + (t - t0) / (t1 - t0) * (w - L - R); }
+    function Y(v) { return T + (1 - v / ymax) * (h - T - B); }
+    var ink2 = css("--ink-3"), rule = css("--rule");
+    for (var g = 0; g <= 4; g++) {
+      var yv = ymax * g / 4, y = Y(yv);
+      el("line", { x1: L, x2: w - R, y1: y, y2: y, stroke: rule, "stroke-width": 1 }, svg);
+      el("text", { x: L - 6, y: y + 4, "text-anchor": "end", "font-size": 11, fill: ink2 }, svg).textContent = fmtTick(yv) + (g === 4 ? " " + unit : "");
+    }
+    var tick = (t1 - t0) > 12 ? 4 : 2;
+    for (var tt = Math.ceil(t0 / tick) * tick; tt <= t1 + 1e-9; tt += tick) {
+      el("text", { x: X(tt), y: h - 8, "text-anchor": "middle", "font-size": 11, fill: ink2 }, svg).textContent = (tt === 0 ? "0" : signed(tt)) + (Math.abs(tt - t1) < tick ? " s" : "");
+    }
+    // NAVSIM's scored moment
+    if (t0 <= 0 && t1 >= 0) {
+      el("line", { x1: X(0), x2: X(0), y1: T, y2: h - B, stroke: ink2, "stroke-width": 1, "stroke-dasharray": "3 3" }, svg);
+      el("text", { x: X(0) + 4, y: T + 10, "font-size": 11, fill: ink2 }, svg).textContent = "NAVSIM scores this plan";
+    }
+    series.forEach(function (s) {
+      var d = "", pen = false;
+      drive.frames.forEach(function (f) {
+        var v = f[s.key];
+        if (v === null || v === undefined) { pen = false; return; }
+        d += (pen ? "L" : "M") + X(f.t).toFixed(1) + "," + Y(v).toFixed(1);
+        pen = true;
+      });
+      el("path", { d: d, fill: "none", stroke: css(s.color), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    });
+    // selective direct label: the largest plan change
+    var big = null;
+    series.forEach(function (s) {
+      if (!s.mark) return;
+      drive.frames.forEach(function (f) { if (f[s.key] !== null && (!big || f[s.key] > big.v)) big = { v: f[s.key], t: f.t, c: s.color }; });
+    });
+    if (big) {
+      el("circle", { cx: X(big.t), cy: Y(big.v), r: 4, fill: css(big.c), stroke: css("--raised"), "stroke-width": 2 }, svg);
+      var right = X(big.t) > w * 0.6;
+      el("text", { x: X(big.t) + (right ? -8 : 8), y: Y(big.v) + 4, "text-anchor": right ? "end" : "start", "font-size": 11, fill: css("--ink-2") }, svg)
+        .textContent = "largest change " + big.v.toFixed(1) + " m at " + signed(big.t) + " s";
+    }
+    var cursor = el("line", { y1: T, y2: h - B, stroke: css("--ink"), "stroke-width": 1.5 }, svg);
+    var hover = el("line", { y1: T, y2: h - B, stroke: css("--ink-3"), "stroke-width": 1, visibility: "hidden" }, svg);
+    var hit = el("rect", { x: L, y: T, width: w - L - R, height: h - T - B, fill: "transparent", style: "cursor: pointer" }, svg);
+    function tAt(ev) {
+      var r = svg.getBoundingClientRect(), x = (ev.clientX - r.left) * w / r.width;
+      return Math.max(t0, Math.min(t1, t0 + (x - L) / (w - L - R) * (t1 - t0)));
+    }
+    var dragging = false;
+    hit.addEventListener("pointerdown", function (ev) { dragging = true; hit.setPointerCapture(ev.pointerId); pause(); setTime(tAt(ev)); });
+    hit.addEventListener("pointermove", function (ev) {
+      var t = tAt(ev);
+      if (dragging) { setTime(t); return; }
+      hover.setAttribute("x1", X(t)); hover.setAttribute("x2", X(t)); hover.setAttribute("visibility", "visible");
+      showReadout(readoutId, series, unit, planIndex(t));
+    });
+    hit.addEventListener("pointerup", function () { dragging = false; });
+    hit.addEventListener("pointerleave", function () { hover.setAttribute("visibility", "hidden"); showReadout(readoutId, series, unit, planIndex(state.t)); });
+    charts[id] = { cursor: cursor, X: X, series: series, unit: unit, readout: readoutId };
+  }
+  function niceMax(v) { var opts = [1, 2, 5, 10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 200]; for (var i = 0; i < opts.length; i++) if (opts[i] >= v) return opts[i]; return Math.ceil(v / 50) * 50; }
+  function fmtTick(v) { return v >= 10 || v === 0 ? String(Math.round(v)) : v.toFixed(1); }
+  function showReadout(id, series, unit, k) {
+    var f = drive.frames[k];
+    $(id).textContent = "At " + signed(f.t) + " s: " + series.map(function (s) {
+      var v = f[s.key];
+      return s.name + " " + (v === null || v === undefined ? "–" : v.toFixed(1) + " " + unit);
+    }).join(" · ");
+  }
+  function buildCharts() {
+    buildChart("chart-reach", [{ key: "reach", name: "plan", color: "--plan" }, { key: "human_reach", name: "human", color: "--human" }], "m", "readout-reach");
+    buildChart("chart-err", [{ key: "ade", name: "plan vs human", color: "--plan" }, { key: "change", name: "moved since last plan", color: "--change", mark: true }], "m", "readout-err");
+  }
+  function drawCharts(t) {
+    Object.keys(charts).forEach(function (id) {
+      var c = charts[id];
+      c.cursor.setAttribute("x1", c.X(t)); c.cursor.setAttribute("x2", c.X(t));
+      showReadout(c.readout, c.series, c.unit, planIndex(t));
+    });
+  }
+
+  // ---------------------------------------------------------------- frame facts and camera
+  var shownK = -1;
+  function drawFacts(t) {
+    var k = planIndex(t), f = drive.frames[k];
+    if (k === shownK) return;
+    shownK = k;
+    $("f-command").textContent = f.command;
+    $("f-speed").textContent = f.speed.toFixed(1) + " m/s (" + Math.round(f.speed * 3.6) + " km/h)";
+    $("f-err").textContent = f.ade === null ? "no plan" : f.ade.toFixed(1) + " m / " + f.fde.toFixed(1) + " m";
+    $("f-change").textContent = f.change === null ? "–" : f.change.toFixed(1) + " m";
+    if (f.cam) { $("cam").src = f.cam; $("cam").alt = "Front camera at " + signed(f.t) + " s"; }
+    $("cam-cap").textContent = "Front camera at " + signed(f.t) + " s: the image the plan on the right was made from" +
+      (Math.abs(f.t) < 1e-6 ? " (the moment NAVSIM scores)." : ".");
+  }
+  function draw(t) {
+    drawBev(t); drawCharts(t); drawFacts(t);
+    $("time-out").textContent = signed(t) + " s";
+  }
+
+  // ---------------------------------------------------------------- drives and playback
+  var select = $("drive-select");
+  D.drives.forEach(function (d, i) {
+    var o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = String(i + 1).padStart(2, "0") + " · " + d.label + " · " + mapName(d.map) + " · " + d.token.slice(0, 8);
+    select.appendChild(o);
+  });
+  function mapName(m) {
+    return ({ "us-nv-las-vegas-strip": "Las Vegas", "us-ma-boston": "Boston", "us-pa-pittsburgh-hazelwood": "Pittsburgh", "sg-one-north": "Singapore" })[m] || m;
+  }
+  function setDrive(i) {
+    var n = D.drives.length;
+    state.i = ((i % n) + n) % n;
+    pause();
+    drive = D.drives[state.i];
+    shownK = -1;
+    select.value = String(state.i);
+    $("counter").textContent = "Drive " + (state.i + 1) + " of " + n;
+    $("drive-title").textContent = "Drive " + (state.i + 1) + ": " + drive.label + ", " + mapName(drive.map) +
+      " (" + signed(drive.t_first) + " to " + signed(drive.t_last) + " s around the navtest scene)";
+    $("f-map").textContent = mapName(drive.map) + " · scene " + drive.token.slice(0, 8);
+    var tr = $("time");
+    tr.min = String(drive.t_first); tr.max = String(drive.t_last);
+    mapReady = false;
+    mapImg = new Image();
+    mapImg.onload = function () { mapReady = true; draw(state.t); };
+    mapImg.src = drive.map_src;
+    state.t = drive.t_first;
+    resize(); buildCharts(); setTime(drive.t_first);
+    try { history.replaceState(null, "", "#" + (state.i + 1)); } catch (err) { /* file:// may refuse */ }
+  }
+  function setTime(t) {
+    state.t = Math.max(drive.t_first, Math.min(drive.t_last, t));
+    $("time").value = String(Math.round(state.t * 10) / 10);
+    draw(state.t);
+  }
+  var last = null;
+  function tick(now) {
+    if (!state.playing) return;
+    if (last !== null) state.t = Math.min(drive.t_last, state.t + (now - last) / 1000 * state.speed);
+    last = now;
+    $("time").value = String(Math.round(state.t * 10) / 10);
+    draw(state.t);
+    if (state.t >= drive.t_last) { pause(); return; }
+    requestAnimationFrame(tick);
+  }
+  function play() {
+    if (state.t >= drive.t_last - 1e-9) state.t = drive.t_first;
+    state.playing = true; last = null; showPlaying(true); requestAnimationFrame(tick);
+  }
+  function pause() { state.playing = false; showPlaying(false); }
+  function showPlaying(on) {
+    $("icon-play").hidden = on; $("icon-pause").hidden = !on;
+    $("play-label").textContent = on ? "Pause" : "Play";
+    $("play").setAttribute("aria-label", on ? "Pause" : "Play");
+  }
+  function stepPlan(dir) {
+    pause();
+    var k = planIndex(state.t) + dir;
+    var onKey = Math.abs((state.t - drive.t_first) / STEP - Math.round((state.t - drive.t_first) / STEP)) < 1e-6;
+    if (dir < 0 && !onKey) k = planIndex(state.t);
+    k = Math.max(0, Math.min(drive.frames.length - 1, k));
+    setTime(drive.frames[k].t);
+  }
+  function pointerBlur(fn) {
+    return function (ev) { fn(); if (ev.detail > 0 && ev.currentTarget && ev.currentTarget.blur) ev.currentTarget.blur(); };
+  }
+  select.addEventListener("change", function () { setDrive(parseInt(select.value, 10)); });
+  $("prev").addEventListener("click", pointerBlur(function () { setDrive(state.i - 1); }));
+  $("next").addEventListener("click", pointerBlur(function () { setDrive(state.i + 1); }));
+  $("play").addEventListener("click", function () { if (state.playing) pause(); else play(); });
+  $("time").addEventListener("input", function () { pause(); setTime(parseFloat($("time").value)); });
+  $("speed").addEventListener("change", function () { state.speed = parseFloat($("speed").value); });
+  $("trail").addEventListener("change", function () { state.trail = parseInt($("trail").value, 10); draw(state.t); });
+  Array.prototype.forEach.call($("view-buttons").children, function (b) {
+    b.addEventListener("click", pointerBlur(function () {
+      state.view = b.dataset.view;
+      Array.prototype.forEach.call($("view-buttons").children, function (o) { o.setAttribute("aria-pressed", String(o === b)); });
+      draw(state.t);
+    }));
+  });
+  $("zoom-in").addEventListener("click", pointerBlur(function () { state.span = Math.max(25, state.span / 1.4); draw(state.t); }));
+  $("zoom-out").addEventListener("click", pointerBlur(function () { state.span = Math.min(250, state.span * 1.4); draw(state.t); }));
+  document.addEventListener("keydown", function (ev) {
+    if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+    var tag = (ev.target && ev.target.tagName) || "", type = tag === "INPUT" ? ev.target.type : "";
+    if (tag === "SELECT" || tag === "TEXTAREA" || (tag === "INPUT" && type !== "range")) return;
+    if (ev.key === "n") setDrive(state.i + 1);
+    else if (ev.key === "p") setDrive(state.i - 1);
+    else if (ev.key === ".") stepPlan(1);
+    else if (ev.key === ",") stepPlan(-1);
+    else if (ev.key === " " && tag !== "BUTTON") { ev.preventDefault(); if (state.playing) pause(); else play(); }
+  });
+  var lastW = 0;
+  function onResize() {
+    var w = canvas.getBoundingClientRect().width;
+    if (Math.abs(w - lastW) > 1) { lastW = w; resize(); buildCharts(); draw(state.t); }
+  }
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe(canvas); else window.addEventListener("resize", onResize);
+
+  // keys
+  function keySwatch(spec) {
+    var s = el("svg", { width: 34, height: 16, viewBox: "0 0 34 16", "aria-hidden": "true" });
+    el("rect", { x: 0.5, y: 0.5, width: 33, height: 15, rx: 3, fill: "#ffffff", stroke: "#cfcdc7" }, s);
+    if (spec.box) el("rect", { x: 9, y: 3.5, width: 16, height: 9, fill: spec.fill, stroke: spec.line || "none" }, s);
+    else if (spec.area) el("rect", { x: 3, y: 3, width: 28, height: 10, rx: 1.5, fill: spec.fill, "fill-opacity": spec.opacity === undefined ? 1 : spec.opacity }, s);
+    else {
+      var ln = el("line", { x1: 4, y1: 8, x2: 30, y2: 8, stroke: spec.color, "stroke-width": spec.width || 2.5, "stroke-linecap": "round", "stroke-opacity": spec.alpha || 1 }, s);
+      if (spec.dash) ln.setAttribute("stroke-dasharray", "5 3");
+      if (spec.dot) el("circle", { cx: 17, cy: 8, r: 3.4, fill: spec.color, stroke: "#ffffff", "stroke-width": 1.3 }, s);
+    }
+    return s;
+  }
+  function addKey(spec, text) {
+    var li = document.createElement("li"); li.appendChild(keySwatch(spec));
+    var sp = document.createElement("span"); sp.textContent = text; li.appendChild(sp); $("keys").appendChild(li);
+  }
+  addKey({ color: "#1baf7a", dot: true }, "model's current plan (next 4 s)");
+  addKey({ color: "#1baf7a", width: 1.6, alpha: 0.4 }, "its earlier plans");
+  addKey({ color: MAP_INK, dot: true, width: 2.2 }, "human's next 4 s");
+  addKey({ box: true, fill: STY.ego.fill, line: STY.ego.line }, "our car");
+  STY.agent_keys.forEach(function (k) { addKey({ box: true, fill: k.fill, line: k.line }, k.label); });
+  STY.map_keys.forEach(function (k) { addKey(k.dash ? { color: k.line, width: 1.4, dash: true } : { area: true, fill: k.fill, opacity: k.opacity }, k.label); });
+
+  $("title").textContent = "Re-planning replay: " + D.name;
+  $("generated").textContent = "Generated " + D.generated + " by navsim_eval/replay_demo.py: " + D.drives.length +
+    " drives, a plan every 0.5 s." + (D.navtest_pdms ? " This model's full-navtest PDMS: " + D.navtest_pdms.toFixed(3) + "." : "");
+  state.speed = parseFloat($("speed").value);
+  var m = /^#(\d+)(?:@([-\d.]+))?$/.exec(location.hash || "");
+  setDrive(m ? parseInt(m[1], 10) - 1 : 0);
+  if (m && m[2]) setTime(parseFloat(m[2]));
+})();
+</script>
+</body>
+</html>
