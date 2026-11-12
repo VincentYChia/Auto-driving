@@ -51,6 +51,32 @@ The researcher: "Ok keep going I want to see how far we get with just this. Then
 | 1 | mini-hard-base-s0 (running), mini-hard-base-s1, mini-hard-visfull, then the full 490k run (`v1fullthin-p12-ep4`, provisional standard recipe) + predictions, then F1 + predictions |
 | 2 | mini-thin-base-s0 (running), mini-thin-base-s1, mini-hard-drop25, mini-hard-drop0, older adapters' dev-v2 evals, then H1 (`v1hard-p12-ep4`, provisional standard recipe) + predictions |
 
+### Mini results (2026-11-12, V)
+NAVSIM v1.1 PDMS on all 12,146 navtest scenes (0 failed, 0 fallbacks, 12,146 unique predictions each). Each mini: 0.8B, prompt v1.2, 2,500 steps (40,000 samples). Paired differences use a 95% bootstrap CI over scenes; aggregates are in `../docs/navsim_eval/results/qwen35-0.8b-mini-*`. Dev and train ADE come from 200 samples (dev = dev-v2, drawn from all frames).
+
+| Mini | PDMS (95% CI) | Paired vs `hard-base-s0` | Scenes scoring 0 | Dev ADE | Train ADE |
+|---|---|---|---|---|---|
+| hard, vision encoder trained | **0.769 (0.762–0.775)** | **+0.036 (+0.031 to +0.041)**; vs hard-s1 +0.044 | 15.5% | 0.792 | 0.736 |
+| hard, standard, seed 0 | 0.733 (0.726–0.739) | — | 18.8% | 0.821 | 0.742 |
+| hard, standard, seed 1 | 0.725 (0.718–0.732) | −0.007 (−0.012 to −0.003): the seed gap | 19.4% | 0.850 | 0.804 |
+| hard, ego dropout 0.25 | 0.725 (0.718–0.731) | −0.008 (−0.013 to −0.003); vs hard-s1 −0.000 | 19.6% | 0.852 | 0.809 |
+| hard, ego dropout 0 | pending | | | | |
+| 490k, standard, seed 0 | 0.697 (0.690–0.704) | −0.036 (−0.041 to −0.031) | 21.6% | 0.740 | 0.700 |
+| 490k, standard, seed 1 | 0.688 (0.681–0.695) | vs hard-s1: −0.037 (−0.042 to −0.032); vs thin-s0: −0.009 (−0.014 to −0.004) | 22.5% | 0.784 | 0.715 |
+
+- **Dataset (D):** at equal compute (40,000 samples), v1-hard beats the 490k set by 0.036 at seed 0 and 0.037 at seed 1. The seed-to-seed gap is 0.007 (hard) and 0.009 (490k), so the dataset effect is about 4–5× the noise.
+  - Dev ADE ranks the sets the other way (490k 0.74–0.78, v1-hard 0.82–0.85), because dev is drawn from all frames, like the 490k set. As before, dev ADE only compares runs within one training mix.
+  - Caveat: in 40k samples the v1-hard draw holds ~41% navtrain against ~20% for the 490k draw, so this measures composition at a fixed budget. The full runs (4 epochs each, and H2 at equal compute) test it at length.
+- **Settings:**
+  - **Vision encoder trained wins:** +0.036 vs seed 0 and +0.044 vs seed 1, 4–6× the seed gap, with every sub-score up (NC 0.966 vs 0.956, DAC 0.872 vs 0.845, EP 0.716 vs 0.682). It trains 122M parameters instead of 22M and is only 5–8% slower.
+  - **Ego dropout 0.25 does not win:** within the seed gap.
+- **Decision (agreed rule):** both full runs restart with the vision encoder trained (2026-11-12 09:05).
+  - S1 (the standard recipe) is parked at step 7,285 with its checkpoint kept.
+  - S3 = `v1fullthin-p12-visfull-ep4` (queue 1) and H1 = `v1hard-p12-visfull-ep4` (queue 2, after the last mini and the dev-v2 evals).
+  - Each trains (`TRAIN_ONLY=1`), then predicts navtest, then runs the remaining evals, so the NAVSIM score comes first.
+  - F1 now starts from S3's adapter.
+  - If ego dropout 0 also wins, both restart with it too.
+
 The plan before this revision:
 
 | ID | Run | Queue | What it answers | Est. scored |
