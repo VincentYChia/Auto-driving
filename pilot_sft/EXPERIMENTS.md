@@ -81,6 +81,8 @@ NAVSIM v1.1 PDMS on all 12,146 navtest scenes (0 failed, 0 fallbacks, 12,146 uni
   - One GPU job at a time on queue 1 (E-cores 16-31). Queue 2 stays empty.
   - **Order:** H1 train (310, started 10:23) → H1 navtest predictions + dev-v2 (311) → S3 train (320, resumes at its step-2,300 checkpoint) → S3 predictions (321) → the long evals of both (330/331) → older adapters' dev-v2 evals (340).
   - F1 and H2 are parked until these two results are in.
+  - **2026-11-13:** H2 (`v1hard-p12-visfull-ep8`: H1's recipe for 8 epochs, equal compute to S3) queued after 340 so the GPU trains through the Anvil outage (researcher: "sure we can just queue that. no harm there, we can always change"): 350 train (~59 h at 0.56 steps/s), 351 navtest predictions + dev-v2 eval + replay drives, 352 evals (reusing H1's baselines). F1 stays parked.
+  - **NAVSIM scoring stays the standard test (researcher, 2026-11-13: "the Navsim test being comparable so our scores can be compared 1 to 1"):** every PDMS here is NAVSIM's own `run_pdm_score.py` (v1.1 devkit, 3e8291b) on the full official navtest split (12,146 scenes, the devkit's `navtest` scene filter), the default scorer config, only the agent swapped for our precomputed paths; each result requires 0 failed scenes and reports fallbacks. Checks: NAVSIM's constant-velocity agent 0.2065 vs the published 20.6, its human agent 0.946 vs the published 94.8 (V). Subsets (hard scenes, demo drives, failure analysis) are analysis only, never a headline score.
 
 The plan before this revision:
 
