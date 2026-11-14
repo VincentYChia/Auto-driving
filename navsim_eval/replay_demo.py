@@ -336,6 +336,65 @@ def export(args) -> None:
     print(f"[replay] wrote {len(records)} inputs, {len(drives)} drives -> {out} (ego-history gap {gap:.1e} m)")
 
 
+# ----------------------------------------------------------------------------------------------- scored moment (NAVSIM env)
+
+def scored(args) -> None:
+    """NAVSIM's own view of each drive's planning moment (t = 0), for the page: every model's t = 0 plan exactly as
+    NAVSIM scored it (its navtest prediction, as PrecomputedTrajectoryAgent turns it into poses), the ego motion
+    NAVSIM's PDM simulator drove for that plan (from the metric cache the scores came from), and the plan's PDMS and
+    sub-scores from the model's score CSV; NAVSIM's scorer is re-run on the simulated motion and must reproduce the
+    CSV. Also the human agent's scores. Writes <drives>/navsim_t0.json."""
+    from navsim.common.dataloader import MetricCacheLoader
+
+    from navsim_eval import demo_html
+    from navsim_eval.render_demo import failure, load_scores, navsim_scoring, simulate
+
+    from navsim_eval.predictions import load_predictions
+
+    root = Path(args.drives)
+    with open(root / "drives.json", encoding="utf-8") as f:
+        data = json.load(f)
+    models = []
+    for spec in args.model:
+        name, pred, csv = spec.split("=", 2)
+        models.append({"name": name, "pred": load_predictions(pred), "score": load_scores(csv)})
+    human = load_scores(args.human) if args.human else None
+    caches, scoring = MetricCacheLoader(Path(args.metric_cache)), navsim_scoring()
+    out: Dict[str, Dict] = {}
+    disagree: List[str] = []
+    for d in data["drives"]:
+        token = d["token"]
+        mc = caches.get_from_token(token)
+        ra = mc.ego_state.rear_axle
+        off = np.asarray(d["origin_global"], dtype=np.float64) - [ra.x, ra.y, ra.heading]
+        if max(abs(off[0]), abs(off[1]), abs(geometry.normalize_angle(off[2]))) > 1e-3:
+            raise SystemExit(f"{token}: the metric cache's ego state is not the drive frame's origin ({off})")
+        entry: Dict = {"models": [], "human": None}
+        for m in models:
+            wp = m["pred"].get(token)
+            plan = demo_html.model_plan(wp) if wp is not None else None
+            row = m["score"].loc[token] if token in m["score"].index else None
+            e = {"name": m["name"], "score": None if row is None else demo_html.score_entry(row, failure(row)),
+                 "plan": None, "motion": None}
+            if plan is not None:
+                motion, pdms = simulate(scoring, mc, plan)
+                e["plan"], e["motion"] = rounded(plan[1:, :2]), rounded(motion, 3)
+                if row is not None and abs(pdms - float(row["score"])) > 1e-6:
+                    disagree.append(f"{token[:8]} {m['name']}: NAVSIM's scorer gives the simulated motion "
+                                    f"{pdms:.4f}, the CSV {float(row['score']):.4f}")
+            entry["models"].append(e)
+        if human is not None and token in human.index:
+            entry["human"] = demo_html.score_entry(human.loc[token], failure(human.loc[token]))
+        out[token] = entry
+        print(f"[scored] {token[:8]} {d['label']}: " + ", ".join(
+            f"{e['name']} {e['score']['pdms'] if e['score'] else '–'}" for e in entry["models"]), flush=True)
+    if disagree:
+        raise SystemExit("NAVSIM's scorer disagrees with the score CSVs:\n" + "\n".join(disagree))
+    with open(root / "navsim_t0.json", "w", encoding="utf-8") as f:
+        json.dump({"models": [m["name"] for m in models], "scenes": out}, f)
+    print(f"[scored] wrote {root / 'navsim_t0.json'}: {len(out)} drives; NAVSIM's scorer reproduces every CSV PDMS")
+
+
 # ----------------------------------------------------------------------------------------------- page
 
 def page(args) -> None:
@@ -352,6 +411,13 @@ def page(args) -> None:
     compare = load_predictions(args.compare_predictions) if args.compare_predictions else None
     if compare is not None and not args.compare_name:
         raise SystemExit("--compare-predictions needs --compare-name")
+    navsim_t0 = None
+    if args.navsim:  # the scored step's output: its models must be the page's, in the same order
+        with open(args.navsim, encoding="utf-8") as f:
+            navsim_t0 = json.load(f)
+        want = 1 + (compare is not None)
+        if len(navsim_t0["models"]) != want:
+            raise SystemExit(f"--navsim holds {len(navsim_t0['models'])} models, the page shows {want}")
 
     def camera_uri(token: str) -> Optional[str]:
         path = root / "cam_f0" / f"{token}.jpg"
@@ -380,6 +446,8 @@ def page(args) -> None:
         cams = {r["token"]: camera_uri(r["token"]) for r in d["replans"]}
         d = dict(d, map_src=map_uri(d["map_png"]))
         drives.append(drive_payload(d, preds, cams, compare))
+        if navsim_t0 is not None:
+            drives[-1]["navsim"] = navsim_t0["scenes"].get(d["token"])
         fr = drives[-1]["frames"]
 
         def metres(v: Optional[float]) -> str:
@@ -424,12 +492,21 @@ def main() -> None:
                    help="a second model's predictions on the same export, drawn beside the first")
     g.add_argument("--compare-name", default=None, help="the second model's name on the page")
     g.add_argument("--compare-pdms", type=float, default=None, help="the second model's full-navtest PDMS")
+    g.add_argument("--navsim", default=None, help="the scored step's navsim_t0.json: NAVSIM's view of t = 0")
     g.add_argument("--html", required=True)
     g.add_argument("--cam-px", type=int, default=640)
     g.add_argument("--cam-quality", type=int, default=75)
+    s = sub.add_parser("scored", help="NAVSIM env: each drive's t = 0 plans as NAVSIM scored and simulated them")
+    s.add_argument("--drives", required=True, help="the export's --out folder")
+    s.add_argument("--model", action="append", required=True,
+                   help='"name=navtest predictions=score csv", in the page\'s order (first, then the comparison)')
+    s.add_argument("--human", default=None, help="score csv of NAVSIM's human agent")
+    s.add_argument("--metric-cache", required=True, help="the metric cache the score csvs were computed from")
     args = p.parse_args()
     if args.cmd == "export":
         export(args)
+    elif args.cmd == "scored":
+        scored(args)
     else:
         page(args)
 
