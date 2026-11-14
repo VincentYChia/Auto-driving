@@ -156,6 +156,26 @@ def test_drive_payload_turns_local_plans_into_drive_frame_stats():
     assert f[0]["reach"] == pytest.approx(32.0) and f[0]["human_reach"] == pytest.approx(32.0)
 
 
+def test_drive_payload_adds_a_second_model_beside_the_first():
+    d = payload_drive()
+    first = {f"tok{k}": np.array([[4.0 * (j + 1), 0.0] for j in range(8)]) for k in range(5)}
+    second = {f"tok{k}": np.array([[4.0 * (j + 1), 1.0] for j in range(8)]) for k in range(5) if k != 3}
+    out = rd.drive_payload(d, first, {}, compare=second)
+    f = out["frames"]
+    assert out["missing_plans"] == 0 and out["missing_compare_plans"] == 1
+    assert f[0]["ade"] == pytest.approx(0.0) and f[0]["cmp_ade"] == pytest.approx(1.0)  # 1 m to the left throughout
+    assert f[0]["cmp_plan"][0] == pytest.approx([d["ego"][3][0] + 4.0, 1.0])
+    assert f[3]["cmp_plan"] is None and f[3]["cmp_ade"] is None and f[4]["cmp_change"] is None
+    assert f[2]["cmp_change"] == pytest.approx(0.0) and f[1]["cmp_reach"] == pytest.approx(np.hypot(32.0, 1.0))
+    assert "cmp_plan" not in rd.drive_payload(d, first, {})["frames"][0]  # one model: the page is as before
+    assert "missing_compare_plans" not in rd.drive_payload(d, first, {})
+
+
+def test_mean_of_skips_missing_values():
+    assert rd.mean_of([1.0, None, 3.0]) == pytest.approx(2.0)
+    assert rd.mean_of([None, None]) is None
+
+
 def test_build_html_embeds_the_payload_once_and_safely():
     d = rd.drive_payload(payload_drive(), {}, {})
     d["label"] = "a </script> label"

@@ -194,26 +194,47 @@ def rounded(a, decimals: int = 2):
     return np.round(np.asarray(a, dtype=np.float64), decimals).tolist()
 
 
-def drive_payload(drive: Dict, predictions: Dict[str, np.ndarray], cameras: Dict[str, str]) -> Dict:
-    """One drive of the page from its drives.json entry, the model's plans by frame token and the front-camera data
-    URIs by frame token."""
-    ego = np.asarray(drive["ego"], dtype=np.float64)  # drive frame, frames first - 3 ... last + 8
-    off = drive["replan_offset"]  # index in ``ego`` of the first re-plan frame
-    replans = drive["replans"]
+def model_series(ego: np.ndarray, off: int, replans: Sequence[Dict], predictions: Dict[str, np.ndarray]):
+    """One model's plans on a drive, in the drive frame, with their per-frame statistics and reaches."""
     plans = [plan_in_drive(ego[off + k], predictions.get(r["token"])) for k, r in enumerate(replans)]
     humans = [human_future(ego, off + k) for k in range(len(replans))]
     stats = replan_stats(plans, humans)
     plan_r, human_r = reaches(ego[off: off + len(replans)], plans, humans)
+    return plans, stats, plan_r, human_r
+
+
+def drive_payload(drive: Dict, predictions: Dict[str, np.ndarray], cameras: Dict[str, str],
+                  compare: Optional[Dict[str, np.ndarray]] = None) -> Dict:
+    """One drive of the page from its drives.json entry, the model's plans by frame token and the front-camera data
+    URIs by frame token. ``compare``: a second model's plans by frame token, drawn beside the first (frame keys
+    ``cmp_plan``, ``cmp_ade``, ``cmp_fde``, ``cmp_change``, ``cmp_reach``)."""
+    ego = np.asarray(drive["ego"], dtype=np.float64)  # drive frame, frames first - 3 ... last + 8
+    off = drive["replan_offset"]  # index in ``ego`` of the first re-plan frame
+    replans = drive["replans"]
+    plans, stats, plan_r, human_r = model_series(ego, off, replans, predictions)
+    cmp = model_series(ego, off, replans, compare) if compare is not None else None
     frames = []
     for k, r in enumerate(replans):
-        frames.append({"t": r["t"], "token": r["token"], "speed": round(r["speed"], 2), "command": r["command"],
-                       "cam": cameras.get(r["token"]), "plan": rounded(plans[k]),
-                       "ade": stats[k]["ade"], "fde": stats[k]["fde"], "change": stats[k]["change"],
-                       "reach": plan_r[k], "human_reach": human_r[k]})
-    return {"label": drive["label"], "token": drive["token"], "log": drive["log"], "map": drive["map"],
-            "t_first": replans[0]["t"], "t_last": replans[-1]["t"], "replan_offset": off,
-            "ego": rounded(ego, 3), "frames": frames, "tracks": drive["tracks"], "map_frame": drive["map_frame"],
-            "map_src": drive.get("map_src"), "missing_plans": sum(p is None for p in plans)}
+        f = {"t": r["t"], "token": r["token"], "speed": round(r["speed"], 2), "command": r["command"],
+             "cam": cameras.get(r["token"]), "plan": rounded(plans[k]),
+             "ade": stats[k]["ade"], "fde": stats[k]["fde"], "change": stats[k]["change"],
+             "reach": plan_r[k], "human_reach": human_r[k]}
+        if cmp is not None:
+            f.update({"cmp_plan": rounded(cmp[0][k]), "cmp_ade": cmp[1][k]["ade"], "cmp_fde": cmp[1][k]["fde"],
+                      "cmp_change": cmp[1][k]["change"], "cmp_reach": cmp[2][k]})
+        frames.append(f)
+    out = {"label": drive["label"], "token": drive["token"], "log": drive["log"], "map": drive["map"],
+           "t_first": replans[0]["t"], "t_last": replans[-1]["t"], "replan_offset": off,
+           "ego": rounded(ego, 3), "frames": frames, "tracks": drive["tracks"], "map_frame": drive["map_frame"],
+           "map_src": drive.get("map_src"), "missing_plans": sum(p is None for p in plans)}
+    if cmp is not None:
+        out["missing_compare_plans"] = sum(p is None for p in cmp[0])
+    return out
+
+
+def mean_of(values: Sequence[Optional[float]]) -> Optional[float]:
+    v = [x for x in values if x is not None]
+    return float(np.mean(v)) if v else None
 
 
 def build_html(payload: Dict, template: Optional[str] = None) -> str:
@@ -328,6 +349,9 @@ def page(args) -> None:
     with open(root / "drives.json", encoding="utf-8") as f:
         data = json.load(f)
     preds = load_predictions(args.predictions)
+    compare = load_predictions(args.compare_predictions) if args.compare_predictions else None
+    if compare is not None and not args.compare_name:
+        raise SystemExit("--compare-predictions needs --compare-name")
 
     def camera_uri(token: str) -> Optional[str]:
         path = root / "cam_f0" / f"{token}.jpg"
@@ -355,12 +379,23 @@ def page(args) -> None:
     for d in data["drives"]:
         cams = {r["token"]: camera_uri(r["token"]) for r in d["replans"]}
         d = dict(d, map_src=map_uri(d["map_png"]))
-        drives.append(drive_payload(d, preds, cams))
-        print(f"[page] {d['token'][:8]} {d['label']}: {len(d['replans'])} re-plans, "
-              f"{drives[-1]['missing_plans']} without a plan", flush=True)
+        drives.append(drive_payload(d, preds, cams, compare))
+        fr = drives[-1]["frames"]
+
+        def metres(v: Optional[float]) -> str:
+            return "–" if v is None else f"{v:.2f} m"
+
+        line = (f"[page] {d['token'][:8]} {d['label']}: {len(d['replans'])} re-plans, "
+                f"{drives[-1]['missing_plans']} without a plan; mean plan vs human {metres(mean_of([f['ade'] for f in fr]))}")
+        if compare is not None:
+            line += (f"; comparison: {drives[-1]['missing_compare_plans']} without a plan, "
+                     f"{metres(mean_of([f['cmp_ade'] for f in fr]))}")
+        print(line, flush=True)
     payload = {"name": args.name, "drives": drives, "styles": data["styles"], "step": STEP,
                "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-               "navtest_pdms": args.navtest_pdms}
+               "navtest_pdms": args.navtest_pdms,
+               "compare": None if compare is None else {"name": args.compare_name,
+                                                        "navtest_pdms": args.compare_pdms}}
     html = build_html(payload)
     Path(args.html).parent.mkdir(parents=True, exist_ok=True)
     Path(args.html).write_text(html, encoding="utf-8")
@@ -385,6 +420,10 @@ def main() -> None:
     g.add_argument("--predictions", required=True, help="predict_navsim.py's --out folder (or a JSON/JSONL file)")
     g.add_argument("--name", required=True, help="the model's name on the page")
     g.add_argument("--navtest-pdms", type=float, default=None, help="the model's full-navtest PDMS, for the page")
+    g.add_argument("--compare-predictions", default=None,
+                   help="a second model's predictions on the same export, drawn beside the first")
+    g.add_argument("--compare-name", default=None, help="the second model's name on the page")
+    g.add_argument("--compare-pdms", type=float, default=None, help="the second model's full-navtest PDMS")
     g.add_argument("--html", required=True)
     g.add_argument("--cam-px", type=int, default=640)
     g.add_argument("--cam-quality", type=int, default=75)

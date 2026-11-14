@@ -22,6 +22,7 @@
   --focus: #2a78d6;
   --plan: #1baf7a;
   --change: #eb6834;
+  --cmp: #3f5fd1;
   --human: #0b0b0b;
 }
 @media (prefers-color-scheme: dark) {
@@ -39,6 +40,7 @@
     --focus: #3987e5;
     --plan: #2fc28c;
     --change: #f07a48;
+    --cmp: #7b93f0;
     --human: #f0efec;
   }
 }
@@ -56,6 +58,7 @@
   --focus: #3987e5;
   --plan: #2fc28c;
   --change: #f07a48;
+  --cmp: #7b93f0;
   --human: #f0efec;
 }
 *, *::before, *::after { box-sizing: border-box; }
@@ -116,6 +119,7 @@ figcaption { color: var(--ink-2); font-size: 13px; margin-top: 8px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 4px; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
 .legend li { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
+.legend i.dash { border-top-style: dashed; }
 .readout { font-size: 13px; color: var(--ink-2); min-height: 1.5em; font-variant-numeric: tabular-nums; }
 .keys { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
 .keys li { display: inline-flex; align-items: center; gap: 6px; }
@@ -158,21 +162,21 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
       </figure>
       <figure class="panel chart">
         <h3>How far ahead each plan reaches in 4 s</h3>
-        <ul class="legend">
-          <li><i style="border-color: var(--plan)"></i>model's plan</li>
-          <li><i style="border-color: var(--human)"></i>what the human then drove</li>
-        </ul>
+        <ul class="legend" id="legend-reach"></ul>
         <svg id="chart-reach" role="img" aria-label="Distance each plan reaches in 4 s, over the drive"></svg>
         <div class="readout" id="readout-reach"></div>
       </figure>
       <figure class="panel chart">
-        <h3>Plan error and plan change</h3>
-        <ul class="legend">
-          <li><i style="border-color: var(--plan)"></i>plan vs human, mean over 4 s</li>
-          <li><i style="border-color: var(--change)"></i>moved since the last plan</li>
-        </ul>
+        <h3 id="err-title">Plan error and plan change</h3>
+        <ul class="legend" id="legend-err"></ul>
         <svg id="chart-err" role="img" aria-label="Plan error against the human and plan change, over the drive"></svg>
         <div class="readout" id="readout-err"></div>
+      </figure>
+      <figure class="panel chart" id="change-panel" hidden>
+        <h3>How far each plan moved since the one before</h3>
+        <ul class="legend" id="legend-change"></ul>
+        <svg id="chart-change" role="img" aria-label="Plan change since the previous plan, over the drive"></svg>
+        <div class="readout" id="readout-change"></div>
       </figure>
     </div>
     <div class="col">
@@ -227,6 +231,8 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
       <li><strong>Human</strong>: where the human driver actually went over the same 4 s.</li>
       <li><strong>Moved since the last plan</strong>: for the 3.5 s two plans in a row both cover, the mean distance
         between them at the same moments. Large values are where the model changed its mind.</li>
+      <li id="note-compare" hidden><strong>Two models</strong>: the solid green plan is the first model's, the
+        dashed blue one the second's, both made from the same frame. Only the first model's earlier plans are drawn.</li>
       <li><strong>Replay, not closed loop</strong>: the car always follows the human's path, so a plan that would
         have gone elsewhere never moves the car. Road users replay their logged motion.</li>
     </ul>
@@ -242,6 +248,7 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
   var STEP = D.step;
   var STY = D.styles;
   var MAP_INK = "#0b0b0b";
+  var CMP = D.compare || null, CMP_INK = "#3f5fd1"; // a second model drawn beside the first, or none
   function $(id) { return document.getElementById(id); }
   function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
@@ -386,6 +393,12 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
       path(old.plan, drive.ego[drive.replan_offset + k - j]);
       stroke("#1baf7a", 1.6, Math.max(0.12, 0.5 - 0.09 * j));
     }
+    // the comparison model's current plan, dashed, under the first model's
+    if (CMP && fr.cmp_plan) {
+      path(fr.cmp_plan, o); stroke("#ffffff", 5.5, 0.85);
+      path(fr.cmp_plan, o); stroke(CMP_INK, 2.6, 1, [7, 5]);
+      dots(fr.cmp_plan, CMP_INK, 3.0, 1.3);
+    }
     // the current plan
     if (fr.plan) {
       path(fr.plan, o); stroke("#ffffff", 6, 0.85);
@@ -470,7 +483,8 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
         d += (pen ? "L" : "M") + X(f.t).toFixed(1) + "," + Y(v).toFixed(1);
         pen = true;
       });
-      el("path", { d: d, fill: "none", stroke: css(s.color), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+      el("path", { d: d, fill: "none", stroke: css(s.color), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round",
+        "stroke-dasharray": s.dash ? "6 4" : null }, svg);
     });
     // selective direct label: the largest plan change
     var big = null;
@@ -517,9 +531,36 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
       return s.name + " " + (v === null || v === undefined ? "–" : v.toFixed(1) + " " + unit);
     }).join(" · ");
   }
+  function seriesSets() {
+    if (!CMP) return {
+      "chart-reach": [{ key: "reach", name: "plan", legend: "model's plan", color: "--plan" },
+                      { key: "human_reach", name: "human", legend: "what the human then drove", color: "--human" }],
+      "chart-err": [{ key: "ade", name: "plan vs human", legend: "plan vs human, mean over 4 s", color: "--plan" },
+                    { key: "change", name: "moved since last plan", legend: "moved since the last plan", color: "--change", mark: true }]
+    };
+    var a = D.name, b = CMP.name;
+    return {
+      "chart-reach": [{ key: "reach", name: a, legend: a, color: "--plan" }, { key: "cmp_reach", name: b, legend: b, color: "--cmp", dash: true },
+                      { key: "human_reach", name: "human", legend: "what the human then drove", color: "--human" }],
+      "chart-err": [{ key: "ade", name: a, legend: a, color: "--plan" }, { key: "cmp_ade", name: b, legend: b, color: "--cmp", dash: true }],
+      "chart-change": [{ key: "change", name: a, legend: a, color: "--plan", mark: true }, { key: "cmp_change", name: b, legend: b, color: "--cmp", dash: true }]
+    };
+  }
+  function setLegend(id, series) {
+    var ul = $(id);
+    while (ul.firstChild) ul.removeChild(ul.firstChild);
+    series.forEach(function (s) {
+      var li = document.createElement("li"), i = document.createElement("i");
+      i.style.borderColor = "var(" + s.color + ")"; if (s.dash) i.className = "dash";
+      li.appendChild(i); li.appendChild(document.createTextNode(s.legend)); ul.appendChild(li);
+    });
+  }
   function buildCharts() {
-    buildChart("chart-reach", [{ key: "reach", name: "plan", color: "--plan" }, { key: "human_reach", name: "human", color: "--human" }], "m", "readout-reach");
-    buildChart("chart-err", [{ key: "ade", name: "plan vs human", color: "--plan" }, { key: "change", name: "moved since last plan", color: "--change", mark: true }], "m", "readout-err");
+    var sets = seriesSets();
+    Object.keys(sets).forEach(function (id) {
+      setLegend(id.replace("chart", "legend"), sets[id]);
+      buildChart(id, sets[id], "m", id.replace("chart", "readout"));
+    });
   }
   function drawCharts(t) {
     Object.keys(charts).forEach(function (id) {
@@ -537,8 +578,10 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
     shownK = k;
     $("f-command").textContent = f.command;
     $("f-speed").textContent = f.speed.toFixed(1) + " m/s (" + Math.round(f.speed * 3.6) + " km/h)";
-    $("f-err").textContent = f.ade === null ? "no plan" : f.ade.toFixed(1) + " m / " + f.fde.toFixed(1) + " m";
-    $("f-change").textContent = f.change === null ? "–" : f.change.toFixed(1) + " m";
+    function errText(ade, fde) { return ade === null || ade === undefined ? "no plan" : ade.toFixed(1) + " m / " + fde.toFixed(1) + " m"; }
+    function chText(v) { return v === null || v === undefined ? "–" : v.toFixed(1) + " m"; }
+    $("f-err").textContent = errText(f.ade, f.fde) + (CMP ? " (" + CMP.name + ": " + errText(f.cmp_ade, f.cmp_fde) + ")" : "");
+    $("f-change").textContent = chText(f.change) + (CMP ? " (" + CMP.name + ": " + chText(f.cmp_change) + ")" : "");
     if (f.cam) { $("cam").src = f.cam; $("cam").alt = "Front camera at " + signed(f.t) + " s"; }
     $("cam-cap").textContent = "Front camera at " + signed(f.t) + " s: the image the plan on the right was made from" +
       (Math.abs(f.t) < 1e-6 ? " (the moment NAVSIM scores)." : ".");
@@ -666,16 +709,19 @@ kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; borde
     var li = document.createElement("li"); li.appendChild(keySwatch(spec));
     var sp = document.createElement("span"); sp.textContent = text; li.appendChild(sp); $("keys").appendChild(li);
   }
-  addKey({ color: "#1baf7a", dot: true }, "model's current plan (next 4 s)");
+  addKey({ color: "#1baf7a", dot: true }, (CMP ? D.name : "model") + "'s current plan (next 4 s)");
+  if (CMP) addKey({ color: CMP_INK, dot: true, dash: true, width: 2.4 }, CMP.name + "'s current plan, made from the same frame");
   addKey({ color: "#1baf7a", width: 1.6, alpha: 0.4 }, "its earlier plans");
   addKey({ color: MAP_INK, dot: true, width: 2.2 }, "human's next 4 s");
   addKey({ box: true, fill: STY.ego.fill, line: STY.ego.line }, "our car");
   STY.agent_keys.forEach(function (k) { addKey({ box: true, fill: k.fill, line: k.line }, k.label); });
   STY.map_keys.forEach(function (k) { addKey(k.dash ? { color: k.line, width: 1.4, dash: true } : { area: true, fill: k.fill, opacity: k.opacity }, k.label); });
 
-  $("title").textContent = "Re-planning replay: " + D.name;
+  $("title").textContent = "Re-planning replay: " + D.name + (CMP ? " and " + CMP.name : "");
+  if (CMP) { $("change-panel").hidden = false; $("note-compare").hidden = false; $("err-title").textContent = "How far each plan is from what the human drove (mean over 4 s)"; }
   $("generated").textContent = "Generated " + D.generated + " by navsim_eval/replay_demo.py: " + D.drives.length +
-    " drives, a plan every 0.5 s." + (D.navtest_pdms ? " This model's full-navtest PDMS: " + D.navtest_pdms.toFixed(3) + "." : "");
+    " drives, a plan every 0.5 s." + (D.navtest_pdms ? " Full-navtest PDMS: " + D.name + " " + D.navtest_pdms.toFixed(3) +
+    (CMP && CMP.navtest_pdms ? ", " + CMP.name + " " + CMP.navtest_pdms.toFixed(3) : "") + "." : "");
   state.speed = parseFloat($("speed").value);
   // address: #<drive>, optionally @<seconds> and ,whole; e.g. #3@-2.5,whole
   var m = /^#(\d+)(?:@([-\d.]+))?(?:,(follow|whole))?$/.exec(location.hash || "");
