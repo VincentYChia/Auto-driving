@@ -113,12 +113,14 @@ linear 0.925 / 2.492, MLP 0.781 / 2.118, command mean 6.419 / 11.548.
 - **The past positions are still ignored:** drift follow −0.01 for both, 0.37 for the MLP.
 - **The two models are tied:** paired 2B − 0.8B on the same samples is −0.007 m ADE (95% bootstrap CI −0.028 to +0.014) and −0.028 m FDE (−0.087 to +0.031). NAVSIM decides between them.
 
-### NAVSIM navtest, full set (2026-11-08, updated 2026-11-11, V)
+### NAVSIM navtest, full set (2026-11-08, updated 2026-11-13, V)
 PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted and scored (0 failed); no fallbacks to constant velocity except 1 scene for the v1.2 variant. Aggregates in `../docs/navsim_eval/results/`.
 
 | | PDMS (95% CI) | No collision | Drivable area | TTC | Comfort | Progress | Direction | Scenes scoring 0 |
 |---|---|---|---|---|---|---|---|---|
-| **0.8B, v1-nt (NAVSIM's navtrain scenes, 80,626 samples), 3 epochs, prompt v1.2** | **0.829 (0.823–0.834)** | 0.981 | 0.915 | 0.933 | 1.000 | 0.772 | 0.976 | 10% |
+| **0.8B, v1-hard (236,133 samples), vision encoder trained, 4 epochs, prompt v1.2 (H1)** | **0.856 (0.851–0.861)** | 0.983 | 0.943 | 0.939 | 1.000 | 0.797 | 0.981 | 7% |
+| 0.8B, v1-xl-nd (176,352 samples), vision encoder trained, 4 epochs | 0.832 (0.827–0.837) | 0.978 | 0.929 | 0.925 | 1.000 | 0.771 | 0.978 | 9% |
+| 0.8B, v1-nt (NAVSIM's navtrain scenes, 80,626 samples), 3 epochs, prompt v1.2 | 0.829 (0.823–0.834) | 0.981 | 0.915 | 0.933 | 1.000 | 0.772 | 0.976 | 10% |
 | 0.8B, v1-xl-nd (176,352 samples), 4 epochs | 0.807 (0.802–0.813) | 0.975 | 0.908 | 0.918 | 1.000 | 0.749 | 0.978 | 11% |
 | 0.8B, v1-large, 3 epochs, prompt v1.2 (4 past poses), ego state and poses blinded together | 0.786 (0.780–0.792) | 0.971 | 0.893 | 0.908 | 1.000 | 0.729 | 0.973 | 13% |
 | 0.8B, v1-large, 3 epochs, prompt v1.2 (4 past poses), poses never blinded | 0.784 (0.779–0.790) | 0.970 | 0.892 | 0.907 | 1.000 | 0.728 | 0.972 | 13% |
@@ -131,6 +133,12 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted an
 | MVLAD-AD 8B (official weights, nuScenes adapter, no command) | 0.362 (0.355–0.369) | 0.764 | 0.652 | 0.609 | 0.751 | 0.344 | 0.829 | 51% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
 
+- **H1, v1-hard with the vision encoder trained, is the new best: 0.856 (2026-11-13):** the 0.8B trained 4 epochs on v1-hard (236,133: every navtrain frame, the moving frames at least as hard as navtrain's easiest quarter, standstills thinned to one per 20 s), prompt v1.2, vision encoder trained (lr 2e-5), lab RTX 4090, 29 h.
+  - **Paired against v1-nt** (0.829, the previous best): +0.027 PDMS (95% bootstrap CI +0.023 to +0.032). Drivable area +0.028, progress +0.025, TTC +0.006; collisions unchanged (+0.001, −0.001 to +0.004). Scenes scoring 0 fall from 10.1% to 7.3%.
+  - **Against the same recipe as a mini** (`mini-hard-visfull`, 40,000 samples, 0.769): +0.088 (+0.082 to +0.093). **Against the 0.8B on v1-pilot:** +0.104 (+0.098 to +0.110).
+  - **Against the vision-trained 176k run** (`xlnd-visfull-ep4s`, 0.832): +0.024 (+0.020 to +0.029), every sub-score up.
+  - All 12,146 scenes predicted once each, 0 failed, 0 fallbacks. Dev-v2 ADE 0.771 m (1,000 samples; the mini 0.806). Train ADE and the per-epoch evals come from its eval job, queued after S3.
+- **Training the vision encoder holds at full length (2026-11-13):** v1-xl-nd, 4 epochs, prompt v1.1, vision encoder trained (H100), against the same run with it frozen (`xlnd-ep4s`, 0.807): **+0.025 PDMS** (95% bootstrap CI +0.020 to +0.029); drivable area +0.022, progress +0.022, TTC +0.007, collisions +0.002 (0.000 to +0.005). Scenes scoring 0: 9.1% vs 11.5%. The minis measured +0.036 at 40,000 samples. It fits better on both splits, so it isn't memorizing: dev ADE 0.719 / 0.610 / 0.595 / 0.594 m by epoch (frozen 0.784 / 0.641 / 0.620 / 0.604), train 0.383 (frozen 0.410). Against v1-nt: +0.003 (−0.002 to +0.008), a tie.
 - **The v1.2 prompt helps a little at 100k; whether the poses line is blinded doesn't matter (2026-11-11):** P1 (v1-large, 100k, 3 epochs, prompt v1.2, ego state and poses blinded together on half the samples) scores 0.786.
   - **Against the same recipe on prompt v1.1** (`large-ep3`, 0.779): +0.007 PDMS (95% bootstrap CI +0.003 to +0.012).
   - **Against P0,** which blinds only the ego state and never the poses (0.784): +0.002 (−0.003 to +0.006), no difference.
