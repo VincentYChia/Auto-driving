@@ -72,6 +72,20 @@ This workstream is a **quick, deterministic baseline**: the shipped MVLAD-AD pla
 - **Codebook:** the 256-token codebook rounds waypoints by 0.54 m on average at 1 s, and its centres stop at 54.6 m ahead (measured; `docs/RESEARCH_DIRECTION.md`).
 - **Versions:** `NAVSIM_VERSION=v1` (default) gives PDMS with the v1.1 devkit; `v2` gives EPDMS with main. navhard two-stage would also need predictions for the synthetic second-stage scenes, which the exporter does not produce.
 
+## 3. Demo page: re-planning replay with NAVSIM's scored moment (for showing, not scoring)
+`navsim_eval/replay_demo.py` builds one self-contained page per model pair. On each drive (20 s of a navtest log around a navtest scene) the model re-plans every 0.5 s from the AgentInput NAVSIM would give it at that frame. The car follows the human's logged path: the page is a replay, not closed loop. At t = 0 the page also shows NAVSIM's own verdict: each model's scored plan, the car NAVSIM's simulator drove for it over 0–4 s, and the PDMS with sub-scores. This has been the standard demo since 2026-11-14 (researcher-confirmed). The page embeds nuPlan images, so keep it out of the repository.
+
+| Step | Command | Env / hardware |
+|---|---|---|
+| 1. Export drives (once per drive set) | `python navsim_eval/replay_demo.py export --out $E/replay/v2 --drive <token prefix>="<label>" ...` | NAVSIM, CPU (a login node is enough: ~1 min for 10 drives) |
+| 2. Plans at every frame | `SPLIT=replay_v2 NUM_SHARDS=1 SLURM_ARRAY_TASK_ID=0 RUN_DIR=<run> bash scripts/anvil/pilot_sft/predict_navsim.sbatch` (inputs at `$NAVSIM_EXP_ROOT/mvlad/replay_v2_inputs.json`) | pilot env, GPU (~3 min for 410 frames on the RTX 4090, beside training at `nice 5`) |
+| 3. NAVSIM's scored moment | `python navsim_eval/replay_demo.py scored --drives $E/replay/v2 --metric-cache $E/metric_cache_navtest_v1 --human <human csv> --model "<name>=<run>/navtest_predictions=<score csv>" --model "<comparison>=..."` | NAVSIM, CPU (~1 min) |
+| 4. The page | `python navsim_eval/replay_demo.py page --drives $E/replay/v2 --predictions <run>/replay_v2_predictions --name <name> --navtest-pdms <x> --compare-predictions <other run>/replay_v2_predictions --compare-name <name> --compare-pdms <y> --navsim $E/replay/v2/navsim_t0.json --html <out>.html` | any env with numpy and Pillow (~10 s) |
+
+- **Step 1** cuts each drive where the log lacks the 1.5 s of history or 4 s of future a frame needs. It refuses a drive whose frames in the window are not 0.5 s apart. It checks that its inputs match NAVSIM's AgentInput.
+- **Step 3** uses each model's navtest predictions, exactly the plans NAVSIM scored. It re-runs NAVSIM's scorer on the simulated motion and stops unless that reproduces every score-CSV row. Give the models in the page's order: first the model, then the comparison.
+- **Step 4** works with one model alone: leave out the `--compare-*` options and `--navsim`. Then it shows only the replay.
+
 ## Troubleshooting
 - **`KeyError: 'cam_l0'`:** a log is missing cameras. NAVSIM expects all 8 OpenScene cameras per frame.
 - **Export reports missing images:** the camera download is incomplete, or `OPENSCENE_DATA_ROOT` is wrong.
