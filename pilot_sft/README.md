@@ -113,12 +113,13 @@ linear 0.925 / 2.492, MLP 0.781 / 2.118, command mean 6.419 / 11.548.
 - **The past positions are still ignored:** drift follow −0.01 for both, 0.37 for the MLP.
 - **The two models are tied:** paired 2B − 0.8B on the same samples is −0.007 m ADE (95% bootstrap CI −0.028 to +0.014) and −0.028 m FDE (−0.087 to +0.031). NAVSIM decides between them.
 
-### NAVSIM navtest, full set (2026-11-08, updated 2026-11-13, V)
+### NAVSIM navtest, full set (2026-11-08, updated 2026-11-18, V)
 PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted and scored (0 failed); no fallbacks to constant velocity except 1 scene for the v1.2 variant. Aggregates in `../docs/navsim_eval/results/`.
 
 | | PDMS (95% CI) | No collision | Drivable area | TTC | Comfort | Progress | Direction | Scenes scoring 0 |
 |---|---|---|---|---|---|---|---|---|
 | **0.8B, v1-hard (236,133 samples), vision encoder trained, 4 epochs, prompt v1.2 (H1)** | **0.856 (0.851–0.861)** | 0.983 | 0.943 | 0.939 | 1.000 | 0.797 | 0.981 | 7% |
+| 0.8B, the 490k set (v1-full-thin, 489,771 samples), vision encoder trained, 4 epochs, prompt v1.2 (S3) | 0.847 (0.842–0.851) | 0.980 | 0.940 | 0.931 | 1.000 | 0.787 | 0.982 | 8% |
 | 0.8B, v1-xl-nd (176,352 samples), vision encoder trained, 4 epochs | 0.832 (0.827–0.837) | 0.978 | 0.929 | 0.925 | 1.000 | 0.771 | 0.978 | 9% |
 | 0.8B, v1-nt (NAVSIM's navtrain scenes, 80,626 samples), 3 epochs, prompt v1.2 | 0.829 (0.823–0.834) | 0.981 | 0.915 | 0.933 | 1.000 | 0.772 | 0.976 | 10% |
 | 0.8B, v1-xl-nd (176,352 samples), 4 epochs | 0.807 (0.802–0.813) | 0.975 | 0.908 | 0.918 | 1.000 | 0.749 | 0.978 | 11% |
@@ -133,11 +134,21 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted an
 | MVLAD-AD 8B (official weights, nuScenes adapter, no command) | 0.362 (0.355–0.369) | 0.764 | 0.652 | 0.609 | 0.751 | 0.344 | 0.829 | 51% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
 
+- **S3, the full 490k set at full length, trails H1: 0.847 (2026-11-18):** the 0.8B trained 4 epochs on v1-full-thin (489,771: the full 0.5 s pool with standstills thinned), prompt v1.2, vision encoder trained, lab RTX 4090, 62 h (1.96M samples seen, twice H1's).
+  - **Paired against H1** (0.856): −0.009 PDMS (95% bootstrap CI −0.013 to −0.006). Every sub-score is a little lower: progress −0.010, TTC −0.008, collisions −0.003 (−0.005 to −0.001), drivable area −0.003 (−0.007 to +0.000). Scenes scoring 0: 7.9% vs 7.3%. Right turns lose the most: 0.762 vs 0.778 (the 1,177 scenes where the human's heading turns right by more than 0.35 rad within 4 s).
+  - **Against v1-nt** (0.829): +0.018 (+0.013 to +0.023). **Against the vision-trained 176k run** (0.832): +0.015 (+0.011 to +0.019). **Against the 0.8B on v1-pilot:** +0.094 (+0.089 to +0.100).
+  - **The minis' dataset result holds at full length, but smaller:** v1-hard beat the 490k set by 0.036 at 40,000 samples, and by 0.009 here with half the samples seen. H2 (v1-hard, 8 epochs, equal compute to S3) is next.
+  - **Fit** (ADE on the same 1,000 dev-v2 samples, and 1,000 train samples):
+    - S3: dev 0.630 / 0.600 / 0.604 / 0.636 m by epoch; train 0.581 / 0.491 / 0.370 / 0.310.
+    - H1: dev 0.838 / 0.738 / 0.748 / 0.771; train 0.644 / 0.516 / 0.392 / 0.323.
+    - Both reach their best dev error after epoch 2 while train keeps falling.
+    - S3's dev ADE beats H1's by 0.135 m, yet NAVSIM ranks it lower: across training mixes dev ADE misleads, as with v1-nt.
+  - All 12,146 scenes were predicted once each, with 0 failed and 0 fallbacks. Demo (local only): `navsim_demo_renders/replay_v2_s3_vs_h1.html`.
 - **H1, v1-hard with the vision encoder trained, is the new best: 0.856 (2026-11-13):** the 0.8B trained 4 epochs on v1-hard (236,133: every navtrain frame, the moving frames at least as hard as navtrain's easiest quarter, standstills thinned to one per 20 s), prompt v1.2, vision encoder trained (lr 2e-5), lab RTX 4090, 29 h.
   - **Paired against v1-nt** (0.829, the previous best): +0.027 PDMS (95% bootstrap CI +0.023 to +0.032). Drivable area +0.028, progress +0.025, TTC +0.006; collisions unchanged (+0.001, −0.001 to +0.004). Scenes scoring 0 fall from 10.1% to 7.3%.
   - **Against the same recipe as a mini** (`mini-hard-visfull`, 40,000 samples, 0.769): +0.088 (+0.082 to +0.093). **Against the 0.8B on v1-pilot:** +0.104 (+0.098 to +0.110).
   - **Against the vision-trained 176k run** (`xlnd-visfull-ep4s`, 0.832): +0.024 (+0.020 to +0.029), every sub-score up.
-  - All 12,146 scenes predicted once each, 0 failed, 0 fallbacks. Dev-v2 ADE 0.771 m (1,000 samples; the mini 0.806). Train ADE and the per-epoch evals come from its eval job, queued after S3.
+  - All 12,146 scenes predicted once each, 0 failed, 0 fallbacks. Dev-v2 ADE 0.771 m (1,000 samples; the mini 0.806). Train ADE 0.323 m; dev ADE by epoch 0.838 / 0.738 / 0.748 / 0.771 (with S3's above).
 - **Training the vision encoder holds at full length (2026-11-13):** v1-xl-nd, 4 epochs, prompt v1.1, vision encoder trained (H100), against the same run with it frozen (`xlnd-ep4s`, 0.807): **+0.025 PDMS** (95% bootstrap CI +0.020 to +0.029); drivable area +0.022, progress +0.022, TTC +0.007, collisions +0.002 (0.000 to +0.005). Scenes scoring 0: 9.1% vs 11.5%. The minis measured +0.036 at 40,000 samples. It fits better on both splits, so it isn't memorizing: dev ADE 0.719 / 0.610 / 0.595 / 0.594 m by epoch (frozen 0.784 / 0.641 / 0.620 / 0.604), train 0.383 (frozen 0.410). Against v1-nt: +0.003 (−0.002 to +0.008), a tie.
 - **The v1.2 prompt helps a little at 100k; whether the poses line is blinded doesn't matter (2026-11-11):** P1 (v1-large, 100k, 3 epochs, prompt v1.2, ego state and poses blinded together on half the samples) scores 0.786.
   - **Against the same recipe on prompt v1.1** (`large-ep3`, 0.779): +0.007 PDMS (95% bootstrap CI +0.003 to +0.012).
