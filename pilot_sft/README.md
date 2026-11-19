@@ -121,6 +121,9 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted an
 | **0.8B, v1-hard (236,133 samples), vision encoder trained, 4 epochs, prompt v1.2 (H1)** | **0.856 (0.851–0.861)** | 0.983 | 0.943 | 0.939 | 1.000 | 0.797 | 0.981 | 7% |
 | 0.8B, v1-hard, vision encoder trained, 8 epochs, prompt v1.2 (H2: equal compute to S3) | 0.856 (0.852–0.861) | 0.981 | 0.945 | 0.934 | 1.000 | 0.799 | 0.981 | 7% |
 | 0.8B, the 490k set (v1-full-thin, 489,771 samples), vision encoder trained, 4 epochs, prompt v1.2 (S3) | 0.847 (0.842–0.851) | 0.980 | 0.940 | 0.931 | 1.000 | 0.787 | 0.982 | 8% |
+| S3's snapshot after epoch 3 of 4 (learning rate still 15% of peak) | 0.845 (0.840–0.850) | 0.981 | 0.938 | 0.936 | 1.000 | 0.780 | 0.982 | 8% |
+| S3's snapshot after epoch 2 of 4 (learning rate 50% of peak) | 0.819 (0.814–0.824) | 0.978 | 0.917 | 0.922 | 1.000 | 0.761 | 0.979 | 10% |
+| S3's snapshot after epoch 1 of 4 (learning rate 85% of peak) | 0.773 (0.767–0.779) | 0.967 | 0.885 | 0.890 | 1.000 | 0.726 | 0.974 | 14% |
 | 0.8B, v1-xl-nd (176,352 samples), vision encoder trained, 4 epochs | 0.832 (0.827–0.837) | 0.978 | 0.929 | 0.925 | 1.000 | 0.771 | 0.978 | 9% |
 | 0.8B, v1-nt (NAVSIM's navtrain scenes, 80,626 samples), 3 epochs, prompt v1.2 | 0.829 (0.823–0.834) | 0.981 | 0.915 | 0.933 | 1.000 | 0.772 | 0.976 | 10% |
 | 0.8B, v1-xl-nd (176,352 samples), 4 epochs | 0.807 (0.802–0.813) | 0.975 | 0.908 | 0.918 | 1.000 | 0.749 | 0.978 | 11% |
@@ -135,6 +138,12 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted an
 | MVLAD-AD 8B (official weights, nuScenes adapter, no command) | 0.362 (0.355–0.369) | 0.764 | 0.652 | 0.609 | 0.751 | 0.344 | 0.829 | 51% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
 
+- **S3's epoch snapshots: NAVSIM keeps rising after dev ADE bottoms out (2026-11-19):** S3's adapters saved after epochs 1, 2 and 3 (vision weights included), predicted on all of navtest on the lab RTX 4090 (desktop job 353, ~1 h each) and scored on Anvil.
+  - **PDMS by epoch:** 0.773 / 0.819 / 0.845 / 0.847. Paired steps: epoch 1 → 2 +0.046 (+0.040 to +0.051), 2 → 3 +0.026 (+0.022 to +0.030), 3 → 4 +0.002 (−0.001 to +0.005), a tie. Every sub-score rises with the epochs: drivable area 0.885 / 0.917 / 0.938 / 0.940, progress 0.726 / 0.761 / 0.780 / 0.787. Scenes scoring 0: 14.4% / 10.3% / 7.9% / 7.9%.
+  - **Against H1** (0.856): −0.083 (−0.088 to −0.077), −0.037 (−0.042 to −0.032), −0.011 (−0.015 to −0.007), then S3's −0.009.
+  - **Dev ADE picks the wrong epoch:** dev ADE is 0.630 / 0.600 / 0.604 / 0.636 m, best after epoch 2, where PDMS is 0.028 below the final model. So within one run, as across training mixes, dev ADE does not rank NAVSIM; checkpoints are chosen on NAVSIM (or best-of-K on held-out scenes), not on fit.
+  - **Caveat:** the cosine schedule runs over all 4 epochs, so a snapshot is not a shorter run: the learning rate at the end of epochs 1 / 2 / 3 is 85% / 50% / 15% of peak. Part of the late gain may be the schedule settling. The tie between epochs 3 and 4 says the last, near-zero-rate epoch adds nothing.
+  - All 36,438 snapshot predictions scored, 0 failed, 0 fallbacks. Score jobs 22317231 and 22317232 (`wide`), 22318776 (`debug`, 16 CPUs) after shared estimated Nov 20–22.
 - **H2, v1-hard for 8 epochs, ties H1: 0.856 (2026-11-19):** H1's recipe (v1-hard, prompt v1.2, vision encoder trained) run 8 epochs instead of 4 on the lab RTX 4090, 59 h (1.89M samples seen, about S3's 1.96M).
   - **Paired against H1** (0.856): +0.000 PDMS (95% bootstrap CI −0.004 to +0.004). Sub-scores trade off: TTC −0.005 (−0.008 to −0.002), collisions −0.002 (−0.004 to +0.000), drivable area +0.002 (−0.001 to +0.005), progress +0.002 (−0.002 to +0.006). Scenes scoring 0: 7.30% vs 7.34%. Turns: left 0.816 vs 0.820, right 0.778 vs 0.778, other 0.875 vs 0.874.
   - **Against S3 at equal compute** (0.847): +0.010 (+0.006 to +0.013), from progress +0.012 and drivable area +0.005. **Against v1-nt** (0.829): +0.028 (+0.023 to +0.033). **Against the 0.8B on v1-pilot:** +0.104 (+0.098 to +0.110).
