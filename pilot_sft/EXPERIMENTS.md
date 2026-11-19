@@ -156,3 +156,37 @@ v1-full (676k) holds the same moving rows plus 186k more standstill frames. Stan
 ## Order and compute
 - Each 4090 queue trains about 8.4 samples/s (0.8B, both queues sharing the GPU), so roughly 0.73M samples a day per queue.
 - Anvil (and with it the only route to the 4090) is down from Nov 16 04:00 to Nov 18 06:00. The queues run on their own through it. Scoring and copies wait until it is back.
+
+## Path-generator heads: the week of 2026-11-19 [agreed: researcher approved the head plan 2026-11-19]
+
+The test plan is in `reports/Diffusion head test plan.html` (outer folder). The code is in `pilot_sft/heads/`. Every model is kept (`MODELS.md`), and results go into `docs/GAPS.md` under its strict rule. The researcher's choices: explore all four head types whatever the gain, and file no GitHub issues.
+
+Order. The 4090 runs one job at a time, scoring uses the CPUs, and the RL code is written while the GPU trains.
+1. **Store H1's features** (job 360): layers 12, 18 and 24 from the image on, for v1-hard train, dev, navtest and replay_v2. Done 2026-11-19 ~19:45.
+2. **NAVSIM scoring on the desktop:**
+   - Install the same unmodified v1.1 devkit and copy navtest's metric cache.
+   - Re-score H1's predictions. Use the desktop only if all 12,146 per-scene scores equal Anvil's.
+   - Otherwise, batch the scores into Anvil CPU jobs.
+3. **Layer probe** (jobs 361, 362): A rung 1, reading the last layer against layers 12/18/24.
+   - **Sanity gate before anything else is queued:** the head must clearly beat constant velocity, and its dev ADE must be within reach of the text pilot's 0.77 m. Otherwise debug first.
+   - **Choice:** higher single-path PDMS. Under 0.5 apart, the higher best-of-6. Still tied, the last layer alone (a third of the reading).
+4. **A's continuity ladder** on the chosen layers:
+   - rung 2, soft labels;
+   - rung 3, adds the L1 and expectation readout;
+   - rung 4, adds the deterministic offset;
+   - side arms at 0.25 m and 0.05 m bins.
+5. **D (anchored, 20 anchors, 2 steps), B (DiT, predicting the path), C (flow, start σ 0.1)**, on the same body and layers.
+6. **A second seed** of the best A rung and of D: our own run-to-run noise for the tie rule.
+7. **RL, a short matched stage** (same group size, updates and scorer budget):
+   - A and D first; B and C if cheap.
+   - Needs the navtrain metric cache (Anvil wide job 22320518), copied to the desktop.
+8. **Stop at the head choice** (plan step 7). Report and wait for the researcher before the selector and full RL.
+
+Measured for every head:
+- single-path PDMS at 1, 2, 4 and 8 steps, from the same weights;
+- best-of-6 and a diversity measure;
+- epoch 10 against final;
+- dev ADE;
+- generation time on the 4090.
+
+A head that beats 85.6 gets the 20 s replay demo.
