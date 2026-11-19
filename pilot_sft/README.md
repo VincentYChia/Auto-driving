@@ -113,12 +113,13 @@ linear 0.925 / 2.492, MLP 0.781 / 2.118, command mean 6.419 / 11.548.
 - **The past positions are still ignored:** drift follow −0.01 for both, 0.37 for the MLP.
 - **The two models are tied:** paired 2B − 0.8B on the same samples is −0.007 m ADE (95% bootstrap CI −0.028 to +0.014) and −0.028 m FDE (−0.087 to +0.031). NAVSIM decides between them.
 
-### NAVSIM navtest, full set (2026-11-08, updated 2026-11-18, V)
+### NAVSIM navtest, full set (2026-11-08, updated 2026-11-19, V)
 PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted and scored (0 failed); no fallbacks to constant velocity except 1 scene for the v1.2 variant. Aggregates in `../docs/navsim_eval/results/`.
 
 | | PDMS (95% CI) | No collision | Drivable area | TTC | Comfort | Progress | Direction | Scenes scoring 0 |
 |---|---|---|---|---|---|---|---|---|
 | **0.8B, v1-hard (236,133 samples), vision encoder trained, 4 epochs, prompt v1.2 (H1)** | **0.856 (0.851–0.861)** | 0.983 | 0.943 | 0.939 | 1.000 | 0.797 | 0.981 | 7% |
+| 0.8B, v1-hard, vision encoder trained, 8 epochs, prompt v1.2 (H2: equal compute to S3) | 0.856 (0.852–0.861) | 0.981 | 0.945 | 0.934 | 1.000 | 0.799 | 0.981 | 7% |
 | 0.8B, the 490k set (v1-full-thin, 489,771 samples), vision encoder trained, 4 epochs, prompt v1.2 (S3) | 0.847 (0.842–0.851) | 0.980 | 0.940 | 0.931 | 1.000 | 0.787 | 0.982 | 8% |
 | 0.8B, v1-xl-nd (176,352 samples), vision encoder trained, 4 epochs | 0.832 (0.827–0.837) | 0.978 | 0.929 | 0.925 | 1.000 | 0.771 | 0.978 | 9% |
 | 0.8B, v1-nt (NAVSIM's navtrain scenes, 80,626 samples), 3 epochs, prompt v1.2 | 0.829 (0.823–0.834) | 0.981 | 0.915 | 0.933 | 1.000 | 0.772 | 0.976 | 10% |
@@ -134,6 +135,12 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted an
 | MVLAD-AD 8B (official weights, nuScenes adapter, no command) | 0.362 (0.355–0.369) | 0.764 | 0.652 | 0.609 | 0.751 | 0.344 | 0.829 | 51% |
 | Constant velocity (our run) | 0.207 | 0.680 | 0.578 | 0.500 | 1.000 | 0.194 | 0.799 | |
 
+- **H2, v1-hard for 8 epochs, ties H1: 0.856 (2026-11-19):** H1's recipe (v1-hard, prompt v1.2, vision encoder trained) run 8 epochs instead of 4 on the lab RTX 4090, 59 h (1.89M samples seen, about S3's 1.96M).
+  - **Paired against H1** (0.856): +0.000 PDMS (95% bootstrap CI −0.004 to +0.004). Sub-scores trade off: TTC −0.005 (−0.008 to −0.002), collisions −0.002 (−0.004 to +0.000), drivable area +0.002 (−0.001 to +0.005), progress +0.002 (−0.002 to +0.006). Scenes scoring 0: 7.30% vs 7.34%. Turns: left 0.816 vs 0.820, right 0.778 vs 0.778, other 0.875 vs 0.874.
+  - **Against S3 at equal compute** (0.847): +0.010 (+0.006 to +0.013), from progress +0.012 and drivable area +0.005. **Against v1-nt** (0.829): +0.028 (+0.023 to +0.033). **Against the 0.8B on v1-pilot:** +0.104 (+0.098 to +0.110).
+  - **Which data per GPU-hour:** at equal compute v1-hard beats the 490k set by 0.010, the same margin as at equal epochs (H1 − S3 +0.009). **v1-hard's epochs:** 4 more epochs buy nothing on NAVSIM, so H1 (29 h) stays the reference.
+  - **Fit** (ADE on the same 1,000 dev-v2 samples, and 1,000 train samples): train 0.227 m after epoch 8 (H1 0.323 after 4); dev 0.821 (H1 0.771). Dev by epoch so far 0.865 / 0.740 / 0.742 (epochs 4–7 still evaluating in desktop job 352). Dev loss bottoms at 0.183 (step 28,000, epoch 1.9), is 0.191 at the end of epoch 4 and climbs to 0.336 by epoch 8 while train loss keeps falling: the extra epochs memorize, yet the NAVSIM score holds.
+  - All 12,146 scenes were predicted once each, with 0 failed and 0 fallbacks. Zeros by cause: drivable area 5.5%, collisions 1.8%, direction 1.0%. Demo (local only): `navsim_demo_renders/replay_v2_h2_vs_h1.html`.
 - **S3, the full 490k set at full length, trails H1: 0.847 (2026-11-18):** the 0.8B trained 4 epochs on v1-full-thin (489,771: the full 0.5 s pool with standstills thinned), prompt v1.2, vision encoder trained, lab RTX 4090, 62 h (1.96M samples seen, twice H1's).
   - **Paired against H1** (0.856): −0.009 PDMS (95% bootstrap CI −0.013 to −0.006). Every sub-score is a little lower: progress −0.010, TTC −0.008, collisions −0.003 (−0.005 to −0.001), drivable area −0.003 (−0.007 to +0.000). Scenes scoring 0: 7.9% vs 7.3%. Right turns lose the most: 0.762 vs 0.778 (the 1,177 scenes where the human's heading turns right by more than 0.35 rad within 4 s).
   - **Against v1-nt** (0.829): +0.018 (+0.013 to +0.023). **Against the vision-trained 176k run** (0.832): +0.015 (+0.011 to +0.019). **Against the 0.8B on v1-pilot:** +0.094 (+0.089 to +0.100).
