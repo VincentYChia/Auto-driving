@@ -1,9 +1,9 @@
 # Notes for Claude sessions in this repo
 
-This is a fork of MVLAD-AD (masked-diffusion driving VLA, LLaDA-V 8B). The researcher is extending it toward an **edge-deployable** masked-diffusion driving VLA evaluated on **NAVSIM**.
+This is a fork of MVLAD-AD (masked-diffusion driving VLA, LLaDA-V 8B). The researcher is extending it toward a small, fast driving VLA evaluated on **NAVSIM**.
 
 ## Read first
-1. `docs/RESEARCH_DIRECTION.md`: the source of truth for claims, the novelty check, edge-compute limits, open decisions and the decision log.
+1. `docs/RESEARCH_DIRECTION.md`: the source of truth for claims, the novelty check, open decisions and the decision log.
 2. `docs/ROADMAP.md`: the work plan, the workstreams table and GPU (training) compute.
 3. Then the workstream you are working on:
    - **A. NAVSIM evaluation:** `docs/navsim_eval/RUNBOOK.md`.
@@ -40,5 +40,5 @@ This is a fork of MVLAD-AD (masked-diffusion driving VLA, LLaDA-V 8B). The resea
 ## Environment facts
 - **Data builds (small scale):** run on the researcher's own computer, CPU only, writing to `data/pretrain/` in the repo [agreed 2026-10-29]. Only ID lists, manifests and aggregate statistics are committed. Fine-tuning compute is open: a cloud GPU or Anvil.
 - **Training/eval GPUs:** Purdue Anvil. `gpu` partition = A100 40 GB; 48 h jobs; 12 GPUs per user. Anvil AI (H100) needs a separate allocation. No CPU allocation. Scratch is purged 30 days after last access.
-- **On-device latency claims** must be measured on a physical Jetson (AGX Thor primary, AGX Orin stretch). Anvil is not a proxy.
+- **Onboard / edge compute is not a goal** (researcher, 2026-11-19: "not part of our plan"). Keep Jetson, on-device timing and in-vehicle compute out of plans, reports and claims.
 - **NAVSIM rule:** never train on navtest / navhard / warmup splits.

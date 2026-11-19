@@ -36,6 +36,8 @@ front image + ego status + driving command ────────────�
 
 Constraint: **the whole stack runs on an in-vehicle edge computer.** It is meant as an edge piloting system, not a cheap server-based alternative.
 
+> **Update 2026-11-19 [agreed]: dropped.** The researcher: onboard compute "is not part of our plan" and "not a goal". There is no in-vehicle or edge-computer constraint and no on-device timing. Claim 3 and §2.3 stay below only as background; they do not drive plans or reports.
+
 > **Update 2026-10-20 [agreed]:** multi-frame and object-motion context are on the back burner. For now the pilot uses a single frame without previous motion context, so the perception + tracker → motion-token branch is deferred. See §2.2 (Claim 1) and `docs/OBJECT_MOTION.md`.
 
 ### Claimed contributions, as originally stated
@@ -43,7 +45,7 @@ Constraint: **the whole stack runs on an in-vehicle edge computer.** It is meant
 Novel:
 1. Feed the **past motion of surrounding objects** into the model's context **instead of past images**.
 2. Use a **diffusion architecture with more discrete action tokens** than previous work (baseline MVLAD-AD uses 256).
-3. Run **entirely on the edge**. *Clarified 2026-10-20 [agreed]:* the goal is to **lower compute in general**, not to meet a set compute limit.
+3. ~~Run **entirely on the edge**.~~ *Clarified 2026-10-20 [agreed]:* the goal is to **lower compute in general**, not to meet a set compute limit. *Dropped 2026-11-19 [agreed]:* onboard compute is not a goal.
 
 Supporting, not novel:
 
@@ -147,7 +149,7 @@ This ties to claim 3 because **latency scales with tokens × steps, not vocabula
 
 **Drop option E (whole-trajectory vocabularies) as a standalone idea.** With one token per trajectory, masked diffusion reduces to classification. That is Hydra-MDP (8,192), GTRS (16,384) and SparseDriveV2 (up to 16,384) (V). Keep E only as a coarse anchor level inside C2.
 
-#### Claim 3: entirely on the edge
+#### Claim 3: entirely on the edge [dropped 2026-11-19: not a goal; background only]
 **Closest prior work:**
 - Li Auto VLA: ~4B mixture-of-experts at ~10 Hz on Thor-U, in production (R, media).
 - Li Auto: 2.2B VLM at ~300 ms on Orin-X (R).
@@ -193,7 +195,7 @@ In these papers RL adds about 3–5 points (D).
 - **RL seems needed to pass ~90.**
 - **Image tokens (~2.2k into an 8B model) dominate the cost,** not action tokens.
 
-### 2.3 Edge compute: what "edge" means, and reference budgets
+### 2.3 Edge compute: what "edge" means, and reference budgets [background only; not a goal since 2026-11-19]
 
 > **Update 2026-10-20 [agreed]:** there is no fixed compute target; the goal is to lower compute in general (C3). The tiers, budgets and size limits below are reference points for measurement, not constraints.
 
@@ -411,3 +413,4 @@ Distillation from a privileged teacher fits C1 directly: train a teacher on grou
 | 2026-11-11 (~19:50) | Researcher, after reading the v1.2 prompt: "The prompt is fine. I like its minimal. Go for 7 minis. I like this. Right after that we should train the 490k versions. We should also test of Navsim the results of the minis as we get them. Lastly, once we get all our 490k we can start playing around with the rest of the architecture and modifying the 490k models themselves (prompting, context, swapping vision encoders, RL, diffusion, etc)." Prompt v1.2 confirmed. 7 minis instead of 18: both sets × seeds 0/1, plus ego dropout 0.25 and 0 and vision trained on v1-hard. Full 4-epoch runs on the 490k set and v1-hard start right after, provisional at the standard recipe and restarted if a setting wins. | [agreed] (details in `pilot_sft/EXPERIMENTS.md`). Architecture work (prompting, context, vision encoders, RL, diffusion) starts on the 490k models once their full runs are scored |
 | 2026-11-12 | Minis scored on all 12,146 navtest scenes (V). At equal compute (40k samples), v1-hard beats the 490k set by +0.036 and +0.037 PDMS at seeds 0 and 1. The seed-to-seed gap is 0.007–0.009. Training the vision encoder beats v1-hard seed 0 by +0.036 (CI +0.031 to +0.041); ego dropout 0.25 is within noise; ego dropout 0 is pending. By the agreed rule, both full runs (490k and v1-hard, 4 epochs) restart with the vision encoder trained. The standard-recipe 490k run is parked with its checkpoint. Each full run now predicts NAVSIM before its long evals (`TRAIN_ONLY=1`). | [agreed rule applied]; table in `pilot_sft/EXPERIMENTS.md` |
 | 2026-11-16 | Researcher, on a progress report that set our pilot beside the rivals' headline scores: "The context is wrong, give me the numbers before their RL or anything else." Done: the rivals table (§2.2) gains a column with each score before RL or test-time extras, plus a list of other SFT-only navtest scores (R). Our SFT-only, single-pass pilot is compared with those; RL headlines only once we have RL. | agreed |
+| 2026-11-19 | Researcher, on the final report: onboard compute (Jetson AGX Thor timing, on-device latency, in-vehicle compute) "is not part of our plan" and "not a goal". Removed from the reports and from the plan; Claim 3 and §2.3 are background only. The report's last next step is now "other improvements" (quantization, prompt engineering and similar). The fast loop keeps its 5 Hz target. | agreed |
