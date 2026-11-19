@@ -99,3 +99,15 @@ def test_an_unfinished_cache_is_not_read_by_default(tmp_path):
     with pytest.raises(SystemExit):
         features.Store(str(tmp_path))
     assert features.Store(str(tmp_path), allow_incomplete=True).rows == 1
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "preadv"), reason="positional reads need Linux")
+def test_positional_reads_match_the_memmap(tmp_path):
+    w = features.Writer(str(tmp_path), [12, 24], rows=6, tokens=5, width=4, settings={})
+    w.write({12: _rows(6, 5, 4, 8), 24: _rows(6, 5, 4, 9)}, [5, 3, 4, 5, 2, 1], _metas(0, 6))
+    w.finish({})
+    s = features.Store(str(tmp_path))
+    fast = s.batch([5, 1, 3])
+    s.force_memmap = True
+    slow = s.batch([5, 1, 3])
+    np.testing.assert_array_equal(fast["feats"], slow["feats"])

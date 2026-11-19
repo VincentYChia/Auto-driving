@@ -167,6 +167,7 @@ class Store:
         elif len(meta) != rows:
             raise SystemExit(f"{folder}: meta.jsonl has {len(meta)} rows, cache.json says {rows}")
         self.rows, self.tokens, self.width = rows, tokens, width
+        self.folder, self.force_memmap, self._fds = folder, False, {}
         self.ids = [m["id"] for m in meta]
         self.ego = np.array([m["ego"] for m in meta], dtype=np.float32)
         self.has_targets = all("target_xy" in m for m in meta)
@@ -174,16 +175,32 @@ class Store:
             self.target_xy = np.array([m["target_xy"] for m in meta], dtype=np.float32)
             self.target_yaw = np.array([m.get("target_yaw", [0.0] * 8) for m in meta], dtype=np.float32)
 
+    def _fd(self, layer: int) -> int:
+        if layer not in self._fds:  # one descriptor per layer, shared by threads (positional reads)
+            self._fds[layer] = os.open(os.path.join(self.folder, f"feat_{layer}.u16"), os.O_RDONLY)
+        return self._fds[layer]
+
     def batch(self, idx: Sequence[int]) -> Dict[str, np.ndarray]:
         """Rows ``idx``: ``feats`` uint16 ``[b, layers, t, d]`` cut to the batch's longest row, ``mask`` bool
         ``[b, t]`` (True = a real token), ``ego`` ``[b, EGO_DIM]``, and the targets when the split has them."""
         idx = np.asarray(idx)
         lengths = self.lengths[idx]
         t = int(lengths.max())
-        order = np.argsort(idx)  # memmap reads in file order, then back to the requested order
-        sorted_idx = idx[order]
-        feats = np.stack([self.feats[l][sorted_idx, :t] for l in self.layers], axis=1)
-        feats = feats[np.argsort(order)]
+        if hasattr(os, "preadv") and not self.force_memmap:
+            # positional reads release the GIL, so reader threads overlap (a memmap copy holds it)
+            feats = np.empty((len(idx), len(self.layers), t, self.width), dtype=np.uint16)
+            row_bytes, want = self.tokens * self.width * 2, t * self.width * 2
+            for j, layer in enumerate(self.layers):
+                fd = self._fd(layer)
+                for i, r in enumerate(idx):
+                    got = os.preadv(fd, [memoryview(feats[i, j]).cast("B")], int(r) * row_bytes)
+                    if got != want:
+                        raise IOError(f"short read: row {r} layer {layer}: {got} of {want} bytes")
+        else:
+            order = np.argsort(idx)  # memmap reads in file order, then back to the requested order
+            sorted_idx = idx[order]
+            feats = np.stack([self.feats[l][sorted_idx, :t] for l in self.layers], axis=1)
+            feats = feats[np.argsort(order)]
         out = {"feats": feats, "mask": np.arange(t)[None, :] < lengths[:, None], "ego": self.ego[idx]}
         if self.has_targets:
             out["target_xy"], out["target_yaw"] = self.target_xy[idx], self.target_yaw[idx]
