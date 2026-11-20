@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-19 20:25 EST
+**Updated:** 2026-11-19 20:50 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -34,7 +34,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 5. The choice of generation method by the decision rule. With a clear winner, the selector and the full RL stage; on a tie, wait for the researcher.
 
 ## Waiting on the researcher
-- Nothing. The 2026-11-19 evening questions are answered:
+- **HOLD (2026-11-19 20:50): review of `docs/HEADS_PLAN.md`,** the revised plan with the reasoning and rigor for each step. Until it is approved, no new training runs are queued. The two running layer-test training runs (jobs 362, 363) and their scoring finish either way, because they are part of phase 1.
+- Earlier questions, answered 2026-11-19 evening:
   - **Spare GPU time:** no filler runs, only what a comprehensive comparison needs. Configuration A0 (plain bins, no notion of distance) was added to A's continuity series for that reason. The ego-as-tokens run and the backbone snapshot runs are dropped.
   - **After the choice of method:** continue to the selector and full RL if the rule gives a clear winner; on a tie, stop and wait.
   - **The ~650 GB feature cache:** keep it all week, and ask before deleting it.

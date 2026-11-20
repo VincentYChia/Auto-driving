@@ -159,6 +159,8 @@ v1-full (676k) holds the same moving rows plus 186k more standstill frames. Stan
 
 ## Path-generator heads: the week of 2026-11-19 [agreed: researcher approved the head plan 2026-11-19]
 
+> **2026-11-19 20:50: superseded, pending the researcher's review, by `docs/HEADS_PLAN.md`.** That plan adds a held-out validation split (navdev) for every choice, a layer test for every method, a regression control, leave-one-out runs, 3 seeds, and matched RL with seeds. The definitions below still apply.
+
 The test plan is `docs/research/heads/head_test_plan.html`, with the research behind it in `docs/research/heads/`. The code is in `pilot_sft/heads/`. Every model is kept (`MODELS.md`), and results go into `docs/GAPS.md` under its strict rule. The current state is always in `docs/STATUS.md`, and notes from other computers go in `docs/INBOX.md`.
 
 ### Definitions (used in this file, `docs/STATUS.md` and all reports)
