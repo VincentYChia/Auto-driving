@@ -200,6 +200,35 @@ Every run's navtest scores are reported.
 - **The decision** (R5) uses each method's seed-averaged navdev single-path PDMS at its RL checkpoint. navtest scores are reported for every checkpoint used.
 - **Measured:** the RL scoring service equals NAVSIM's official per-scene scores, with a maximum difference of 0.0 on 200 navtest scenes. It scores 71.8 paths/s with 4 workers at 8 candidates per scene, so a 1,500-update run needs about 1 h of scoring.
 
+**R12. Choosing the RL recipe** (committed 2026-11-19 ~23:30, after the trial and before any recipe run; this is the one change R11 allows before phase 4).
+
+**What the trial found:** 200 updates on a1-l24, over the 2,662 RL scenes of 3 training drives, recipe as registered.
+- On its own scenes, the second pass's reward (0.825) was no better than the first's (0.82).
+- The policy became more aggressive: no-collision 0.964 → 0.915, time-to-collision 0.887 → 0.782, progress 0.828 → 0.871.
+- It lost diversity: best-of-8 0.953 → 0.906, and scenes whose 8 rewards are all equal rose from 26% to 52%.
+- **On navdev**, the single path fell from 81.18 to 75.58 after 100 updates (paired −5.6, drive interval −11.5 to −1.8) and to 73.97 after 200 (−7.2, −13.3 to −2.6). Collisions, drivable area and time-to-collision all got worse.
+- The 3-drive scene set may explain part of this, but the reward did not improve even on the scenes it trained on.
+
+**The candidate recipes**, the same for every method:
+
+| Recipe | Learning rate | KL to the starting policy | Candidates × scenes per update |
+|---|---|---|---|
+| RL0 (as registered) | 1e-5 | none | 8 × 32 |
+| RL1 | 1e-5 | β = 0.04 | 8 × 32 |
+| RL2 | 3e-6 | β = 0.04 | 8 × 32 |
+| RL3 | 3e-6 | β = 0.04 | 16 × 16 (the same 256 scored paths) |
+
+- **The KL term** is exact along each sampled path, not estimated: for A, the categorical KL of each committed token's distribution at its commit step; for D, the anchor-choice categorical plus the Gaussian KL of each refinement step; for B and C, the Gaussian KL of each step. With an equal SD, the Gaussian KL is ‖μ_θ − μ_ref‖² / (2σ²).
+- **Each recipe is run on A and on D:** their phase-1 configurations, seed 0, from their R11 starting epochs, 500 updates on the full navtrain cache.
+- **Each run is scored on navdev** at 0, 250 and 500 updates, single path and best-of-6.
+
+**The choice:**
+- The recipe whose better checkpoint (250 or 500) gives the highest navdev single-path change from the start, averaged over A and D. A tie goes to the earlier recipe in the table.
+- If every recipe lowers both methods' navdev single path, that is reported as a result in its own right: short RL did not help these path generators under our budget.
+- The recipe runs are in no method comparison. Phase 4 then runs the chosen recipe afresh: A and D with 3 seeds each, B and C with 1.
+
+**Change to R11:** the RL checkpoints considered are 0 (the starting point, no RL), 250, 500, …, 1,500. A method that RL only hurts keeps its supervised path generator, and how often that happens is reported.
+
 ## Phase 5 — choice of method (Thu 26)
 
 R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a tie, the researcher decides.
