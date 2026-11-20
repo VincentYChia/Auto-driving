@@ -345,6 +345,17 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
   - an imitation term;
   - 4 boundary paths per training scene: perturbations of the logged path across the DAC and NC boundaries. In Versatile Samples (arXiv 2609.01799, WACV 2027) these add +0.2 PDMS on v1 over the plain scorer [V].
 - **If a runner-up's selector is also built** (the question in `docs/STATUS.md`), it uses this same design.
+- **Implementation** (fixed 2026-11-20 13:06 with the code, `pilot_sft/heads/selector.py`, `train_selector.py`, `apply_selector.py`, before any run on real data):
+  - **Size, measured:** 7.2M parameters with three stored layers: 5.8M in the 4 blocks, 0.9M for the stored-layer inputs, 0.2M for the candidate token. The estimate above (about 5M) left out the AdaLN modulation, 0.4M per block. The design is unchanged.
+  - **Candidate token:** per step, the normalised x and y, the heading of the step (0 below 0.1 m), the speed, and the acceleration (from the ego speed at the first step). Each goes through 8-frequency Fourier features, then the 2-layer MLP.
+  - **Training:** 128 scenes per step; 1,000 warm-up steps, then a cosine decay, as for the path generators; dropout 0.1 on the candidate token and on each block's update; gradient clip 1.0.
+  - **Margins tried:** δ in {0, 0.005, 0.01, 0.02, 0.03, 0.05, 0.1}. The (epoch, δ) with the highest mean true PDMS of the selected paths on the held-out training drives is kept. A tie goes to the earlier epoch, then the larger δ.
+  - **Unscorable candidates** (NAVSIM error) are left out of the loss and count as PDMS 0 when picked.
+  - **Ablation definitions:**
+    - direct target: BCE on the PDMS;
+    - listwise: KL between softmaxes over the scene's candidates of the min-max-normalised true and predicted PDMS at temperature 0.5, weight 0.25;
+    - imitation: a sixth output trained by soft cross-entropy towards softmax(−ADE to the logged path / 1 m) over the scene's candidates, entering selection as predicted PDMS × q^0.1 (WoTE's weight).
+    - The boundary-path generator is not written yet.
 - **Cost** [D]:
   - Each candidate set is about 80,626 × 7 = 564k paths, about 50 min at the 190–210 paths/s measured in our RL runs.
   - The two half generators add about 2 × 4 h of GPU time: about 1 h of training on half the data, and about 3 h for 5,000 RL updates (the recipe runs took 17–20 min per 500).

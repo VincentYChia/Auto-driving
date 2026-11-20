@@ -89,9 +89,10 @@ def main() -> None:
                 f.flush()
                 n_paths += len(chunk) * len(names)
                 if (i // args.scenes_per_request) % 50 == 0:
-                    el = time.time() - t0
-                    print(json.dumps({"scenes_done": len(done) + i + len(chunk), "paths_per_s": round(n_paths / el, 1),
-                                      "errors": errors}), flush=True)
+                    el = time.time() - t0  # can be 0 on a coarse clock (Windows: ~16 ms) after a fast first request
+                    print(json.dumps({"scenes_done": len(done) + i + len(chunk),
+                                      "paths_per_s": round(n_paths / el, 1) if el > 0 else None, "errors": errors}),
+                          flush=True)
     finally:
         client.close()
     el = time.time() - t0

@@ -107,7 +107,14 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - **Done 11:38: R14, the selector's design**, fixed in `docs/HEADS_PLAN.md` before any selector result. Its evidence is a review of about 25 published NAVSIM selectors (`docs/research/heads/notes/selector_design.md`).
       - It predicts the 5 PDM sub-scores and combines them with NAVSIM v1.1's formula. The formula equals the official score exactly on one of our navtest score files (12,146 scenes).
       - It reads only the decoded candidates, with the own pick among them, and keeps the own pick unless another candidate is predicted to be better by a margin set on held-out training drives.
-    - **Next:** the selector's code (model, training, its driver steps) and tests.
+    - **Done 13:06: the selector's code**, with its implementation details added to R14 before any run on real data:
+      - `selector.py`: the model, the loss, the own-pick margin and R14's measures;
+      - `train_selector.py`: training on scored candidates, with 10 training drives held out to choose the epoch and the margin;
+      - `apply_selector.py`: writes the selected path per scene for NAVSIM's own scorer, and reports the measures with drive intervals.
+      - Measured size: 7.2M parameters, against R14's estimate of about 5M. The estimate left out the AdaLN modulation; the design is unchanged.
+      - 9 new tests; all 95 heads tests pass on CPU.
+      - Also fixed: `score_candidates.py` divided by an elapsed time of 0 on a coarse clock. This failed its test 4 times in 6 on Windows; it could not affect desktop runs, where each request takes seconds.
+    - **Next:** the boundary-path generator (an R14 ablation), then phase 6's driver steps. Phase 6 starts only after phase 5's decision.
 
 ## Waiting on the researcher
 - **A question for your 12:00 check; it blocks nothing.**

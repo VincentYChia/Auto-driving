@@ -55,6 +55,14 @@ def drive_halves(ids: Sequence[str], seed: int = 0) -> Dict[str, int]:
     return half
 
 
+def heldout_drives(ids: Sequence[str], n: int = 10, seed: int = 0) -> set:
+    """The selector's held-out training drives (docs/HEADS_PLAN.md R14): ``n`` of the drives of ``ids``, the first
+    ``n`` after shuffling the sorted drives with ``seed``."""
+    order = sorted({drive_of_id(i) for i in ids})
+    random.Random(seed).shuffle(order)
+    return set(order[:n])
+
+
 def navtest_map(inputs: str) -> Dict[str, str]:
     """From the exported navtest inputs: each record's camera image path holds its log name."""
     with open(inputs, encoding="utf-8") as f:
