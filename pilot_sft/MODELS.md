@@ -78,6 +78,9 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `a1-l24` | A1 (masked diffusion, 0.1 m bins, distance-aware embeddings) | 24 | 0 | 20 | 41.1M | 40 min | 3.95 | `49f6607d62c9b157` | yes | yes |
 | `a1-l12-18-24` | A1 | 12, 18, 24 | 0 | 20 | 41.9M | 2 h 20 min | 4.33 | `9aeefcba1ab7fd86` | yes | yes |
 | `d-l24` | D (anchored diffusion, 20 k-means anchors) | 24 | 0 | 20 | 40.3M | 40 min | 3.8 | `ecd8c713d579e5b2` | yes | yes |
+| `d-l12-18-24` | D | 12, 18, 24 | 0 | 20 | 41.1M | 2 h 18 min | 3.9 | `3ec3fea646824f78` | yes | yes |
+| `b-l24` | B (DDIM, predicts the clean path) | 24 | 0 | 20 | 40.2M | 47 min | 4.0 | `36268012f4f5179f` | yes | yes |
+| `b-l12-18-24` | B | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 3 min | 3.9 | `afa0797e37e1d862` | yes | yes |
 
 ### RL runs
 
@@ -86,5 +89,6 @@ An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update
 | Run | Starts from | Recipe | RL scenes | Updates saved | GB | SHA-256 (first 16) | Desktop | Anvil |
 |---|---|---|---|---|---|---|---|---|
 | `a1-l24-rl-trial` | `a1-l24` final (epoch 20) | as registered: lr 1e-5, no KL, 8 candidates × 32 scenes | 2,662 (3 training drives) | 100, 200 | 0.79 | rl_100 `797714288468da1a`, rl_200 `30025febf573336c` | yes | yes |
+| `a1-l12-18-24-rlrecipe0` | `a1-l12-18-24` epoch 20 | R12 recipe RL0 (as registered) | 80,626 (navtrain in our data) | 250, 500 | 0.81 | rl_250 `3a0d63cf9db4f15c`, rl_500 `b7dc9b3a7217bf3e` | yes | yes |
 
 The RL trial lowered navdev's single-path PDMS (81.18 → 73.97 after 200 updates), which led to R12 in `docs/HEADS_PLAN.md`. It is kept as the evidence for that rule, not used further.

@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 01:10 EST
+**Updated:** 2026-11-20 05:15 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -13,29 +13,46 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
-  - **Done:** the A1 layer test (2 training runs), D reading layer 24, navtest paths for both A1 runs at their navdev choices, and the RL trial.
-  - **Running:** D reading layers 12/18/24 (job 365, epoch 14 of 20 at 01:00, about 530 rows/s; done about 02:30).
-  - **Queued, about 25 h:** navtest paths of D reading layer 24 at its navdev choices; B and C at both layer settings; R at both; A1's seeds 1–2 at layers 12/18/24; A's continuity series A0, A2, A3, A4.
-  - **R12's 8 recipe runs** go in as soon as the navtrain cache is on the desktop and D's starting epoch is known. They now sort before the remaining phase-1 training (job names `351…`, 995c3ae), because they gate all of phase 4. Only the order changes; no result does.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, phases 1–5, restarted 01:05 on 995c3ae): scoring as runs land. queue2's job 372 is scoring A1-l12-18-24's navtest path sets.
-- **Anvil:** wide job 22320518 builds the navtrain metric cache for RL. Its start estimate moved up to 12:05 today, and a test submission of the same size would start at 01:25, so it may start earlier still.
-  - **New, `~/xv/navtrain_to_desk.sh`** (login07, started 00:53; a copy is in `scripts/anvil/helpers/`) waits for the job to finish, then:
-    1. copies the cache to the desktop;
-    2. points its metadata at the desktop paths;
-    3. checks with NAVSIM's own loader that every scene is found;
-    4. writes `.ready`.
-  - With that, the R12 recipe runs start without me. Its log is `~/xv/navtrain_to_desk.log`.
+  - **Done since 01:10:**
+    - D reading layers 12/18/24;
+    - B at both layer settings;
+    - navtest paths at the navdev choices of D (both runs) and B (layer 24);
+    - R12's RL0 on A.
+  - **Running: R12's recipe runs.** The navtrain cache was ready at 02:52, and the driver queued all 8 at 03:03.
+    - RL0 on A finished at 04:39 (19 min); RL0 on D started 04:39.
+    - The other 6 take about 20 min each, so all should be done by about 07:00.
+  - **Queued, about 22 h:**
+    - C and R at both layer settings;
+    - A1's seeds 1–2 and D's seeds 1–2, at layers 12/18/24;
+    - A's continuity series A0, A2, A3, A4.
+  - The driver queues the phase-4 RL runs once R12's recipe is chosen.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, 995c3ae): scoring B's navtest paths and navdev grids, then each recipe run's navdev paths as it lands. R12's choice goes to `heads/choices/rl_recipe.json`.
+- **Anvil:** nothing running.
+  - The navtrain cache job (22320518) ran 01:26–02:42. It cached all 103,288 navtrain scenes (61 GB).
+  - The watcher `~/xv/navtrain_to_desk.sh` copied the cache to the desktop in 510 s. NAVSIM's loader found every scene, and the watcher wrote `.ready` at 02:52. No manual step was needed.
 
 ## Latest results
-- **D reading layer 24, navdev choices (R10):** epoch 15, 2 steps, setting 1.0.
-  - Single path **76.8**, best-of-6 **89.6**.
-  - Against A1 at layer 24 (81.5 and 89.5): about 4.7 points lower on the single path, the same best-of-6.
-  - So D's candidates are as good as A's, but its own pick among them (the anchor classifier, at temperature 0) is weaker. Whether the gap holds at D's layer choice, and its interval, comes with D's layer test.
-- **A1's navtest scores at the navdev choices (reporting only, R1; 12,146 scenes):**
-  - layer 24: single path **84.7**, best-of-6 **91.8**;
-  - layers 12/18/24: single path **84.7**, best-of-6 **91.8**.
-  - Against H1's text output (85.6): about 0.9 below, the same gap as on navdev.
-- **A's RL starting epoch (R11): epoch 20.** It is the epoch with the highest navdev best-of-6 at 8 steps, setting 1.5: epochs 5 / 10 / 15 / 20 give 86.8 / 87.7 / 89.7 / 90.3.
+- **Phase 1 so far**: single path / best-of-6 at each training run's navdev choices. navdev has 743 scenes from 11 drives; intervals come in the 12:00 report.
+
+  | Method | navdev, layer 24 | navdev, layers 12/18/24 | Layer choice | navtest at the choices (report only) |
+  |---|---|---|---|---|
+  | A1 (masked) | 81.5 / 89.5 | 81.9 / 89.7 | 12/18/24 | 84.7 / 91.8 (both settings) |
+  | D (anchored) | 76.8 / 89.6 | 78.4 / 92.2 | 12/18/24 | 81.6 / 91.5 (24); **82.9 / 93.7** (12/18/24) |
+  | B (DDIM) | 81.0 / 88.2 | scoring | — | scoring |
+
+  - References: H1's text output scores 82.4 on navdev and 85.6 on navtest; constant velocity scores 19.8 on navdev.
+  - **D's candidates are the best so far, and its own pick is the weakest.** At its layer choice, D's best-of-6 is 2.5 points above A's on navdev and 1.9 on navtest. Its single path is 3.5 below A's on navdev and 1.8 on navtest. The single path is the top-scored refined anchor; R7 defines it.
+  - Choices:
+    - D at layers 12/18/24: epoch 10, 2 steps, setting 0.5;
+    - D at layer 24: epoch 15, 2 steps, setting 1.0;
+    - B at layer 24: epoch 20, 5 steps, setting 1.5.
+- **RL starting epochs (R11, by navdev best-of-6):**
+  - A: epoch 20 (86.8 / 87.7 / 89.7 / 90.3 at epochs 5 / 10 / 15 / 20);
+  - D: epoch 5 (92.3, against 92.2 / 89.5 / 88.9).
+- **R12, RL0 on A** (the registered recipe, 500 updates on the 80,626 navtrain scenes): navdev scores are pending.
+  - On the training scenes, the mean reward stayed flat: 0.79 in the first 50 updates, 0.80–0.83 after.
+  - Best-of-8 fell from 0.953 to 0.900, and equal-reward groups rose from 16% to 52%.
+  - This is the trial's pattern again.
 - **The RL trial changed the plan (R12, eca6ee6):** 200 updates on a1-l24 over 2,662 scenes from 3 training drives, with the recipe as registered (lr 1e-5, no KL, 8 × 32).
   - It runs cleanly: about 2.2 s per update, 100–150 scored paths/s, 0 scorer errors.
   - **It made A1 worse on navdev:** the single path went 81.18 → 75.58 → 73.97 at 100 and 200 updates (paired −7.2, drive interval −13.3 to −2.6). No-collision fell 0.976 → 0.914, drivable area 0.914 → 0.871, time-to-collision 0.943 → 0.847.
@@ -91,7 +108,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 8. **RL code: done and tested for all four methods.**
    - Policies with exact log-probabilities and exact KL; the trainer, with KL; the scoring service, which equals official scores.
    - The driver handles phases 4–5: the R12 recipe stage, then the matched RL runs, the RL checkpoint choice on navdev (update 0 allowed), navtest reporting, and R5's drive-and-seed bootstrap decision.
-   - **Waiting on the navtrain cache:** Anvil job 22320518, estimated start Fri 12:05 or earlier. The watcher `~/xv/navtrain_to_desk.sh` then copies it, rewrites the paths, checks it and marks it ready.
+   - ~~Waiting on the navtrain cache.~~ **Done:** ready on the desktop at 02:52 (103,288 scenes). R12's 8 recipe runs are under way.
 9. **Report at 12:00 Fri Nov 20:** results with drive intervals for every configuration so far (navdev for choices, navtest for the report), R12's recipe result if it has landed, problems and fixes, and next steps. An HTML overview stays on the home PC; the headline numbers go here.
 
 ## Waiting on the researcher
