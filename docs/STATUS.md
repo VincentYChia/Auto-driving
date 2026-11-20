@@ -187,7 +187,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - 10 new tests; all 116 heads tests pass. The driver now holds no method back for missing flags.
     - **Done 16:47:** the gap to H1 by sub-score and route command (above; `pilot_sft/heads/by_command.py`).
     - **Done 16:49:** one boundary-path set shared by every selector chain (the paths depend on no generator), saving about 1.8 h of desktop CPU per extra contender.
-    - **Next:** restart the driver on the latest code when it is not scoring (deferred at 16:44). Then the phase-3 seed results as they land: A1's seeds give the first between-seed spread.
+    - **Done 17:11:** the driver restarted on 1766794 (R16, R15 flags, the shared boundary set); its first pass was OK.
+    - **Next:**
+      - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`);
+      - phase 4's RL4 and RL6 runs for B and C, which decide the phase-6 gate;
+      - the report after each.
 
 ## Waiting on the researcher
 - **Nothing is waiting on you.** Your 13:45 answers, now R16 in `docs/HEADS_PLAN.md`, registered 13:51 before any phase-4 run had started:
