@@ -38,7 +38,7 @@ def fake_scorer(folder, split, exp_name, **_):
 
 @pytest.fixture
 def tree(tmp_path, monkeypatch):
-    for k in ("exp", "heads", "queue", "queue_root", "repo", "h1"):
+    for k in ("exp", "heads", "queue", "queue_root", "queue2_root", "repo", "h1"):
         monkeypatch.setitem(driver.P, k, str(tmp_path / k))
     monkeypatch.setitem(driver.P, "heads", str(tmp_path / "exp" / "heads"))
     monkeypatch.setitem(driver.P, "queue", str(tmp_path / "queue_root" / "pending"))

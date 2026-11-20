@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 13:16 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 13:23 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -120,7 +120,13 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - 9 new tests; all 95 heads tests pass on CPU.
       - Also fixed: `score_candidates.py` divided by an elapsed time of 0 on a coarse clock. This failed its test 4 times in 6 on Windows; it could not affect desktop runs, where each request takes seconds.
     - **Done 13:13: R14's boundary paths** (`boundary_paths.py`, an ablation): 16 perturbations of each logged path, scored, and the 4 that straddle the nearest NC or DAC limit kept as training-only candidates (`train_selector.py --extra-candidates`). Their definition was added to R14 before any run on real data. 4 new tests; 99 heads tests pass.
-    - **Next:** phase 6's driver steps. Phase 6 starts only after phase 5's decision.
+    - **Done 13:23: the selector's driver steps** (`driver.py`, `selector_chain`). They start from a spec file per deployed path generator, `choices/selector_spec_<X>.json`, written after phase 6's full RL stage, or for a runner-up if you choose option 2 below. Each step is queued once, only when its inputs exist:
+      - the two half generators and the in-fold candidates (GPU, jobs `60`/`61`);
+      - scoring every candidate set (CPU, `~/queue2`, jobs `57`, on port 47412, apart from the RL jobs' 47411);
+      - the selectors (GPU, jobs `62`): the cross-fitted one with 2 seeds, the in-fold control and the 4 ablations;
+      - adoption on navdev by the point estimate, then one navtest evaluation by NAVSIM's own scorer.
+      - 3 new tests; all 102 heads tests pass. Nothing runs before a spec exists.
+    - **Next:** write R15 before phase 4's first navdev score (about Saturday evening). It fixes the post-decision tuning runs for B, C and D (the plan says "the same number of runs over its own main settings" without naming them) and the full RL stage's checkpoints and choice. These are the last unregistered parts of phase 6.
 
 ## Waiting on the researcher
 - **A question for your 12:00 check; it blocks nothing.**
