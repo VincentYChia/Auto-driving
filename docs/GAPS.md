@@ -40,21 +40,22 @@ Caveats for F1: one seed per run, and the 490k set contains the hard set. The mo
 
 These come from the head research. "No paper found" is as recorded in its notes. None is filled yet. Each moves to "Filled" only when its result is measured as described at the top.
 
-| # | Gap ("no paper found") | Step that fills it | Status |
+| # | Gap ("no paper found") | Step that fills it (`docs/HEADS_PLAN.md`) | Status on 2026-11-20 (seed 0 unless stated) |
 |---|---|---|---|
-| H1 | Masked and continuous heads compared on one backbone, with the same data, on NAVSIM | Steps 3–5: A against D, B and C on the same stored features and body | code done; layer probe queued |
-| H2 | A separate masked-diffusion head on a standard left-to-right VLA (every published one runs inside the language model) | Step 3: option A | queued (layer probe) |
-| H3 | Soft labels, and a token plus continuous offset, isolated for trajectories | A's ladder: rung 2 (soft labels), rung 4 (offset) | planned |
-| H4 | "Discrete coarse + continuous residual" against pure discrete and pure continuous heads on the same backbone | A rung 4 against A rung 1, D and B | planned |
-| H5 | A quantitative diversity measure for masked plans, and masked against continuous diversity | Best-of-6 and a diversity measure for every option | planned |
-| H6 | DDIM against rectified flow on one architecture on NAVSIM | B against C | planned |
-| H7 | 1 / 2 / 4 / 8-step sweeps for these heads on a driving benchmark | Every option, from the same weights | planned |
-| H8 | Generation time against K paths for a driving head (on our 4090) | `predict_head.py` `timing.json`, every option | planned |
-| H9 | The same RL recipe on a masked and a continuous head, same backbone and reward | Step 6: matched short RL for A and D | planned (navtrain metric cache job queued) |
-| H10 | RL GPU-hours and PDM-scorer throughput | Step 6, reported as measured | planned |
-| H11 | Multi-seed PDMS spread for a masked-diffusion planner on the full navtest | A second seed of the chosen A rung | not in the plan yet |
-| H12 | AdaLN ego conditioning against ego as tokens | One extra run of the chosen head | not in the plan yet |
+| H1 | Masked and continuous heads compared on one backbone, with the same data, on NAVSIM | Phases 1, 3-5: A against B, C and D on the same stored features and network body | **Phase 1 measured for A, B and D** (navtest, paired, drive intervals). Single path: A - B +0.11 (-0.34 to +0.54); A - D +1.75 (+0.93 to +2.60). Best-of-6: A - D -1.89 (-2.21 to -1.57). C half done; seeds (phase 3) and RL (phase 4) to come. |
+| H2 | A separate masked-diffusion head on a standard left-to-right VLA (every published one runs inside the language model) | Phase 1: method A | **Measured:** A1 at layers 12/18/24 scores 84.7 single path / 91.8 best-of-6 on navtest, -0.9 (-1.4 to -0.5) against H1's text output. Waits for phase 3's seeds. |
+| H3 | Soft labels, and a token plus continuous offset, isolated for trajectories | Phase 2: A's continuity series (A2 soft labels, A4 offset) | queued (phase 2) |
+| H4 | "Discrete coarse + continuous residual" against pure discrete and pure continuous heads on the same backbone | Phase 2: A4 against A1, B and D | queued (phase 2) |
+| H5 | A quantitative diversity measure for masked plans, and masked against continuous diversity | Diversity (mean distance between the 6 candidates' end points) for every method | **Measured on navtest:** A 6.6 m, D 4.4 m, B 1.4 m; best-of-6 91.8, 93.7 and 91.9. B's candidates are 5 times closer together than A's, at the same best-of-6. |
+| H6 | DDIM against rectified flow on one architecture on NAVSIM | Phase 1: B against C | B done. C at layer 24: 83.5 on navtest, against B's 84.4 at layer 24. The paired comparison at each method's layer choice waits for C at layers 12/18/24. |
+| H7 | 1 / 2 / 4 / 8-step sweeps for these heads on a driving benchmark | Every method, from the same weights | **Measured on navtest** at each run's chosen epoch, at every step count of its grid, for A, B, D and C at layer 24. Not summarised yet. |
+| H8 | Generation time against K paths for a driving head (on our 4090) | `predict_head.py` `timing.json`, every method | Measured in every run's `timing.json`; not summarised yet. |
+| H9 | The same RL recipe on a masked and a continuous head, same backbone and reward | R12 and R13 recipe runs on A and D, then phase 4 | **R12 and R13 on navdev only:** all 4 R12 recipes lowered both A and D. R13's Dr. GRPO (RL4) raised A from 81.43 to 86.30 after 500 updates and did not help D. navtest comes with phase 4. |
+| H10 | RL GPU-hours and PDM-scorer throughput | Measured in every RL run | 500 updates (32 scenes x 8 candidates, 128,000 scored paths) take about 20 min on the 4090, about 110 scored paths/s. |
+| H11 | Multi-seed PDMS spread for a masked-diffusion planner on the full navtest | Phase 3: seeds 1 and 2 of every method | queued (phase 3) |
+| H12 | AdaLN ego conditioning against ego as tokens | (none) | dropped: no filler runs (researcher, 2026-11-19) |
 
 ## Log
 
 - 2026-11-19: list started. F1 filled. P1–P4 and X1 classified after the SFT literature check. H1–H12 copied from the head research.
+- 2026-11-20 09:21: H1-H12 statuses from phase 1 (A, B, D, and C at layer 24) and the R12/R13 RL recipe runs. Nothing moves to Filled yet: phase-1 results are seed 0 only, and the recipe runs are scored on navdev only.
