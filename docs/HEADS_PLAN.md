@@ -297,6 +297,17 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
   - The selector is adopted only if it beats the generator's own top choice on navdev.
 - **Final number:** one navtest evaluation of the final system, reported with the list of every choice behind it.
 
+**R15. Post-decision tuning and the full RL stage, specified** (committed 2026-11-20 13:24, before any phase-4 result, so the runs cannot be fitted to the winner; it fills in the two phase-6 lines above).
+- **The 4 tuning runs per method.** A's phase-2 series has 4 runs beyond A1 (A0, A2, A3, A4), so every method gets 4 runs over the settings our research notes give as decisive for its family (`docs/research/heads/head_research_report.md`, `notes/continuous_diffusion_navsim.md`). All are at the method's chosen layers, seed 0, with the phase-1 recipe and navdev grid:
+  - **A:** the phase-2 series as run (no new runs).
+  - **B (DDIM; phase 1: clean-path target, cosine schedule):** noise target with the cosine schedule; v target with the cosine schedule; clean-path target with DDPM's linear schedule (β from 1e-4 to 0.02); noise target with the linear schedule, close to the published VLA diffusion planners: ReCogDrive and DiffAdapterVLA predict the noise with DDPM [V]; their schedule is not checked. The target matters on driving: DiffE2E, CARLA, 82.9 with the clean-path target against 20.1 with the noise target [V].
+  - **C (flow matching; phase 1: start noise SD 0.1, uniform time):** start noise SD 0.3; start noise SD 1.0, the standard Gaussian used by π0 and GR00T [R]; π0's time sampling, a Beta(1.5, 1) weighted toward the noisy end [R], at SD 0.1; SD3's logit-normal(0, 1) time sampling [R], at SD 0.1.
+  - **D (anchored; phase 1: 20 anchors, truncation 0.05):** 10 anchors; 40 anchors; truncation 0.02; truncation 0.1. DiffusionDrive uses 20 anchors and DiffVLA 32 [V]; DiffusionDrive trains on the first 50 of 1,000 noise steps [V].
+- **The tuned configuration:** each run's choices by R10, then the configuration with the highest navdev single-path PDMS among the phase-1 configuration and its 4 runs. A tie goes to the phase-1 configuration. It is reported as post-decision tuning, never as part of the method comparison.
+- **Full RL stage:** from the tuned configuration's R11 starting epoch, with phase 4's recipe (RL4 unless the researcher switches), seed 0, 5,000 updates, saved every 500. The checkpoint is chosen among update 0 and the 10 saves by navdev single-path PDMS, a tie going to the earlier one (R11's rule). The chosen checkpoint is the deployed path generator; the driver then writes its selector spec (R14).
+- **Code:** the B, C and D settings above need new training flags. They are written only for the method that wins, before its runs. The rule fixes what they are now.
+- **Cost** [D]: 4 training runs (about 2 h each at three stored layers) and their navdev grids; the full RL stage about 3.5 h on the GPU, plus about 35 min of navdev scoring for its 10 saves.
+
 **R14. The selector's design** (committed 2026-11-20 11:38, before any selector result and before its code runs on real data). Evidence: `docs/research/heads/notes/selector_design.md`, a review of about 25 published NAVSIM selectors.
 - **The score it predicts, checked on our files:** NAVSIM v1.1's PDMS is NC × DAC × (5·TTC + 5·EP + 2·C)/12.
   - On one of our navtest score files (12,146 scenes), this formula equals the official score exactly.

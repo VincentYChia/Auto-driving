@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 13:23 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 13:25 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -126,7 +126,12 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - the selectors (GPU, jobs `62`): the cross-fitted one with 2 seeds, the in-fold control and the 4 ablations;
       - adoption on navdev by the point estimate, then one navtest evaluation by NAVSIM's own scorer.
       - 3 new tests; all 102 heads tests pass. Nothing runs before a spec exists.
-    - **Next:** write R15 before phase 4's first navdev score (about Saturday evening). It fixes the post-decision tuning runs for B, C and D (the plan says "the same number of runs over its own main settings" without naming them) and the full RL stage's checkpoints and choice. These are the last unregistered parts of phase 6.
+    - **Done 13:24: R15** (`docs/HEADS_PLAN.md`), registered before any phase-4 result. The plan said "the same number of runs over its own main settings" for B, C or D without naming them; R15 names them. Each method gets 4 runs, as A's continuity series has 4:
+      - B: its prediction target and noise schedule;
+      - C: its start-noise SD and time sampling;
+      - D: its anchor count and truncation.
+      - The full RL stage: 5,000 updates saved every 500, its checkpoint chosen on navdev by R11's rule.
+    - **Next:** the full RL stage's driver steps, ending in the selector spec; the B, C and D training flags only for a winner.
 
 ## Waiting on the researcher
 - **A question for your 12:00 check; it blocks nothing.**
@@ -144,6 +149,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - RL6 is the only recipe that raised D (+1.14, -0.41 to +2.46). It also keeps A's candidates 2.2 m apart (RL4: 0.8 m), with the highest best-of-6 (90.93).
   - Phase 4's jobs reach the GPU only after about 26 h of diffusion work, so there is time to switch to RL6 if you prefer.
   - **My recommendation is to keep RL4, as registered.** It gives the best single path, and phase 6 will measure whether its closer candidates limit the selector. Nothing changes unless you say so.
+- **For your information: R15 (13:24) fixes phase 6's post-decision tuning before any phase-4 result.** Each method gets 4 runs over its own main settings, matching A's 4 continuity-series runs:
+  - B: noise and v targets, and the linear schedule;
+  - C: start-noise SD 0.3 and 1.0, and two time samplings;
+  - D: 10 and 40 anchors, and truncation 0.02 and 0.1.
+  - The tuned configuration is the best of the five on navdev, and is reported as tuning, never as part of the comparison. Tell me if you want different settings.
 - **For your information: R14, the selector's design (11:38).** One part adds GPU time.
   - **The addition:** the two half-data path generators also get the deployed generator's RL stage, about 2 × 4 h of GPU. RL changes the candidates (A's end points went from 6.4 m apart to 0.8 m under RL4), so without it the selector would learn on candidates unlike the ones it ranks.
   - **The closest published design** is Versatile Samples (arXiv 2609.01799, WACV 2027): a scorer trained alone on a frozen planner's features, plus designed boundary samples. R14 tests its boundary paths as an ablation.
