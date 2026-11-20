@@ -142,9 +142,9 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - B's, C's and D's tuning runs wait for their training flags. Those are written only if that method wins.
       - 3 new tests; all 105 heads tests pass.
     - **R16 in the driver** (registered 13:51, code at 14:01):
-      - phase 4 queues RL6 beside RL4 for every method and seed (jobs `45{{m}}{{s}}r6_`);
+      - phase 4 queues RL6 beside RL4 for every method and seed (jobs `45{m}{s}r6_`);
       - R5 is computed per recipe and marked as reported only;
-      - phase 6 runs every contender (A and D under RL4 and RL6, B and C if admitted): tuning, the full RL stage per recipe (jobs `47{{m}}{{r}}_`) and the selector chain;
+      - phase 6 runs every contender (A and D under RL4 and RL6, B and C if admitted): tuning, the full RL stage per recipe (jobs `47{m}{r}_`) and the selector chain;
       - the final system is chosen on navdev, then every contender is scored once on navtest.
       - D's tuning runs (R15) need `--anchor-trunc`, which `train_head.py` now has. They are queued now and run after phase 4.
       - 4 new tests; all 106 heads tests pass.
