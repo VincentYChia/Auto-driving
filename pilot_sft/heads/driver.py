@@ -744,11 +744,21 @@ def main() -> None:
     ap.add_argument("--loop", type=int, default=0, help="seconds between passes; 0 = one pass")
     ap.add_argument("--once", action="store_true")
     args = ap.parse_args()
+    failed_in_a_row = 0
     while True:
+        start = f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"
+        health = {"pass_started": start, "ok": True}
         try:
             one_pass()
-        except Exception as e:  # keep the loop alive; the log shows what failed
+            failed_in_a_row = 0
+        except Exception as e:  # keep the loop alive; the log and driver_health.json show what failed
+            failed_in_a_row += 1
+            health.update(ok=False, error=f"{type(e).__name__}: {e}")
             log(f"pass failed: {type(e).__name__}: {e}")
+        # driver_status.json is written only by a pass that completes; this file is written after every pass, so a
+        # driver that keeps failing shows up in it, not only in the log
+        health.update(pass_ended=f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}", failed_in_a_row=failed_in_a_row)
+        write_json(os.path.join(P["heads"], "driver_health.json"), health)
         if args.once or not args.loop:
             return
         time.sleep(args.loop)

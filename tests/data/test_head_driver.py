@@ -252,3 +252,18 @@ def test_decision_needs_a_gap_beyond_drive_and_seed_noise():
     assert clear["leader"] == "A" and clear["clear_winner"]
     tie = driver.decide({"A": method(0.002, 3), "D": method(0.0, 3), "B": method(-0.05, 1), "C": method(-0.05, 1)}, drives)
     assert tie["leader"] in ("A", "D") and not tie["clear_winner"]
+
+
+def test_every_pass_writes_its_health_even_when_it_fails(tree, monkeypatch):
+    """driver_status.json is written only by a pass that completes, so a failing driver could look healthy there;
+    driver_health.json is written after every pass, with the error and how many passes in a row have failed."""
+    health = Path(driver.P["heads"]) / "driver_health.json"
+    monkeypatch.setattr(sys, "argv", ["driver.py", "--once"])
+    monkeypatch.setattr(driver, "one_pass", lambda: (_ for _ in ()).throw(KeyError(250)))
+    driver.main()
+    h = json.loads(health.read_text())
+    assert h["ok"] is False and h["error"] == "KeyError: 250" and h["failed_in_a_row"] == 1 and h["pass_ended"]
+    monkeypatch.setattr(driver, "one_pass", lambda: {})
+    driver.main()
+    h = json.loads(health.read_text())
+    assert h["ok"] is True and "error" not in h and h["failed_in_a_row"] == 0
