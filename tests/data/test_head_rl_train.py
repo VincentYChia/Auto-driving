@@ -42,6 +42,9 @@ def fake_server(port, stop):
     ("anchor", ["--anchors", "4"], ["--kl-beta", "0.04"]),
     ("masked", [], ["--adv", "dr", "--bc-balance", "1"]),  # R13's RL6 on A
     ("anchor", ["--anchors", "4"], ["--adv", "dr", "--bc-balance", "1", "--lp-sd-floor", "0.1"]),  # R13's RL6 on D
+    ("ddim", [], ["--adv", "dr", "--lp-sd-floor", "0.1"]),  # phase 4's RL4 on B
+    ("flow", [], ["--adv", "dr", "--lp-sd-floor", "0.1"]),  # phase 4's RL4 on C
+    ("ddim", [], ["--adv", "dr", "--bc-balance", "1", "--lp-sd-floor", "0.1"]),  # RL6 on a continuous method
 ])
 def test_rl_updates_and_checkpoints(tmp_path, kind, extra, rl_extra):
     cache = tmp_path / "cache"
