@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 08:57 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 09:22 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,8 +14,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
   - **Done since 05:30:** R12's 8 recipe runs (RL0-RL3 on A and D, 500 updates each, about 20 min per run); navtest paths of B at layers 12/18/24; C reading layer 24 (07:10-07:51) and its navtest paths; R13's RL4 on A and on D.
-  - **Running:** R13's RL5 on A (since 08:31).
-  - **Next:** R13's RL5 on D, RL6 on A and D, RL7 on D, about 20 min each, so done by about 10:20.
+  - **Running:** R13's RL6 on A (since 09:11). RL4 and RL5 are done on A and D.
+  - **Next:** R13's RL6 and RL7 on D, about 20 min each, so done by about 10:15.
   - **Then, about 26 h:**
     - C at layers 12/18/24;
     - R at both layer settings;
@@ -45,7 +45,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **The recipes,** each from RL0 and all with the SD floor: RL4 Dr. GRPO; RL5 BC; RL6 Dr. GRPO + BC; RL7 neither. For A, the floor does nothing, so A's RL7 is RL0 and is not run again.
   - The BC weight is set so its gradient norm equals the RL term's at the start.
   - **The choice:** R12's rule over RL0-RL7. If every recipe still lowers both methods, phase 4 does not start, and the next step goes to you.
-  - **First R13 runs, on the training scenes only** (block of the first 50 updates, then the last 50; navdev scores are being computed):
+  - **First R13 results on navdev (these decide):**
+    - **A, RL4 (Dr. GRPO): 81.43, then 85.08 at 250 updates and 86.30 at 500 (+4.9).** That is the first RL run to raise a navdev single path, and it is above H1's text output on navdev (82.4). Seed 0, recipe stage only; navtest comes with phase 4.
+    - A, RL5 (BC, SD division kept): 81.99 at 250 (+0.6), 78.11 at 500.
+    - D, RL4: 76.84 at 250 (-0.3), 70.39 at 500. No recipe has helped D yet.
+  - **The same runs on the training scenes** (block of the first 50 updates, then the last 50; navdev scores are being computed):
     - **A, RL4 (Dr. GRPO):** reward 0.82 to 0.92, with time-to-collision 0.90 to 0.96 and progress 0.78 to 0.88 both rising; best-of-8 held (0.953 to 0.958). Under R12, safety fell whenever progress rose.
     - **A, RL5 (BC, SD division kept):** R12's pattern again, progress 0.77 to 0.87 with time-to-collision 0.87 to 0.83. Its measured BC weight is 2.50.
     - **D, RL4:** the SD floor brought the gradient norm from 300-550 down to 2.6, but D's reward still slips (0.853 to 0.815).
@@ -98,7 +102,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - Its status is `~/navsim_workspace/exp/heads/driver_status.json`; its log is `driver.log`.
    - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
 7. Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice. A, B and D are done; C and R are training.
-8. **RL recipe rounds:** R12 is complete (every recipe lowered both methods). R13: RL4 done on A and D, RL5 on A running, 4 runs to go. The driver chooses over RL0-RL7 by itself; if a recipe helps, phase 4 starts with it, and if every recipe lowers both methods, phase 4 waits for you.
+8. **RL recipe rounds:** R12 is complete (every recipe lowered both methods). R13: RL4 and RL5 done on A and D (RL4 raised A by 4.9 on navdev), RL6 on A running, 2 runs to go.
+   - **Phase 4 now waits for the diffusion comparison** (39e7c7a): its jobs sort after every phase-2 and phase-3 job, the plan's order. Before, B's and C's RL would have run ahead of the seeds and A's continuity series. The driver chooses over RL0-RL7 by itself; if a recipe helps, phase 4 starts with it, and if every recipe lowers both methods, phase 4 waits for you.
 9. **Report at 12:00 Fri Nov 20:** an HTML overview on the home PC (results with drive intervals, R12 and as much of R13 as has landed, problems and fixes, next steps); the headline numbers go here.
 10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 8, then `c-l24` and R13's RL4 on A and D (08:55), all on both machines with matching checksums. The other R13 runs follow when they finish.
 
