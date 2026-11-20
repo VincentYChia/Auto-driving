@@ -360,18 +360,20 @@ def seed_results(method: str, lc: dict) -> Dict[str, dict]:
     return out
 
 
+def flags(fs: set) -> List[str]:
+    """The training flags of a set of A's continuity features (phase 2's series, R10)."""
+    out = [] if "metric" in fs else ["--no-metric-embed"]
+    for f in ("soft", "l1", "offset"):
+        if f in fs:
+            out += FLAGS[f]
+    return out
+
+
 def series(lc: dict) -> None:
     """Phase 2 (analysis only, R2): A's continuity series at A's layers, then leave-one-out from the series' best,
     then the 0.25 m and 0.05 m bins on it."""
     layers, tag = lc["layers"], layers_tag(lc["layers"])
     name_of = {cfg: (lc["run"] if cfg == "a1" else f"{cfg}-{tag}") for cfg in SERIES}
-
-    def flags(fs: set) -> List[str]:
-        out = [] if "metric" in fs else ["--no-metric-embed"]
-        for f in ("soft", "l1", "offset"):
-            if f in fs:
-                out += FLAGS[f]
-        return out
 
     for i, cfg in enumerate(["a0", "a2", "a3", "a4"]):
         run = name_of[cfg]
@@ -861,6 +863,103 @@ def selector_chain(x: str, spec: dict) -> dict:
     return st
 
 
+# ---- phase 6: post-decision tuning and the full RL stage (R15) ------------------------------------------------
+FULL_RL_EVERY = 500
+FULL_RL_CHECKPOINTS = tuple(range(FULL_RL_EVERY, 5001, FULL_RL_EVERY))  # 5,000 updates, saved every 500
+R15_TUNING = {  # R15: 4 runs over each method's own main settings (A: its phase-2 series, already run)
+    "B": [["--target", "eps"], ["--target", "v"], ["--schedule", "linear"], ["--target", "eps", "--schedule", "linear"]],
+    "C": [["--flow-sigma", "0.3"], ["--flow-sigma", "1.0"], ["--time-sampling", "beta"], ["--time-sampling", "logit-normal"]],
+    "D": [["--anchors", "10"], ["--anchors", "40"], ["--anchor-trunc", "0.02"], ["--anchor-trunc", "0.1"]],
+}
+R15_READY: set = set()  # methods whose R15 training flags exist in train_head.py (written only for a winner)
+
+
+def phase6_method() -> Optional[str]:
+    """Phase 5's clear winner, or the researcher's choice on a tie (``choices/phase6_method.json``)."""
+    dec = os.path.join(P["heads"], "choices", "decision_phase5.json")
+    if os.path.exists(dec) and read_json(dec).get("clear_winner"):
+        return read_json(dec)["leader"]
+    own = os.path.join(P["heads"], "choices", "phase6_method.json")
+    return read_json(own)["method"] if os.path.exists(own) else None
+
+
+def tuned_config(method: str, lc: dict) -> Optional[dict]:
+    """R15: the phase-1 configuration or one of its 4 tuning runs, by navdev single path at each run's R10 choices
+    (a tie goes to the phase-1 configuration). Returns {run, kind, layers, flags, choice}."""
+    out = os.path.join(P["heads"], "choices", f"{method}_tuned.json")
+    if os.path.exists(out):
+        return read_json(out)
+    tag, kind = layers_tag(lc["layers"]), lc["kind"]
+    cands = [(lc["run"], [])]
+    if method == "A":  # its phase-2 series, already queued by series(): A0, A2, A3, A4 against A1
+        cands += [(f"{cfg}-{tag}", flags(SERIES[cfg])) for cfg in ("a0", "a2", "a3", "a4")]
+    elif method in R15_READY:
+        for i, fl in enumerate(R15_TUNING[method]):
+            run = f"{method.lower()}-r15{i}-{tag}"
+            queue_job(f"46{method.lower()}{i}_train-{run}", f"phase 6 (R15), tuning run {i} of {method}: {' '.join(fl)}",
+                      train_body(run, kind, lc["layers"], 0, fl) + f"bash scripts/desk/navdev_grid.sh $RUN {kind}\n")
+            cands.append((run, fl))
+    else:
+        log(f"phase 6: {method}'s R15 tuning runs need their training flags in train_head.py first")
+        return None
+    ch = [(run, fl, choose_run(run, kind)) for run, fl in cands]
+    if any(c is None for _, _, c in ch):
+        return None
+    run, fl, c = max(ch, key=lambda r: (r[2]["navdev_single_pdms"], r[0] == lc["run"]))
+    res = {"method": method, "run": run, "kind": kind, "layers": lc["layers"], "flags": fl, "choice": c,
+           "candidates": {r: x["navdev_single_pdms"] for r, _, x in ch}, "rule": "docs/HEADS_PLAN.md R15",
+           "label": "post-decision tuning", "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
+    write_json(out, res)
+    log(f"phase 6: {method}'s tuned configuration {run} ({res['candidates']})")
+    return res
+
+
+def phase6(status: dict) -> None:
+    """R15 then R14: the winner's tuned configuration, its full RL stage, the chosen checkpoint, and the selector
+    spec that starts ``selector_chain``."""
+    method = phase6_method()
+    if method is None:
+        return
+    st = status.setdefault("phase6_full", {"method": method})
+    lc = choose_layers(method)
+    tuned = tuned_config(method, lc) if lc else None
+    if not tuned:
+        return
+    st["tuned"] = tuned["run"]
+    tlc = {"kind": tuned["kind"], "choice": tuned["choice"], "run": tuned["run"]}
+    out = os.path.join(P["heads"], "choices", f"{method}_tuned_rl_start.json")
+    if not os.path.exists(out):  # R11 on the tuned run: the epoch with the highest navdev best-of-6
+        c, g = tuned["choice"], GRID[tuned["kind"]]
+        b6 = {}
+        for e in EPOCHS:
+            base = os.path.join(P["heads"], tuned["run"], f"navdev_epoch_{e}", f"steps{c['steps']}")
+            b = best_of(sample_folders(base, c["scale"], g["k"]), "navdev") if c["scale"] is not None else \
+                (lambda s: None if s is None else float(s.mean()))(score(os.path.join(base, "single"), "navdev"))
+            if b is None:
+                return
+            b6[e] = round(b, 4)
+        write_json(out, {"run": tuned["run"], "epoch": max(EPOCHS, key=lambda e: (b6[e], -e)),
+                         "navdev_best_of_6_by_epoch": b6, "rule": "docs/HEADS_PLAN.md R11 via R15"})
+    start = read_json(out)["epoch"]
+    recipe = read_json(os.path.join(P["heads"], "choices", "rl_recipe.json"))["recipe"]
+    rl = f"{tuned['run']}-rlfull"
+    queue_job(f"47{method.lower()}_rlfull-{tuned['run']}", f"phase 6 (R15): full RL stage, RL{recipe}, of {tuned['run']} "
+              f"from epoch {start}, 5,000 updates", rl_body(tlc, tuned["run"], rl, start, 0, recipe, FULL_RL_CHECKPOINTS))
+    ch = rl_choose(rl, tlc, tuned["run"], start, FULL_RL_CHECKPOINTS)
+    if not ch:
+        return
+    st["checkpoint"] = ch["checkpoint"]
+    spec = os.path.join(P["heads"], "choices", f"selector_spec_{method}.json")
+    if not os.path.exists(spec):
+        dep_run, dep_w = (tuned["run"], f"epoch_{start}") if ch["checkpoint"] == "start" else (rl, ch["checkpoint"])
+        write_json(spec, {"kind": tuned["kind"], "layers": tuned["layers"], "flags": tuned["flags"],
+                          "rl_start_epoch": start, "recipe": recipe, "updates": ch["updates"],
+                          "save_every": FULL_RL_EVERY, "deployed_run": dep_run, "deployed_weights": dep_w,
+                          "steps": tuned["choice"]["steps"], "scale": tuned["choice"]["scale"], "k": GRID[tuned["kind"]]["k"],
+                          "rule": "docs/HEADS_PLAN.md R14, R15", "written": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"})
+        log(f"phase 6: selector spec for {method}: deployed {dep_run} {dep_w}")
+
+
 def selectors(status: dict) -> None:
     for f in sorted(glob.glob(os.path.join(P["heads"], "choices", "selector_spec_*.json"))):
         x = os.path.basename(f)[len("selector_spec_"):-len(".json")].lower()
@@ -917,6 +1016,7 @@ def one_pass() -> dict:
     status["navtrain_ready"] = navtrain_ready()
     phase4(status)
     if status["navdev_ready"] and navtrain_ready():
+        phase6(status)
         selectors(status)
     write_json(os.path.join(P["heads"], "driver_status.json"), status)
     return status

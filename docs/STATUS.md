@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 13:29 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 13:34 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -133,7 +133,14 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - C: its start-noise SD and time sampling;
       - D: its anchor count and truncation.
       - The full RL stage: 5,000 updates saved every 500, its checkpoint chosen on navdev by R11's rule.
-    - **Next:** the full RL stage's driver steps, ending in the selector spec; the B, C and D training flags only for a winner.
+    - **Done 13:34: phase 6's driver steps** (`driver.py`, `phase6`). They run after phase 5's clear winner, or after your choice on a tie (`choices/phase6_method.json`):
+      - R15's tuned configuration;
+      - the full RL stage (5,000 updates, saved every 500);
+      - its checkpoint, chosen by R11's rule;
+      - the selector spec, which starts the selector's chain.
+      - B's, C's and D's tuning runs wait for their training flags. Those are written only if that method wins.
+      - 3 new tests; all 105 heads tests pass.
+    - **Next:** nothing more in code before phase 5. The B, C or D tuning flags come only for a winner.
 
 ## Waiting on the researcher
 - **A question for your 12:00 check; it blocks nothing.**

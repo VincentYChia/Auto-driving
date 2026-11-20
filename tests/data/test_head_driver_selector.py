@@ -148,3 +148,84 @@ def test_without_rl_the_halves_predict_from_the_supervised_epoch(chain):
     driver.selector_chain("a", spec)
     h1 = (Path(driver.P["queue"]) / "60ah1_selector-a-gen-half1.sh").read_text()
     assert "rl_head.py" not in h1 and "selector-a-gen-half1 --weights epoch_20 --split navtrain" in h1
+
+
+# ---- R15: the winner's tuned configuration, its full RL stage, and the selector spec ---------------------------
+from test_head_driver import fake_scorer, make_run  # noqa: E402
+
+
+def full_rl_outputs(rd, steps, scale, k=6):
+    for u in driver.FULL_RL_CHECKPOINTS:
+        base = rd / f"navdev_rl_{u}" / f"steps{steps}"
+        for n in ["single"] + [os.path.basename(f) for f in driver.sample_folders(str(base), scale, k)]:
+            (base / n).mkdir(parents=True, exist_ok=True)
+            (base / n / "shard_000_of_001.jsonl").write_text("{}\n")
+        (rd / f"navdev_rl_{u}" / "timing.json").write_text("{}")
+
+
+def test_phase6_waits_for_a_winner_or_the_researchers_choice(tree):  # noqa: F811
+    choices = Path(driver.P["heads"]) / "choices"
+    choices.mkdir(parents=True, exist_ok=True)
+    assert driver.phase6_method() is None
+    (choices / "decision_phase5.json").write_text(json.dumps({"leader": "A", "clear_winner": False}))
+    assert driver.phase6_method() is None  # a tie: the researcher decides
+    (choices / "phase6_method.json").write_text(json.dumps({"method": "B"}))
+    assert driver.phase6_method() == "B"
+    (choices / "decision_phase5.json").write_text(json.dumps({"leader": "A", "clear_winner": True}))
+    assert driver.phase6_method() == "A"
+
+
+def test_phase6_for_a_tunes_runs_full_rl_and_writes_the_selector_spec(tree, monkeypatch):  # noqa: F811
+    for run in ("a1-l24", "a1-l12-18-24", "a0-l12-18-24", "a2-l12-18-24", "a3-l12-18-24", "a4-l12-18-24"):
+        make_run(run, "masked")
+    choices = Path(driver.P["heads"]) / "choices"
+    choices.mkdir(parents=True, exist_ok=True)
+    (choices / "decision_phase5.json").write_text(json.dumps({"leader": "A", "clear_winner": True}))
+    (choices / "rl_recipe.json").write_text(json.dumps({"recipe": 4}))
+    status = {}
+    driver.phase6(status)
+    tuned = json.loads((choices / "A_tuned.json").read_text())
+    assert tuned["run"] == "a1-l12-18-24" and tuned["label"] == "post-decision tuning"  # the fake favours A1
+    assert set(tuned["candidates"]) == {"a1-l12-18-24", "a0-l12-18-24", "a2-l12-18-24", "a3-l12-18-24", "a4-l12-18-24"}
+    assert json.loads((choices / "A_tuned_rl_start.json").read_text())["epoch"] == 15
+    job = (Path(driver.P["queue"]) / "47a_rlfull-a1-l12-18-24.sh").read_text()
+    assert "--updates 5000 --save-every 500" in job and "--adv dr" in job and "--weights epoch_15" in job
+    assert "for u in 500 1000 1500 2000 2500 3000 3500 4000 4500 5000" in job
+    assert not (choices / "selector_spec_A.json").exists()  # no checkpoint chosen yet
+
+    rd = Path(driver.P["heads"]) / "a1-l12-18-24-rlfull"
+    full_rl_outputs(rd, 4, 1.5)
+
+    def scorer(folder, split, exp_name, **kw):  # the RL checkpoint at 3,000 updates is the best on navdev
+        fake_scorer(folder, split, exp_name, **kw)
+        if "navdev_rl_3000" in folder:
+            f = Path(driver.P["exp"]) / exp_name / "run" / "scores.csv"
+            d = pd.read_csv(f)
+            d["score"] = d["score"] + 0.05
+            d.to_csv(f, index=False)
+
+    monkeypatch.setattr(driver, "SCORER", scorer)
+    driver.phase6(status)
+    spec = json.loads((choices / "selector_spec_A.json").read_text())
+    assert (spec["deployed_run"], spec["deployed_weights"], spec["updates"]) == ("a1-l12-18-24-rlfull", "rl_3000", 3000)
+    assert (spec["steps"], spec["scale"], spec["k"], spec["rl_start_epoch"], spec["save_every"]) == (4, 1.5, 6, 15, 500)
+    assert spec["flags"] == [] and status["phase6_full"]["checkpoint"] == "rl_3000"
+    assert "350_navtest-a1-l12-18-24-rlfull.sh" in os.listdir(driver.P["queue"])  # the deployed generator on navtest
+
+
+def test_phase6_for_d_waits_for_its_r15_training_flags(tree, monkeypatch):  # noqa: F811
+    for run in ("d-l24", "d-l12-18-24"):
+        make_run(run, "anchor")
+    choices = Path(driver.P["heads"]) / "choices"
+    choices.mkdir(parents=True, exist_ok=True)
+    (choices / "decision_phase5.json").write_text(json.dumps({"leader": "D", "clear_winner": True}))
+    (choices / "rl_recipe.json").write_text(json.dumps({"recipe": 4}))
+    driver.phase6({})
+    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith(("46", "47"))]
+    monkeypatch.setattr(driver, "R15_READY", {"D"})
+    driver.phase6({})
+    jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("46"))
+    lc = driver.choose_layers("D")
+    tag = driver.layers_tag(lc["layers"])
+    assert jobs == [f"46d{i}_train-d-r15{i}-{tag}.sh" for i in range(4)]
+    assert "--anchor-trunc 0.02" in (Path(driver.P["queue"]) / f"46d2_train-d-r152-{tag}.sh").read_text()
