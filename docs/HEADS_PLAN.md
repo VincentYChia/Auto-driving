@@ -229,6 +229,58 @@ Every run's navtest scores are reported.
 
 **Change to R11:** the RL checkpoints considered are 0 (the starting point, no RL), 250, 500, …, 1,500. A method that RL only hurts keeps its supervised path generator, and how often that happens is reported.
 
+**R13. A second recipe round, from the published RL methods** (committed 2026-11-20 ~07:40: after R12's RL0 and RL1 navdev scores, before R12's RL2 and RL3 navdev scores, and before any R13 run).
+
+**What R12 had shown when this was written** (navdev single-path PDMS, start → 250 → 500 updates):
+- **A** (start: epoch 20, 81.43):
+  - RL0 75.72 → 77.19; RL1 77.58 → 78.76.
+  - Under RL0, progress rose (73.5 → 78.3) while time-to-collision (93.9 → 84.4), no-collision (97.5 → 92.3) and drivable area (91.8 → 88.7) fell.
+  - The best-of-6 candidates' end points went from 6.4 m apart to 2.0 m.
+- **D** (start: epoch 5, 77.10):
+  - RL0 60.93 → 64.23; RL1 75.27 → 75.28.
+  - Under RL0, every sub-score fell (at 250: drivable area −13.2, time-to-collision −13.1, progress −7.3).
+- **On the training scenes,** A's sampled reward rose under RL2 and RL3 (0.79 → 0.85), while best-of-8 fell and equal-reward groups rose: the policy sharpened.
+
+**Three likely causes, each with a published remedy:**
+1. **The group SD.** Dividing by it turns tiny progress differences between safe candidates into full-size advantages, which pushes progress up and safety down: the pattern A shows.
+   - Remedy: subtract the group mean only ("Dr. GRPO").
+   - Evidence: NoRD, navtest, discrete path tokens: supervised 76.66 → GRPO 77.18 → Dr. GRPO 85.62. DriveFine also leaves the SD out.
+2. **No tie to the logged driving.**
+   - Remedy: an imitation (behaviour-cloning, BC) term next to the RL term.
+   - Evidence: every published RL stage on a separate NAVSIM path generator has one: ReCogDrive, DiffusionDriveV2 (weight 0.1), DriveWLA (0.1), TrajHF (0.01), EponaV2.
+3. **D's last refinement step.** It ends at noise level 0, so its SD is always the 0.01 floor, and its log-density gradient is about 100 times that of the anchor choice. D's gradient norm was 300–550, against 21–33 for A.
+   - Remedy: a larger SD inside the log-probability only.
+   - Evidence: DiffusionDriveV2 floors the SD at 0.1 inside log π "to avoid large-magnitude gradients"; ReCogDrive's minimum log-variance SD is 0.10.
+
+**The candidate recipes.** Each starts from RL0 (learning rate 1e-5, no KL, 8 candidates × 32 scenes, 500 updates) and changes only what the table says:
+
+| Recipe | Advantage | BC term |
+|---|---|---|
+| RL4 | reward − group mean | none |
+| RL5 | (reward − group mean) / (group SD + 1e-4), as RL0 | yes |
+| RL6 | reward − group mean | yes |
+| RL7 | as RL0 | none |
+
+- **SD floor (all four recipes):** in the log-probability (and KL) of every Gaussian step, the SD is max(SD, 0.1) in normalised path units. Sampling is unchanged.
+  - This applies to D, B and C.
+  - A has no Gaussian steps, so for A, RL7 is RL0 and is not run again.
+- **BC term:**
+  - It is the method's own supervised training loss, the phase-1 loss, on the logged paths of the update's 32 scenes.
+  - Its weight λ is fixed per run so that, at the starting weights, its gradient norm equals the RL term's. Each norm is the mean over the first 4 batches, measured before any update and with a separate noise seed, so the first update's candidates are the same as in the other recipes. λ is logged.
+- **Runs:**
+  - A: RL4, RL5 and RL6.
+  - D: RL4 to RL7.
+  - Starts, seed, scene order and navdev scoring are the same as in R12.
+
+**The choice:**
+- R12's rule over all eight recipes, RL0 to RL7: the highest navdev single-path change from the start (the better of 250 and 500 updates), averaged over A and D. A tie goes to the earlier recipe.
+- If every recipe lowers both methods' navdev single path, phase 4 does not start. The result is reported, and the next step goes to the researcher.
+- Phase 4 then runs the chosen recipe afresh, as in R12. For B and C, the SD floor applies when the chosen recipe has it.
+
+**Also measured** (analysis only, in no decision):
+- For A, the 2 × 2 of advantage form × BC: RL0, RL4, RL5, RL6.
+- For D, the SD floor alone (RL7 against RL0), and the same 2 × 2 with the floor on: RL7, RL4, RL5, RL6.
+
 ## Phase 5 — choice of method (Thu 26)
 
 R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a tie, the researcher decides.
