@@ -152,8 +152,7 @@ def test_rl_recipes_come_first_then_phase_4_with_the_chosen_recipe(tree):
     assert "--lr 3e-06" in rl2 and "--kl-beta 0.04" in rl2 and "--g 8" in rl2 and "--updates 500" in rl2
     rl3 = (Path(driver.P["queue"]) / "3513d_rlrecipe-d-l24.sh").read_text()
     assert "--g 16 --scenes-per-update 16" in rl3
-    # the recipe runs finish: navdev paths at 250 and 500 updates (the fake scores them below the start, epoch 15)
-    for r in driver.RECIPES:
+    def finish(r):  # recipe r's runs finish: navdev paths at 250 and 500 updates (the fake scores them below the start)
         for lc, kind in ((la, "masked"), (ld, "anchor")):
             g = driver.GRID[kind]
             rd = Path(driver.P["heads"]) / f"{lc['run']}-rlrecipe{r}"
@@ -165,6 +164,15 @@ def test_rl_recipes_come_first_then_phase_4_with_the_chosen_recipe(tree):
                     (base / n).mkdir(parents=True, exist_ok=True)
                     (base / n / "shard_000_of_001.jsonl").write_text("{}" + chr(10))
                 (rd / f"navdev_rl_{u}" / "timing.json").write_text("{}")
+
+    # recipe 0 finishes first: its checkpoint choices are saved, and no recipe is chosen while the others run
+    finish(0)
+    driver.phase4(status)
+    assert (Path(driver.P["heads"]) / "a1-l12-18-24-rlrecipe0" / "choices_navdev.json").exists()
+    assert not (Path(driver.P["heads"]) / "choices" / "rl_recipe.json").exists()
+    # a later pass reads recipe 0's saved choices back from JSON (string keys) while scoring the rest
+    for r in list(driver.RECIPES)[1:]:
+        finish(r)
     for s in (1, 2):
         for lc in (la, ld):
             (Path(driver.P["heads"]) / f"{lc['run']}-s{s}").mkdir(parents=True, exist_ok=True)

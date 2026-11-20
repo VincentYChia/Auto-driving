@@ -481,7 +481,10 @@ def rl_choose(rl: str, lc: dict, sft: str, epoch: int, checkpoints, navtest: boo
     rd = os.path.join(P["heads"], rl)
     out = os.path.join(rd, "choices_navdev.json")
     if os.path.exists(out):
-        return read_json(out)
+        res = read_json(out)
+        for k in ("single_by_checkpoint", "best_of_6_by_checkpoint"):  # JSON keys are strings; callers use updates
+            res[k] = {int(u): v for u, v in res[k].items()}
+        return res
     c, g = lc["choice"], GRID[lc["kind"]]
     single, b6 = {}, {}
     for u in (0,) + tuple(checkpoints):
