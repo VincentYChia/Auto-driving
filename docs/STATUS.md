@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 11:18 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 11:45 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,7 +14,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
   - **Done since 05:30:** R12's 8 recipe runs and R13's 7 (500 updates each, 17-20 min per run; the last ended 10:06); navtest paths of B at layers 12/18/24; C reading layer 24 (07:10-07:51) and its navtest paths.
-  - **Running:** C reading layers 12/18/24, phase-1 training (since 10:06). At 11:17 it was at epoch 13.6 of 20, so training ends about 11:50 (an estimate); its navdev grid follows.
+  - **Running:** C reading layers 12/18/24, phase-1 training (since 10:06). At 11:43 it was at epoch 18.7 of 20, so training ends about 11:50; its navdev grid follows.
   - **Queued, about 26 h (estimate):**
     - R at both layer settings (jobs 380, 381);
     - seeds 1-2 of A1, B and D at layers 12/18/24 (39a1-39d2);
@@ -97,7 +97,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
 7. Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice. A, B and D are done; C and R are training.
 8. **RL recipe rounds: done.** R12 and R13 are complete, and the driver chose RL4 at 10:17 (`choices/rl_recipe.json` on the desktop). Phase 4 runs RL4 on every method, after phases 2-3: B's seed-0 job is queued (45b0); A's and D's 3 seeds each follow their supervised seeds 1-2; C's follows its layer choice.
-9. ~~Report at 12:00 Fri Nov 20.~~ **Done 11:18:** `navsim_demo_renders/heads_report_2026-11-20.html` on the home PC (charts with drive intervals, R12 and R13, problems and fixes, next steps, the two questions below). Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`, and the headline numbers are on this page.
+9. ~~Report at 12:00 Fri Nov 20.~~ **Done 11:18, refreshed 11:45** (the work set out phase by phase; R14 added): `navsim_demo_renders/heads_report_2026-11-20.html` on the home PC (charts with drive intervals, R12 and R13, problems and fixes, next steps, the two questions below). Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`, and the headline numbers are on this page.
 10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). C at layers 12/18/24 follows when it finishes.
 
 11. **Phase 6 code, written while the GPU trains** (needed after phase 5):
