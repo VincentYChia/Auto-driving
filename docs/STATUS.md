@@ -1,15 +1,17 @@
 # Status of the autonomous session
 
-Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
+Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 13:25 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+
+**Updated:** 2026-11-20 13:29 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (13:28). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
@@ -126,7 +128,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - the selectors (GPU, jobs `62`): the cross-fitted one with 2 seeds, the in-fold control and the 4 ablations;
       - adoption on navdev by the point estimate, then one navtest evaluation by NAVSIM's own scorer.
       - 3 new tests; all 102 heads tests pass. Nothing runs before a spec exists.
-    - **Done 13:24: R15** (`docs/HEADS_PLAN.md`), registered before any phase-4 result. The plan said "the same number of runs over its own main settings" for B, C or D without naming them; R15 names them. Each method gets 4 runs, as A's continuity series has 4:
+    - **Done 13:25: R15** (`docs/HEADS_PLAN.md`), registered before any phase-4 result. The plan said "the same number of runs over its own main settings" for B, C or D without naming them; R15 names them. Each method gets 4 runs, as A's continuity series has 4:
       - B: its prediction target and noise schedule;
       - C: its start-noise SD and time sampling;
       - D: its anchor count and truncation.
@@ -149,7 +151,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - RL6 is the only recipe that raised D (+1.14, -0.41 to +2.46). It also keeps A's candidates 2.2 m apart (RL4: 0.8 m), with the highest best-of-6 (90.93).
   - Phase 4's jobs reach the GPU only after about 26 h of diffusion work, so there is time to switch to RL6 if you prefer.
   - **My recommendation is to keep RL4, as registered.** It gives the best single path, and phase 6 will measure whether its closer candidates limit the selector. Nothing changes unless you say so.
-- **For your information: R15 (13:24) fixes phase 6's post-decision tuning before any phase-4 result.** Each method gets 4 runs over its own main settings, matching A's 4 continuity-series runs:
+- **For your information: R15 (13:25) fixes phase 6's post-decision tuning before any phase-4 result.** Each method gets 4 runs over its own main settings, matching A's 4 continuity-series runs:
   - B: noise and v targets, and the linear schedule;
   - C: start-noise SD 0.3 and 1.0, and two time samplings;
   - D: 10 and 40 anchors, and truncation 0.02 and 0.1.
@@ -189,4 +191,5 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Run outputs:**
   - Desktop: `~/navsim_workspace/exp/heads/<run>/`.
   - Feature cache: `~/navsim_workspace/head_cache/h1_l12-18-24/`.
-- **HTML reports and replay pages:** on the home PC only, in `navsim_demo_renders/` and `reports/`. They contain nuPlan camera images, which stay out of this public repository.
+- **HTML reports and replay pages:** on the home PC, in `navsim_demo_renders/` and `reports/`. Replay pages contain nuPlan camera images, so they stay off the public repository and off the web.
+  - The path-generator report has no images, so it is also a private page: https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ.

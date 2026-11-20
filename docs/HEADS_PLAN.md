@@ -297,7 +297,7 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
   - The selector is adopted only if it beats the generator's own top choice on navdev.
 - **Final number:** one navtest evaluation of the final system, reported with the list of every choice behind it.
 
-**R15. Post-decision tuning and the full RL stage, specified** (committed 2026-11-20 13:24, before any phase-4 result, so the runs cannot be fitted to the winner; it fills in the two phase-6 lines above).
+**R15. Post-decision tuning and the full RL stage, specified** (committed 2026-11-20 13:25, before any phase-4 result, so the runs cannot be fitted to the winner; it fills in the two phase-6 lines above).
 - **The 4 tuning runs per method.** A's phase-2 series has 4 runs beyond A1 (A0, A2, A3, A4), so every method gets 4 runs over the settings our research notes give as decisive for its family (`docs/research/heads/head_research_report.md`, `notes/continuous_diffusion_navsim.md`). All are at the method's chosen layers, seed 0, with the phase-1 recipe and navdev grid:
   - **A:** the phase-2 series as run (no new runs).
   - **B (DDIM; phase 1: clean-path target, cosine schedule):** noise target with the cosine schedule; v target with the cosine schedule; clean-path target with DDPM's linear schedule (β from 1e-4 to 0.02); noise target with the linear schedule, close to the published VLA diffusion planners: ReCogDrive and DiffAdapterVLA predict the noise with DDPM [V]; their schedule is not checked. The target matters on driving: DiffE2E, CARLA, 82.9 with the clean-path target against 20.1 with the noise target [V].
