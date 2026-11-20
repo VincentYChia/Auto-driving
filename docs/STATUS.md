@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-19 22:05 EST
+**Updated:** 2026-11-19 22:10 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -20,6 +20,13 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Anvil:** wide job 22320518 builds the navtrain metric cache, the reward for the RL stage. Estimated start Nov 20 19:05.
 
 ## Latest results
+- **First navdev results** (743 scenes, 11 drives; intervals resample drives; for choices only, R1):
+  - **H1's text output: 82.4** (80.6–86.0). Constant velocity: 19.8.
+  - **A1 reading layer 24:** epochs 5 / 10 / 15 / 20 at 4 steps score 77.9 / 79.0 / **81.5** / 81.2. At epoch 15, 1 / 2 / 4 / 8 steps score 80.8 / 81.3 / 81.5 / 80.2.
+  - **Paired, A1 (epoch 15) − H1: −0.9** (−2.4 to −0.4). So before RL, A1 is close to but measurably below H1's text output.
+  - The sanity check passes: far above constant velocity, and dev ADE near H1's.
+  - Paired differences on navdev resolve to about ±1 point.
+- **RL scoring service:** equals NAVSIM's official scores on 200 navtest scenes, with a maximum difference of 0.0 in every sub-score. It scores 11.6 paths/s in one process and 71.8 paths/s with 4 workers at 8 candidates per scene.
 - **Text pilot H1: 85.6 PDMS**, still the best.
   - S3's earlier passes scored 77.3, 81.9 and 84.5; the final pass 84.7.
   - H2 (8 passes) ties H1. Details in `pilot_sft/README.md`.
