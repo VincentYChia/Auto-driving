@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 17:17 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 17:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -26,6 +26,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - scored R's navtest paths at layer 24 (14:45) and R's navdev grid at layers 12/18/24;
   - chose R's layers at 14:47 and queued R's seeds;
   - its last pass (14:41-14:47) was OK, with no failed passes.
+- **Desktop CPU queue (`~/queue2`):** since 17:42, a smoke test of phase 6's selector pipeline on real data, CPU only (`58_selector-smoke`). It runs A1's candidates for 1,000 RL scenes, PDM-scores them on port 47412, trains a selector for 2 epochs, and applies it to navdev against NAVSIM's score files. It checks the pipeline before phase 6 depends on it; its numbers are used for no choice.
 - **Anvil:** nothing running.
 
 ## Latest results
