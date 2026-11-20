@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 12:51 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 13:09 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -20,10 +20,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - A's continuity series A0, A2, A3, A4 (400-403);
     - then phase 4: B's and C's RL4 runs, seed 0 (45b0; 45c0 queued 12:13). A's and D's three RL seeds each are queued when their supervised seeds 1-2 finish. All phase-4 jobs sort after phases 2-3.
     - R's navtest paths and seeds 1-2 are queued by the driver once R's choices exist.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, 39e7c7a): made C's choices at 12:04 and its RL start at 12:13, and is scoring C's navtest paths (12:33 to about 13:05), then R's navdev grid. Its last completed pass (12:28) was OK, with no failed passes (`driver_health.json`).
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, 39e7c7a): made C's choices at 12:04 and its RL start at 12:13, scored C's navtest paths (12:33-13:04) and R's navdev grid, and chose R's layer-24 settings at 13:06. Its last pass (12:33-13:06) was OK, with no failed passes (`driver_health.json`).
 - **Anvil:** nothing running.
 
 ## Latest results
+- **Phase 1, 13:04: A, B and C cannot be told apart on navtest** (single path or best-of-6, at their layer choices); D has the best candidates and the weakest own pick (table below).
 - **R13 is complete. The driver chose RL4 (Dr. GRPO) at 10:17 by the registered rule, and phase 4 has started with it.** The rule (R12, R13) takes the recipe with the highest navdev single-path change from the start at its better checkpoint (250 or 500 updates), averaged over A and D. Numbers are on navdev (743 scenes, 11 drives), seed 0, with the change and its drive interval in brackets:
 
   | Recipe | A (start 81.43, epoch 20): 250, 500 updates | D (start 77.10, epoch 5): 250, 500 updates | Mean change |
@@ -54,18 +55,22 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   | A1 (masked) | 81.5 / 89.5 | 81.9 / 89.7 | 12/18/24 | 84.7 / 91.8 (-0.9, -1.4 to -0.5) |
   | B (DDIM) | 81.0 / 88.2 | 81.4 / 89.3 | 12/18/24 | 84.6 / 91.9 (-1.05, -1.5 to -0.6) |
   | D (anchored) | 76.8 / 89.6 | 78.4 / 92.2 | 12/18/24 | 82.9 / **93.7** (-2.7, -3.5 to -1.8) |
-  | C (flow) | 78.4 / 89.5 | 80.8 / 89.7 | 12/18/24 (12:04) | being scored; layer 24: 83.5 / 91.6 (-2.1) |
-  | R (regression) | being scored | training | - | - |
+  | C (flow) | 78.4 / 89.5 | 80.8 / 89.7 | 12/18/24 (12:04) | 84.3 / 91.9 (-1.27, -1.9 to -0.6) |
+  | R (regression, one path) | 81.0 / - | training | - | - |
 
   - **Layer test on navtest** (layers 12/18/24 minus 24 alone; single path; best-of-6):
     - A: -0.01 (-0.43 to +0.41); -0.03.
     - B: +0.13 (-0.25 to +0.51); +0.85 (+0.55 to +1.18).
     - D: +1.28 (+0.77 to +1.78); +2.17 (+1.73 to +2.55).
+    - C: +0.83 (+0.44 to +1.19); +0.29 (-0.00 to +0.63).
     - So the best layers depend on the method, the case the per-method layer test was there to catch.
   - **Method pairs on navtest, at the layer choices** (single path; best-of-6):
     - A - B: +0.11 (-0.34 to +0.54); -0.10 (-0.48 to +0.21). Indistinguishable, although B's candidates are much closer together (end points 1.4 m apart, against 6.6 m for A).
+    - A - C: +0.33 (-0.31 to +1.04); -0.13 (-0.61 to +0.28). B - C: +0.22 (-0.33 to +0.80); -0.03 (-0.30 to +0.23). **So A, B and C cannot be told apart** on navtest, single path or best-of-6. C's candidates are 1.4 m apart, like B's.
     - A - D: +1.75 (+0.93 to +2.60); -1.89 (-2.21 to -1.57).
     - B - D: +1.64 (+0.96 to +2.35); -1.79 (-2.18 to -1.36).
+    - C - D: +1.42 (+0.77 to +1.99); -1.76 (-2.26 to -1.21).
+  - **R, the regression control with no generation (layer 24 only so far):** navdev 81.04 at epoch 10, -1.36 against H1's text output (-2.02 to -0.30). That is level with B (81.0) and C (78.4) reading layer 24 on navdev. R at layers 12/18/24 finishes training about 14:50, and R's navtest paths follow.
   - References: H1's text output scores 82.4 on navdev and 85.6 on navtest; constant velocity scores 19.8 on navdev.
   - Choices: A1 epoch 15, 8 steps, setting 1.5. B epoch 20, 10 steps, setting 1.5 (earlier written here as "B epoch 10"; epoch 10 is B's RL start). D epoch 10, 2 steps, setting 0.5. C epoch 10, 2 steps, setting 2.0, at both layer settings. RL starts (R11): A epoch 20, B epoch 10, C epoch 10, D epoch 5.
   - **C's layer choice (12:04): layers 12/18/24.** navdev single path 80.77 against 78.41 for layer 24 alone; best-of-6 89.74 against 89.45. C's navdev single path by epoch: 76.2, 80.8, 79.2, 80.6 (epochs 5-20); by steps at epoch 10: 79.6, 80.8, 80.0 (1, 2, 5 steps). Its candidates were best at the widest sampling setting tried (2.0: 89.7, against 87.3 at 1.0 and 84.0 at 0.5), as at layer 24.
@@ -97,7 +102,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - scores navtest for the report.
    - Its status is `~/navsim_workspace/exp/heads/driver_status.json`; its log is `driver.log`.
    - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
-7. Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice. A, B, D and C have their layer choices (C at 12:04; its navtest scores land about 13:05). R: layer 24 trained (12:29) and being scored; layers 12/18/24 training until about 14:50.
+7. Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice. A, B, C and D are done (C's navtest scores landed 13:04). R: layer 24 chosen on navdev at 13:06 (epoch 10), its navtest paths queued (350_navtest-r-l24); layers 12/18/24 training until about 14:50.
 8. **RL recipe rounds: done.** R12 and R13 are complete, and the driver chose RL4 at 10:17 (`choices/rl_recipe.json` on the desktop). Phase 4 runs RL4 on every method, after phases 2-3: B's seed-0 job is queued (45b0); A's and D's 3 seeds each follow their supervised seeds 1-2; C's follows its layer choice.
 9. ~~Report at 12:00 Fri Nov 20.~~ **Done 11:18, refreshed 11:45** (the work set out phase by phase; R14 added): `navsim_demo_renders/heads_report_2026-11-20.html` on the home PC (charts with drive intervals, R12 and R13, problems and fixes, next steps, the two questions below). Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`, and the headline numbers are on this page.
 10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). `c-l12-18-24` and `r-l24` too, with matching checksums (12:53).
@@ -118,7 +123,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Waiting on the researcher
 - **A question for your 12:00 check; it blocks nothing.**
-  - **The issue:** R5 chooses the method by its own single path after RL, and the selector (phase 6) is built only for the winner. So far, D has clearly the best candidates and clearly the weakest own pick (A, B and D on navtest; C and R are still training).
+  - **The issue:** R5 chooses the method by its own single path after RL, and the selector (phase 6) is built only for the winner. D has clearly the best candidates and clearly the weakest own pick (navtest, all four methods at their layer choices; R has no candidates).
     - D − A, best-of-6: **+1.9** (drive interval +1.6 to +2.2).
     - D − A, single path: **−1.75** (−2.6 to −0.9).
   - **Why it matters:** the final system always has a selector, so R5 could choose a method that is not the best one for the final system.
