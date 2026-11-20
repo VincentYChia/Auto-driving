@@ -69,6 +69,11 @@ S3's per-epoch NAVSIM runs (`qwen35-0.8b-v1fullthin-p12-visfull-ep4-e1` to `-e3`
 | `test-vision-full` | epoch_1 | 308 | `a85e3040aeb12a35` | yes | yes |
 | `timing-2b-v1pilot` | adapter | 155 | `9af42b5e5e9b0c85` | yes | yes |
 
-## Path generators (heads)
+## Path generators
 
-None trained yet. Each run gets a row here when it finishes: run name, head option and ladder rung, epochs, final and best-of-K checkpoint, size, checksum, both locations.
+Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20.pt`, `final.pt` (= epoch 20), `checkpoint.pt` (with the optimizer), `run.json`, `log.jsonl` and its prediction folders. Configurations are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions". The SHA-256 is of `final.pt`.
+
+| Run | Configuration | Stored layers | Seed | Epochs | Parameters | Training time | GB | SHA-256 of final.pt (first 16) | Desktop | Anvil |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `a1-l24` | A1 (masked diffusion, 0.1 m bins, distance-aware embeddings) | 24 | 0 | 20 | 41.1M | 40 min | 3.95 | `49f6607d62c9b157` | yes | yes |
+| `a1-l12-18-24` | A1 | 12, 18, 24 | 0 | 20 | 41.9M | 2 h 20 min | 4.33 | `9aeefcba1ab7fd86` | yes | yes |
