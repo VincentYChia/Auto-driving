@@ -92,3 +92,11 @@ def test_kmeans_finds_separated_clusters():
     pts = torch.cat([torch.randn(50, 16, generator=g) * 0.1 + c for c in (0.0, 5.0, -5.0)])
     c = hm.kmeans_anchors(pts, 3)
     assert sorted(round(v) for v in c.mean(1).tolist()) == [-5, 0, 5]
+
+
+def test_rows_longer_than_the_position_table_still_run():
+    head = tiny("masked").eval()  # max_tokens 16
+    feats = torch.randn(2, 2, 18, 32).to(torch.bfloat16)
+    mask = torch.ones(2, 18, dtype=torch.bool)
+    paths, _ = head.generate(feats, mask, torch.randn(2, hm.EGO_DIM), k=1, steps=2, temperature=0.0)
+    assert paths.shape == (2, 1, 8, 2) and torch.isfinite(paths).all()

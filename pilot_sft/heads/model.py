@@ -141,7 +141,10 @@ class Trunk(nn.Module):
     def memory(self, feats: torch.Tensor, mask: torch.Tensor):
         """feats [B, L, t, d] (bf16 or float), mask [B, t] -> per-block (k, v) and the attention mask."""
         b, L, t, _ = feats.shape
-        parts = [self.mem_proj[i](self.mem_norm[i](feats[:, i].float())) + self.mem_layer[i] + self.mem_pos[:t]
+        # a row longer than any training row (1 navtest scene of 12,146 has 420 tokens, training at most 419)
+        # takes the last position embedding for the extra tokens
+        pos = self.mem_pos[torch.arange(t, device=feats.device).clamp(max=self.mem_pos.shape[0] - 1)]
+        parts = [self.mem_proj[i](self.mem_norm[i](feats[:, i].float())) + self.mem_layer[i] + pos
                  for i in range(L)]
         mem = torch.cat(parts, dim=1)  # [B, L*t, w]
         mem_mask = mask.repeat(1, L)[:, None, None, :]  # [B, 1, 1, L*t], True = attend
