@@ -304,14 +304,17 @@ class Head(nn.Module):
         return out
 
     @torch.no_grad()
-    def masked_generate(self, kvs, mem_mask, ego, k: int, steps: int, temperature: float, generator=None):
+    def masked_generate(self, kvs, mem_mask, ego, k: int, steps: int, temperature: float, generator=None,
+                        trace: Optional[dict] = None):
         """K paths per scene: the goal (last waypoint's x and y) sampled first (greedy when temperature is 0),
         then the most confident hidden tokens, ``steps`` rounds in all. Returns metres [B, k, 8, 2] and the
-        mean log-probability of the committed tokens [B, k]."""
+        mean log-probability of the committed tokens [B, k]. With ``trace`` (RL), records the tokens and the step
+        at which each was committed, which ``masked_logprob`` needs."""
         c, b, dev = self.cfg, ego.shape[0], ego.device
         m = 2 * N_WP
         tok = torch.zeros(b, k * m, dtype=torch.long, device=dev)
         known = torch.zeros(b, k * m, dtype=torch.bool, device=dev)
+        step_of = torch.full((b, k * m), -1, dtype=torch.long, device=dev)
         value = torch.zeros(b, k * m, device=dev)
         logp = torch.zeros(b, k * m, device=dev)
         smask = block_mask(k, m, dev)
@@ -353,13 +356,36 @@ class Head(nn.Module):
                 tok = torch.where(new, pick, tok)
                 value = torch.where(new, val, value)
                 logp = torch.where(new, lp, logp)
+                step_of = torch.where(new, torch.full_like(step_of, s), step_of)
                 known |= new
         if c.offset:  # one pass with every token known: the deterministic sub-bin offsets
             t = torch.zeros(b, device=dev)
             h = self.trunk(self.embed_tokens(tok, known), kvs, mem_mask, self.trunk.condition(ego, t), smask)
             value = value + c.bin_m * 0.5 * torch.tanh(self.out_off(h).squeeze(-1).float())
         xy = value.view(b, k, N_WP, 2)
+        if trace is not None:
+            trace.update(kind="masked", tok=tok, step_of=step_of, steps=steps, temperature=temperature, k=k)
         return xy, logp.view(b, k, m).mean(-1)
+
+    def masked_logprob(self, kvs, mem_mask, ego, trace: dict) -> torch.Tensor:
+        """The exact log-probability [B, k] of the paths ``masked_generate`` sampled, with gradients: for each step,
+        the tokens committed at that step under softmax(logits / temperature), given the tokens committed before
+        it. The commit order itself is deterministic given those tokens, so this is the paths' full probability."""
+        tok, step_of, steps, tau, k = (trace[x] for x in ("tok", "step_of", "steps", "temperature", "k"))
+        b, dev, m = tok.shape[0], tok.device, 2 * N_WP
+        smask = block_mask(k, m, dev)
+        total = torch.zeros(b, k, device=dev)
+        for s in range(steps):
+            known = (step_of >= 0) & (step_of < s)
+            t = torch.full((b,), (m - known[:, :m].sum(1)[0].item()) / m, device=dev)
+            h = self.trunk(self.embed_tokens(tok, known), kvs, mem_mask, self.trunk.condition(ego, t), smask)
+            lx, ly = self.logits(h)
+            lpx = F.log_softmax(lx.float() / tau, -1).gather(-1, tok[:, 0::2, None]).squeeze(-1)
+            lpy = F.log_softmax(ly.float() / tau, -1).gather(-1, tok[:, 1::2, None]).squeeze(-1)
+            lp = torch.empty(b, k * m, device=dev)
+            lp[:, 0::2], lp[:, 1::2] = lpx, lpy
+            total = total + (lp * (step_of == s)).view(b, k, m).sum(-1)
+        return total
 
     # ---- continuous (B, C) ------------------------------------------------------------------------------------
     def cont_forward(self, z, kvs, mem_mask, ego, t, k=1):
@@ -452,6 +478,85 @@ class Head(nn.Module):
         order = score.float().argsort(-1, descending=True)[:, :k]
         paths = z.gather(1, order[..., None].expand(-1, -1, 2 * N_WP)).reshape(b, k, N_WP, 2)
         return self.denorm(paths), torch.log_softmax(score.float(), -1).gather(1, order)
+
+    # ---- RL for the anchored method (D) ----------------------------------------------------------------------
+    def _anchor_step(self, z, x0, t, tn, floor: float = 0.01):
+        """One stochastic refinement step (DDIM with eta 1) from noise level t to tn. The noise SD is floored at
+        ``floor`` (normalised units) when sampling and in the log-density alike, so the density stays finite
+        near t = 0."""
+        a, an = self.alpha_bar(t), self.alpha_bar(tn)
+        eps = (z - a.sqrt() * x0) / (1 - a).sqrt().clamp_min(1e-6)
+        sig = (((1 - an) / (1 - a)).clamp_min(0) * (1 - a / an).clamp_min(0)).sqrt().clamp_min(floor)
+        mu = an.sqrt() * x0 + (1 - an - sig ** 2).clamp_min(0).sqrt() * eps
+        return mu, sig
+
+    @torch.no_grad()
+    def anchor_rl_sample(self, kvs, mem_mask, ego, g: int, steps: int, scale: float, generator=None):
+        """G candidates per scene for RL. Every anchor starts at ``scale`` x its training noise and is refined by
+        stochastic steps; then one anchor is drawn from softmax(score) of the last step. Returns metres
+        [B, G, 8, 2] and the trace ``anchor_logprob`` needs."""
+        b, dev = ego.shape[0], ego.device
+        anchors = self.anchor_paths[None].expand(b, -1, -1)
+        ts = torch.linspace(self.cfg.anchor_trunc, 0.0, steps + 1, device=dev)
+        rows = torch.arange(b, device=dev)
+        zs, picks, paths = [], [], []
+        for _ in range(g):
+            a0 = self.alpha_bar(ts[0])
+            z = a0.sqrt() * anchors + (1 - a0).sqrt() * scale * torch.randn(anchors.shape, device=dev, generator=generator)
+            seq = [z]
+            for i in range(steps):
+                x0, score = self.anchor_forward(z, kvs, mem_mask, ego, ts[i].expand(b))
+                mu, sig = self._anchor_step(z, x0.float(), ts[i], ts[i + 1])
+                z = mu + sig * torch.randn(z.shape, device=dev, generator=generator)
+                seq.append(z)
+            a = torch.multinomial(torch.softmax(score.float(), -1), 1, generator=generator).squeeze(-1)
+            zs.append(torch.stack(seq))
+            picks.append(a)
+            paths.append(z[rows, a])
+        xy = self.denorm(torch.stack(paths, 1).reshape(b, g, N_WP, 2))
+        return xy, {"kind": "anchor", "z": torch.stack(zs), "pick": torch.stack(picks), "steps": steps, "k": g}
+
+    def anchor_logprob(self, kvs, mem_mask, ego, trace: dict) -> torch.Tensor:
+        """Log-probability [B, G] of each candidate, with gradients: the drawn anchor under softmax(score), plus the
+        Gaussian log-density of that anchor's refinement steps (docs/HEADS_PLAN.md phase 4)."""
+        z, pick, steps = trace["z"], trace["pick"], trace["steps"]  # z [G, steps+1, B, A, 16], pick [G, B]
+        g, b, dev = z.shape[0], z.shape[2], z.device
+        ts = torch.linspace(self.cfg.anchor_trunc, 0.0, steps + 1, device=dev)
+        rows = torch.arange(b, device=dev)
+        total = []
+        for gi in range(g):
+            a, lp = pick[gi], torch.zeros(b, device=dev)
+            for i in range(steps):
+                x0, score = self.anchor_forward(z[gi, i], kvs, mem_mask, ego, ts[i].expand(b))
+                mu, sig = self._anchor_step(z[gi, i], x0.float(), ts[i], ts[i + 1])
+                d = (z[gi, i + 1][rows, a] - mu[rows, a]) / sig
+                lp = lp + (-0.5 * d ** 2 - torch.log(sig) - 0.5 * math.log(2 * math.pi)).sum(-1)
+                if i == steps - 1:
+                    lp = lp + F.log_softmax(score.float(), -1)[rows, a]
+            total.append(lp)
+        return torch.stack(total, 1)
+
+    # ---- RL entry points ---------------------------------------------------------------------------------------
+    @torch.no_grad()
+    def rl_sample(self, feats, mask, ego, g: int, steps: int, scale: float, generator=None):
+        """G candidate paths per scene from the method's stochastic policy, [B, G, 8, 2] metres, and a trace."""
+        kvs, mem_mask = self.trunk.memory(feats, mask)
+        if self.cfg.kind == "masked":
+            trace: dict = {}
+            xy, _ = self.masked_generate(kvs, mem_mask, ego, g, steps, scale, generator, trace=trace)
+            return xy, trace
+        if self.cfg.kind == "anchor":
+            return self.anchor_rl_sample(kvs, mem_mask, ego, g, steps, scale, generator)
+        raise NotImplementedError(f"RL for '{self.cfg.kind}' is not written yet (A and D come first; plan phase 4)")
+
+    def rl_logprob(self, feats, mask, ego, trace: dict) -> torch.Tensor:
+        """The exact log-probability [B, G] of the candidates ``rl_sample`` drew, with gradients."""
+        kvs, mem_mask = self.trunk.memory(feats, mask)
+        if trace["kind"] == "masked":
+            return self.masked_logprob(kvs, mem_mask, ego, trace)
+        if trace["kind"] == "anchor":
+            return self.anchor_logprob(kvs, mem_mask, ego, trace)
+        raise NotImplementedError(trace["kind"])
 
     # ---- regression (R) ---------------------------------------------------------------------------------------
     def regression_forward(self, kvs, mem_mask, ego):
