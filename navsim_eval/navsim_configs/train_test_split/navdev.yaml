@@ -1,0 +1,5 @@
+# navdev: dev-v2 scenes passing navtest's filter (constant velocity PDMS <= 0.8, human PDMS >= 0.8): 743 of 1990 scored; written by navsim_eval/navdev_split.py filter
+defaults:
+  - scene_filter: navdev
+
+data_split: trainval
