@@ -79,6 +79,25 @@ The pre-training data of the Qwen3.5 base model cannot be audited; that is state
 - navdev has only 11 drives.
 - The selector's training candidates come from scenes the generator saw. Phase 6 measures this.
 
+**R10. Choice procedure, fixed before any navdev score exists** (committed 2026-11-19 ~21:45; `pilot_sft/heads/driver.py` runs it).
+- **navdev:** navdev_all is the 2,000 dev-v2 scenes, which share one metric cache. navdev is the navdev_all scenes passing navtest's filter: constant velocity scores PDMS ≤ 0.8 and the human path scores ≥ 0.8. On navtest's own scores this filter keeps 12,129 of 12,146 scenes (99.86%).
+- **Drives:** navdev's 2,000 scenes come from 11 drives, and navtest's 12,146 from 44. A drive is the date-and-vehicle part of the log name.
+- **Per training run, in this order, on navdev:**
+  1. **Epoch:** the single path at the method's default steps, at epochs 5, 10, 15 and 20. Highest PDMS wins; a tie goes to the earlier epoch.
+  2. **Steps:** at that epoch, the single path over the method's step grid. Highest wins; a tie goes to fewer steps.
+  3. **Sampling setting:** at that epoch and steps, best-of-6 over the method's 3 settings. Highest wins; a tie goes to the training setting (1). R has no sampling and skips this step.
+- **Per method:** the layer setting whose run has the higher navdev single-path PDMS at its own choices. A tie (equal to 4 decimals) goes to layer 24 alone, the cheaper setting.
+- **Seeds 1 and 2** (phase 3) reuse seed 0's epoch, steps and sampling setting. Nothing is re-chosen per seed.
+- **Phase-2 settings:**
+  - A0 = A1 without distance-aware embeddings;
+  - A2 = A1 plus soft labels (Gaussian, σ = 1 bin, cut at 3σ);
+  - A3 = A2 plus an L1 loss, weight 1.0 in metres, on the local expectation (±3 bins around the arg-max), with the same averaged readout at inference;
+  - A4 = A3 plus the deterministic sub-bin offset.
+  - Leave-one-out from the series' best removes each of its added features once. A configuration that already exists is not retrained.
+  - The bin sizes 0.25 m and 0.05 m are run on the series' best.
+  - Every phase-2 run uses the same choice procedure.
+- **navtest** (reporting) is scored per run at its navdev choices: the single path at every step count, and 6 samples at the chosen steps and setting.
+
 ## Phase 0 — groundwork (Fri Nov 20, CPU only)
 
 - **navdev scoring:**
