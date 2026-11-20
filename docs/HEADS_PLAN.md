@@ -308,6 +308,23 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
 - **Code:** the B, C and D settings above need new training flags. They are written only for the method that wins, before its runs. The rule fixes what they are now.
 - **Cost** [D]: 4 training runs (about 2 h each at three stored layers) and their navdev grids; the full RL stage about 3.5 h on the GPU, plus about 35 min of navdev scoring for its 10 saves.
 
+**R16. Both RL recipes, and the final system chosen with its selector** (committed 2026-11-20 13:51 at the researcher's direction, before any phase-4 run had started). The researcher, 13:45: "keep RL4 as registered and also run RL6 on every method with the same seeds and 1,500 updates ... so neither recipe is dropped on single-path score alone. Then take at least A and D under both recipes into phase 6, build the cross-fitted selector for each, and choose the final system by its generator-plus-selector score on navdev, with R5's single-path ranking reported but no longer deciding." It overrides R5's role and phase 6's "only with a clear winner".
+- **Phase 4 runs RL4 and RL6 on every method**, with the same seeds (A and D: 0, 1, 2; B and C: 0) and the same settings. That is 1,500 updates saved every 250, with each run's checkpoint chosen by R11's rule (update 0 allowed). RL6 is R13's Dr. GRPO plus the BC term, weighted to the RL term's gradient norm at the start, with the 0.1 SD floor.
+- **R5 is reported, not deciding.** Its single-path ranking after RL (navdev, the hierarchical bootstrap) is computed for each recipe and reported.
+- **Phase 6 contenders:**
+  - A and D, each under RL4 and under RL6: four path generators.
+  - B and C join, under both recipes, if after phase 4 either is not clearly below the best of A and D under its better recipe (by point estimate). The test is navdev single path or best-of-6: the paired drive interval of the difference must reach 0 or above. They queue after A's and D's.
+- **Each contender gets:**
+  - R15's post-decision tuning of its method, shared by its two recipes;
+  - the full RL stage with its own recipe (5,000 updates, saved every 500, R11's checkpoint rule);
+  - R14's cross-fitted selector, whose half generators use the same recipe and updates, with the in-fold control, seed 1 and the ablations.
+- **The final system:** the contender with the highest navdev PDMS of its system path. The system path is the selected path where its selector is adopted (R14), otherwise its own pick. The choice is the point estimate, as in R10. Every contender's interval against it is reported, and an exact tie goes to the researcher. The choice is recorded before any phase-6 navtest score.
+- **navtest:** each contender's system path is then scored once on navtest. The final system's score is the headline; the others are reported beside it.
+- **Cost** [D]:
+  - Phase 4 grows from 8 to 16 RL runs, about 10 more GPU hours.
+  - Each phase-6 contender takes about 16 GPU hours: about 3.5 h for the full RL stage, about 4.5 h for each half generator, and about 4 h for the selectors. That is about 64 h for A and D, and about 64 h more if B and C join.
+  - The researcher: "we have excess in the week".
+
 **R14. The selector's design** (committed 2026-11-20 11:38, before any selector result and before its code runs on real data). Evidence: `docs/research/heads/notes/selector_design.md`, a review of about 25 published NAVSIM selectors.
 - **The score it predicts, checked on our files:** NAVSIM v1.1's PDMS is NC × DAC × (5·TTC + 5·EP + 2·C)/12.
   - On one of our navtest score files (12,146 scenes), this formula equals the official score exactly.
