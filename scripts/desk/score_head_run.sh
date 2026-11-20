@@ -5,9 +5,10 @@
 # mirrors Anvil's (~/setup_navsim_env.sh) and a copy of Anvil's navtest metric cache; checked 2026-11-19 by
 # re-scoring H1. Folders already scored are skipped. Then pilot_sft/heads/summarize.py writes summary.json.
 #
-#   bash scripts/desk/score_head_run.sh <run dir> [threads]
+#   SAMPLE_STEPS="4" bash scripts/desk/score_head_run.sh <run dir> [threads]
+# SAMPLE_STEPS (space-separated) limits the K sampled paths to those step counts; single paths are always scored.
 set -uo pipefail
-RUN="${1:?run dir}"; THREADS="${2:-12}"
+RUN="${1:?run dir}"; THREADS="${2:-12}"; SAMPLE_STEPS="${SAMPLE_STEPS:-}"
 export NAVSIM_DEVKIT_ROOT=$HOME/navsim-v1.1 OPENSCENE_DATA_ROOT=$HOME/navsim_workspace/dataset
 export NUPLAN_MAPS_ROOT=$HOME/navsim_workspace/dataset/maps NUPLAN_MAP_VERSION=nuplan-maps-v1.0
 export NAVSIM_EXP_ROOT=$HOME/navsim_workspace/exp
@@ -18,6 +19,10 @@ run=$(basename "$RUN")
 for d in "$RUN"/navtest_*/steps*/*/; do
   d=${d%/}; [ -f "$d/shard_000_of_001.jsonl" ] || continue
   rel=${d#$RUN/}; name="heads-$run-$(echo "$rel" | tr '/' '-')"
+  if [ -n "$SAMPLE_STEPS" ] && [ "$(basename "$d")" != single ]; then
+    s=$(basename "$(dirname "$d")"); s=${s#steps}
+    case " $SAMPLE_STEPS " in *" $s "*) ;; *) continue ;; esac
+  fi
   if ls "$NAVSIM_EXP_ROOT/${name}_navtest_v1"/*/*.csv >/dev/null 2>&1; then continue; fi
   t0=$(date +%s)
   taskset -c 16-31 nice -n 5 $PY $NAVSIM_DEVKIT_ROOT/navsim/planning/script/run_pdm_score.py \
