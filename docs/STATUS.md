@@ -102,7 +102,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 11. **Phase 6 code, written while the GPU trains** (needed after phase 5):
     - **Done:** training on one half of the training drives (`train_head.py --drive-half`, 9531c27); each half's RL-scene tokens and out-of-fold predictions (`drive_map.py halves`, `predict_head.py --only-tokens`, 5de57e2); scoring every candidate with the PDM scoring service (`score_candidates.py`, 332d20c). 85 heads tests pass.
-    - **Next:** the selector's design (inputs, targets, loss), fixed in `docs/HEADS_PLAN.md` before any selector result. A literature check on published NAVSIM selectors is running first. Then its code and tests.
+    - **Done 11:38: R14, the selector's design**, fixed in `docs/HEADS_PLAN.md` before any selector result. Its evidence is a review of about 25 published NAVSIM selectors (`docs/research/heads/notes/selector_design.md`).
+      - It predicts the 5 PDM sub-scores and combines them with NAVSIM v1.1's formula. The formula equals the official score exactly on one of our navtest score files (12,146 scenes).
+      - It reads only the decoded candidates, with the own pick among them, and keeps the own pick unless another candidate is predicted to be better by a margin set on held-out training drives.
+    - **Next:** the selector's code (model, training, its driver steps) and tests.
 
 ## Waiting on the researcher
 - **A question for your 12:00 check; it blocks nothing.**
@@ -120,6 +123,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - RL6 is the only recipe that raised D (+1.14, -0.41 to +2.46). It also keeps A's candidates 2.2 m apart (RL4: 0.8 m), with the highest best-of-6 (90.93).
   - Phase 4's jobs reach the GPU only after about 26 h of diffusion work, so there is time to switch to RL6 if you prefer.
   - **My recommendation is to keep RL4, as registered.** It gives the best single path, and phase 6 will measure whether its closer candidates limit the selector. Nothing changes unless you say so.
+- **For your information: R14, the selector's design (11:38).** One part adds GPU time.
+  - **The addition:** the two half-data path generators also get the deployed generator's RL stage, about 2 × 4 h of GPU. RL changes the candidates (A's end points went from 6.4 m apart to 0.8 m under RL4), so without it the selector would learn on candidates unlike the ones it ranks.
+  - **The closest published design** is Versatile Samples (arXiv 2609.01799, WACV 2027): a scorer trained alone on a frozen planner's features, plus designed boundary samples. R14 tests its boundary paths as an ablation.
+  - Nothing runs before phase 6. Tell me if you want R14 changed.
 - **For your information: R13, a second RL recipe round, added under your "improve RL round after round" clarification.** R12's recipes all lowered the navdev single path so far, and the sub-scores point to the advantage normalisation, the missing imitation term and D's step size. R13 tests the published remedies, on A and D, before phase 4. It took about 2.3 h of GPU time (7 runs of 17-20 min; I first wrote 3.5 h). Two of its recipes helped (RL4, RL6), so phase 4 started by rule.
 - **The plan (`docs/HEADS_PLAN.md`, revision 2) was approved 2026-11-19 ~21:00, and the HOLD is lifted.** Two clarifications are in the plan's header:
   - equal tuning until a clear winner: contenders proceed together;

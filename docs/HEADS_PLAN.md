@@ -297,6 +297,58 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
   - The selector is adopted only if it beats the generator's own top choice on navdev.
 - **Final number:** one navtest evaluation of the final system, reported with the list of every choice behind it.
 
+**R14. The selector's design** (committed 2026-11-20 11:38, before any selector result and before its code runs on real data). Evidence: `docs/research/heads/notes/selector_design.md`, a review of about 25 published NAVSIM selectors.
+- **The score it predicts, checked on our files:** NAVSIM v1.1's PDMS is NC × DAC × (5·TTC + 5·EP + 2·C)/12.
+  - On one of our navtest score files (12,146 scenes), this formula equals the official score exactly.
+  - Driving-direction compliance has weight 0: 392 scenes have it below 1, with no effect on the score.
+  - EP is 0 wherever NC × DAC is 0 [V, ours].
+- **Inputs:**
+  - the stored features of the layers the chosen path generator reads, each projected to width 256 with a layer embedding, read by cross-attention;
+  - the ego state (the path generator's 19 numbers) through AdaLN;
+  - each candidate's decoded path only, never the path generator's hidden states. DrivoR: a separate scorer with stop-gradient 90.0, against a shared branch 84.7 (navval) [V].
+- **Network:** the path generator's block design, 4 blocks of width 256, about 5M parameters [D]. Published selectors add 6–8M [V].
+  - One token per candidate: the 8 (x, y) waypoints normalised with the generator's statistics, plus the heading, speed and acceleration derived per step, through Fourier features and a 2-layer MLP.
+  - No attention across candidates, so a candidate's score does not depend on which others are present. DrNMT's set-level reranker equals its per-hypothesis one [V].
+  - Training: AdamW, learning rate 1e-4, weight decay 0.01, dropout 0.1, up to 20 epochs. The epoch with the best selected-path PDMS on the held-out training drives (below) is kept.
+- **Targets and loss:**
+  - One output per sub-score: NC, DAC, TTC, EP, C. Each candidate is scored alone with its scene's PDM-Closed reference, as `pdm_server.py` does: EP is relative to that reference, so scoring candidates together would change it.
+  - BCE with soft targets: NC's ½ for a static object stays ½. The EP term is left out where NC × DAC = 0.
+  - The selection score is the v1.1 formula over the predicted sub-scores, with the official weights.
+  - Evidence: the two published ablations favour predicting sub-scores over predicting the PDMS directly: Hydra-MDP 83.0 against 80.2, and DrivoR 90.0 against 88.2 (navval) [V].
+- **Candidates:** exactly the deployed sampler's. The own pick (temperature 0) plus 6 samples at the method's chosen sampling setting: 7 per scene. The own pick carries no flag.
+- **Own-pick margin δ:** take the candidate with the highest predicted score, but keep the own pick unless that candidate is predicted to be more than δ higher. δ ≥ 0 is chosen on the held-out training drives.
+- **Cross-fitting** (as approved above, now specified):
+  - **Halves:** `drive_map.drive_halves` over all 236,133 training scenes, seed 0.
+  - **Each half's generator:** the chosen configuration with its chosen settings (`train_head.py --drive-half`), then the same RL recipe and number of updates as the deployed generator, on that half's RL scenes only. The deployed generator is RL-trained, and RL changes the candidates: A's end points went from 6.4 m apart to 0.8 m under RL4.
+  - **Candidates:** each half's generator makes the 7 candidates for the other half's RL scenes (`predict_head.py --only-tokens`), and `score_candidates.py` scores them.
+  - **Held-out training drives:** 10 of the 101 RL drives (seed 0) stay out of the selector's training. They choose the epoch, δ and the ablations below. No selector setting uses navdev.
+- **In-fold control (R9):** a second selector, trained the same way on the deployed generator's own candidates for the RL scenes.
+- **Adoption, on navdev:**
+  - The measure is the paired single-path difference, selected path minus own pick, with its drive interval.
+  - The selector is adopted if the point estimate is above 0 (R10's convention: choices take the point estimate). A gain is claimed only if the interval excludes 0.
+  - Then comes one navtest evaluation.
+  - The base selector trains with 2 seeds: seed 0 is the one adopted, and seed 1 gives the spread.
+- **Measured:**
+  - best-of-7, a random pick and the mean candidate;
+  - the share of the best-of-7 gap the selector closes;
+  - the sub-score changes;
+  - the switch rate, with wins, losses and ties;
+  - picks that fail NC or DAC;
+  - exact and tie-aware top-1 accuracy;
+  - calibration per sub-score;
+  - the gain by bins of candidate spread;
+  - in-fold against cross-fitted, on navdev;
+  - the half generators against the deployed one, on navdev.
+- **Ablations,** one run each, judged on the held-out training drives:
+  - a direct PDMS target;
+  - an added listwise term (weight 0.25);
+  - an imitation term;
+  - 4 boundary paths per training scene: perturbations of the logged path across the DAC and NC boundaries. In Versatile Samples (arXiv 2609.01799, WACV 2027) these add +0.2 PDMS on v1 over the plain scorer [V].
+- **If a runner-up's selector is also built** (the question in `docs/STATUS.md`), it uses this same design.
+- **Cost** [D]:
+  - Each candidate set is about 80,626 × 7 = 564k paths, about 50 min at the 190–210 paths/s measured in our RL runs.
+  - The two half generators add about 2 × 4 h of GPU time: about 1 h of training on half the data, and about 3 h for 5,000 RL updates (the recipe runs took 17–20 min per 500).
+
 ## Mon 30 — report
 
 - An HTML report on the home PC.
