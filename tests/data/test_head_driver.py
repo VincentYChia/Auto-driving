@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 pd = pytest.importorskip("pandas")
@@ -47,6 +48,7 @@ def tree(tmp_path, monkeypatch):
     sf.mkdir(parents=True)
     (sf / "navdev.yaml").write_text("tokens:\n" + "".join(f"  - '{t}'\n" for t in TOKENS))
     (tmp_path / "exp" / "metric_cache_navdev_v1").mkdir(parents=True)
+    os.makedirs(driver.P["queue"], exist_ok=True)
     return tmp_path
 
 
@@ -127,3 +129,40 @@ def test_navtest_scores_at_the_choices_are_reported_only(tree):
     # navtest has 12,146 scenes; the fake scorer writes 20, so the run's navtest summary must refuse it
     with pytest.raises(ValueError):
         driver.score_navtest_run("b-l24", "ddim", c)
+
+
+def test_rl_start_uses_best_of_6_and_rl_waits_for_the_navtrain_cache(tree):
+    for run in ("a1-l24", "a1-l12-18-24"):
+        make_run(run, "masked")
+    lc = driver.choose_layers("A")
+    start = driver.rl_start("A", lc)
+    assert start["epoch"] == 15  # the fake makes epoch 15 best for samples too
+    for s in (1, 2):
+        (Path(driver.P["heads"]) / f"{lc['run']}-s{s}").mkdir(parents=True, exist_ok=True)
+        (Path(driver.P["heads"]) / f"{lc['run']}-s{s}" / "final.pt").write_text("x")
+    status = {"navdev_ready": True}
+    driver.phase4(status)
+    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("45")]  # no cache yet: nothing queued
+    (Path(driver.P["exp"]) / "metric_cache_navtrain_v1").mkdir(parents=True)
+    (Path(driver.P["exp"]) / "metric_cache_navtrain_v1" / ".ready").write_text("")
+    driver.phase4(status)
+    rl_jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("45"))
+    assert rl_jobs == ["45a0_rl-a1-l12-18-24.sh", "45a1_rl-a1-l12-18-24-s1.sh", "45a2_rl-a1-l12-18-24-s2.sh"]
+    body = (Path(driver.P["queue"]) / "45a1_rl-a1-l12-18-24-s1.sh").read_text()
+    assert "--weights epoch_15" in body and "--seed 1" in body and "--scale 1.5" in body and "--steps 4" in body
+
+
+def test_decision_needs_a_gap_beyond_drive_and_seed_noise():
+    rng = np.random.default_rng(0)
+    tokens = [f"t{i}" for i in range(220)]
+    drives = {t: f"d{i % 11}" for i, t in enumerate(tokens)}
+    base = pd.Series(rng.uniform(0.5, 1.0, len(tokens)), index=tokens)
+
+    def method(offset, seeds):  # per seed: a run-level shift; per scene: method-specific noise, as in real scores
+        return [(base + offset + rng.normal(0, 0.005) + rng.normal(0, 0.1, len(tokens))).clip(0, 1)
+                for _ in range(seeds)]
+
+    clear = driver.decide({"A": method(0.08, 3), "D": method(0.0, 3), "B": method(-0.02, 1), "C": method(-0.03, 1)}, drives)
+    assert clear["leader"] == "A" and clear["clear_winner"]
+    tie = driver.decide({"A": method(0.002, 3), "D": method(0.0, 3), "B": method(-0.05, 1), "C": method(-0.05, 1)}, drives)
+    assert tie["leader"] in ("A", "D") and not tie["clear_winner"]

@@ -387,6 +387,184 @@ def series(lc: dict) -> None:
                   "bash scripts/desk/navdev_grid.sh $RUN masked\n")
 
 
+#
+# ---- phase 4: the matched short RL stage (R11) and the method decision (R5) ----------------------------------
+RL_SEEDS = {"A": (0, 1, 2), "D": (0, 1, 2), "B": (0,), "C": (0,)}
+RL_CHECKPOINTS = (250, 500, 750, 1000, 1250, 1500)
+
+
+def navtrain_ready() -> bool:
+    """The RL reward needs the navtrain metric cache on this machine, marked ready once its paths are rewritten."""
+    return os.path.exists(os.path.join(P["exp"], "metric_cache_navtrain_v1", ".ready"))
+
+
+def rl_start(method: str, lc: dict) -> Optional[dict]:
+    """R11: the epoch with the highest navdev best-of-6 at the chosen steps and setting, on seed 0's run."""
+    out = os.path.join(P["heads"], "choices", f"{method}_rl_start.json")
+    if os.path.exists(out):
+        return read_json(out)
+    c, g = lc["choice"], GRID[lc["kind"]]
+    rd = os.path.join(P["heads"], lc["run"])
+    b6 = {}
+    for e in EPOCHS:
+        b = best_of(sample_folders(os.path.join(rd, f"navdev_epoch_{e}", f"steps{c['steps']}"), c["scale"], g["k"]),
+                    "navdev")
+        if b is None:
+            return None
+        b6[e] = round(b, 4)
+    epoch = max(EPOCHS, key=lambda e: (b6[e], -e))  # a tie goes to the earlier epoch
+    res = {"method": method, "epoch": epoch, "navdev_best_of_6_by_epoch": b6, "rule": "docs/HEADS_PLAN.md R11"}
+    write_json(out, res)
+    log(f"method {method}: RL starts from epoch {epoch} ({b6})")
+    return res
+
+
+def rl_body(method: str, lc: dict, sft: str, rl: str, epoch: int, seed: int) -> str:
+    c = lc["choice"]
+    return f"""H=$HOME/navsim_workspace/exp/heads; NC=$HOME/navsim_workspace/exp/metric_cache_navtrain_v1; OUT=$H/{rl}
+export NAVSIM_DEVKIT_ROOT=$HOME/navsim-v1.1 OPENSCENE_DATA_ROOT=$HOME/navsim_workspace/dataset
+export NUPLAN_MAPS_ROOT=$HOME/navsim_workspace/dataset/maps NUPLAN_MAP_VERSION=nuplan-maps-v1.0 NAVSIM_EXP_ROOT=$HOME/navsim_workspace/exp
+until [ -f $NC/.ready ]; do sleep 300; done
+mkdir -p $OUT
+PYTHONPATH=$HOME/Auto-driving setsid nohup taskset -c 16-31 nice -n 5 ~/miniforge3/envs/navsim/bin/python pilot_sft/heads/pdm_server.py serve --cache $NC --workers 12 --port 47411 > $OUT/server.log 2>&1 < /dev/null &
+for i in $(seq 120); do grep -q serving $OUT/server.log && break; sleep 5; done
+taskset -c 16-31 $PY pilot_sft/heads/rl_head.py --run $H/{sft} --weights epoch_{epoch} --out $OUT \\
+  --rl-scenes $HOME/navsim_workspace/training_data/pilot_v1/v1-nt-p12 --steps {c['steps']} --scale {c['scale']:g} \\
+  --seed {seed} --updates {RL_CHECKPOINTS[-1]} --save-every {RL_CHECKPOINTS[0]} --resume
+rc=$?
+pkill -f "pdm_server.py serve --cache $NC"
+[ $rc -eq 0 ] || exit $rc
+for u in {' '.join(map(str, RL_CHECKPOINTS))}; do
+  taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $OUT --weights rl_$u --split navdev --cache $C/dev \\
+    --steps {c['steps']} --k 6 --scales {c['scale']:g}
+done
+"""
+
+
+def queue_rl(method: str, lc: dict, start: dict) -> None:
+    for s in RL_SEEDS[method]:
+        sft = lc["run"] if s == 0 else f"{lc['run']}-s{s}"
+        if not os.path.exists(os.path.join(P["heads"], sft, "final.pt")):
+            continue
+        queue_job(f"45{method.lower()}{s}_rl-{sft}", f"phase 4, RL (seed {s}) of {sft} from epoch {start['epoch']}",
+                  rl_body(method, lc, sft, f"{sft}-rl", start["epoch"], s))
+
+
+def rl_choose(rl: str, lc: dict) -> Optional[dict]:
+    """R11: the RL checkpoint with the highest navdev single-path PDMS (a tie goes to the earlier one)."""
+    rd = os.path.join(P["heads"], rl)
+    out = os.path.join(rd, "choices_navdev.json")
+    if os.path.exists(out):
+        return read_json(out)
+    c, g = lc["choice"], GRID[lc["kind"]]
+    single, b6, scores = {}, {}, {}
+    for u in RL_CHECKPOINTS:
+        base = os.path.join(rd, f"navdev_rl_{u}", f"steps{c['steps']}")
+        if not os.path.exists(os.path.join(rd, f"navdev_rl_{u}", "timing.json")):
+            return None
+        s = score(os.path.join(base, "single"), "navdev")
+        b = best_of(sample_folders(base, c["scale"], g["k"]), "navdev")
+        if s is None or b is None:
+            return None
+        single[u], b6[u], scores[u] = round(float(s.mean()), 4), round(b, 4), s
+    u = max(RL_CHECKPOINTS, key=lambda x: (single[x], -x))
+    res = {"run": rl, "checkpoint": f"rl_{u}", "updates": u, "steps": c["steps"], "scale": c["scale"],
+           "navdev_single_pdms": single[u], "navdev_best_of_6": b6[u], "single_by_checkpoint": single,
+           "best_of_6_by_checkpoint": b6, "rule": "docs/HEADS_PLAN.md R11",
+           "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
+    write_json(out, res)
+    log(f"{rl}: RL checkpoint rl_{u} (navdev single {single[u]}, best-of-6 {b6[u]})")
+    g_k = g["k"]
+    queue_job(f"350_navtest-{rl}", f"navtest paths of {rl} at its navdev RL checkpoint rl_{u}",
+              f"taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $HOME/navsim_workspace/exp/heads/{rl} "
+              f"--weights rl_{u} --split navtest --cache $C/navtest --steps {c['steps']} --k {g_k} --scales {c['scale']:g}\n")
+    return res
+
+
+def rl_navtest(rl: str, ch: dict, lc: dict) -> Optional[dict]:
+    rd = os.path.join(P["heads"], rl)
+    out = os.path.join(rd, "navtest_at_choices.json")
+    if os.path.exists(out):
+        return read_json(out)
+    base = os.path.join(rd, f"navtest_{ch['checkpoint']}", f"steps{ch['steps']}")
+    if not os.path.exists(os.path.join(rd, f"navtest_{ch['checkpoint']}", "timing.json")):
+        return None
+    s = score(os.path.join(base, "single"), "navtest")
+    b = best_of(sample_folders(base, ch["scale"], GRID[lc["kind"]]["k"]), "navtest")
+    if s is None or b is None:
+        return None
+    res = {"run": rl, "checkpoint": ch["checkpoint"], "navtest_single_pdms_at_choice": round(float(s.mean()), 4),
+           "navtest_best_of_6": round(b, 4), "note": "reporting only; no choice uses navtest (R1)"}
+    write_json(out, res)
+    log(f"{rl}: navtest {json.dumps(res)}")
+    return res
+
+
+def decide(per_method: Dict[str, List[pd.Series]], drives: Dict[str, str], n: int = 10000, seed: int = 0) -> dict:
+    """R5 with R3's hierarchical bootstrap. Each resample redraws drives (with all their scenes) and every method's
+    seeds with replacement. A method with one seed gets an added normal draw with the larger of A's and D's
+    between-seed SDs. The leader continues only if its interval against every other method excludes 0."""
+    tokens = sorted(set.intersection(*[set(s.index) for ss in per_method.values() for s in ss]))
+    drv = np.array([drives[t] for t in tokens])
+    uniq, inv = np.unique(drv, return_inverse=True)
+    mats = {m: np.stack([s.loc[tokens].values for s in ss]) for m, ss in per_method.items()}  # [seeds, scenes]
+    point = {m: float(v.mean()) for m, v in mats.items()}
+    seed_sd = {m: float(v.mean(1).std(ddof=1)) for m, v in mats.items() if v.shape[0] > 1}
+    fill = max([seed_sd.get(m, 0.0) for m in ("A", "D")] or [0.0])
+    rng = np.random.default_rng(seed)
+    draws = {m: np.empty(n) for m in mats}
+    for i in range(n):
+        di = rng.integers(0, len(uniq), len(uniq))
+        w = np.bincount(di, minlength=len(uniq))[inv]  # each scene's weight: how often its drive was drawn
+        for m, v in mats.items():
+            si = rng.integers(0, v.shape[0], v.shape[0])
+            draws[m][i] = float((v[si].mean(0) * w).sum() / w.sum()) + (rng.normal(0, fill) if v.shape[0] == 1 else 0.0)
+    leader = max(point, key=point.get)
+    vs = {}
+    for m in mats:
+        if m != leader:
+            d = draws[leader] - draws[m]
+            vs[m] = {"difference": round(point[leader] - point[m], 4),
+                     "ci": [round(float(np.percentile(d, 2.5)), 4), round(float(np.percentile(d, 97.5)), 4)]}
+    clear = all(v["ci"][0] > 0 for v in vs.values())
+    return {"leader": leader, "clear_winner": clear, "point_navdev_single_pdms": {m: round(v, 4) for m, v in point.items()},
+            "seeds": {m: int(v.shape[0]) for m, v in mats.items()}, "between_seed_sd": {m: round(v, 4) for m, v in seed_sd.items()},
+            "sd_added_for_single_seed_methods": round(fill, 4), "leader_minus_other": vs, "scenes": len(tokens),
+            "drives": int(len(uniq)), "rule": "docs/HEADS_PLAN.md R5 (navdev, after RL); navtest tests C1-C4 come after"}
+
+
+def phase4(status: dict) -> None:
+    rl_methods = {}
+    for method in ("A", "D", "B", "C"):
+        lc = choose_layers(method) if status["navdev_ready"] else None
+        if not lc:
+            continue
+        start = rl_start(method, lc)
+        if not start:
+            continue
+        seeds_done = all(os.path.exists(os.path.join(P["heads"], f"{lc['run']}-s{s}", "final.pt"))
+                         for s in RL_SEEDS[method] if s > 0)
+        if seeds_done and navtrain_ready():  # a job waiting for the cache would hold the GPU queue
+            queue_rl(method, lc, start)
+        runs = []
+        for s in RL_SEEDS[method]:
+            rl = f"{lc['run'] if s == 0 else lc['run'] + '-s' + str(s)}-rl"
+            ch = rl_choose(rl, lc)
+            if ch:
+                runs.append((rl, ch))
+                rl_navtest(rl, ch, lc)
+        status.setdefault("phase4", {})[method] = {"start_epoch": start["epoch"], "rl_runs_chosen": [r for r, _ in runs]}
+        if len(runs) == len(RL_SEEDS[method]):
+            rl_methods[method] = [score(os.path.join(P["heads"], rl, f"navdev_{ch['checkpoint']}", f"steps{ch['steps']}",
+                                                     "single"), "navdev") for rl, ch in runs]
+    out = os.path.join(P["heads"], "choices", "decision_phase5.json")
+    if set(rl_methods) >= {"A", "D", "B", "C"} and not os.path.exists(out):
+        drives = read_json(os.path.join(os.path.dirname(P["cache"]), "drives_navdev.json"))
+        res = decide(rl_methods, drives)
+        write_json(out, {**res, "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"})
+        log(f"phase 5 decision: {json.dumps(res)}")
+
+
 def references() -> dict:
     """H1's text output and constant velocity on navdev, the references (phase 0)."""
     out = {}
@@ -434,6 +612,8 @@ def one_pass() -> dict:
             status["methods"][method]["seeds"] = seed_results(method, lc)
             if method == "A":
                 series(lc)
+    status["navtrain_ready"] = navtrain_ready()
+    phase4(status)
     write_json(os.path.join(P["heads"], "driver_status.json"), status)
     return status
 
