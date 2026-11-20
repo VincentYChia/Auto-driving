@@ -172,7 +172,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - C: training times can follow pi0's Beta or SD3's logit-normal (`--time-sampling`).
       - Training, generation, RL sampling and RL log-probabilities all use the same clean-path estimate. The defaults reproduce phase 1 exactly.
       - 10 new tests; all 116 heads tests pass. The driver now holds no method back for missing flags.
-    - **Done 16:50:** the gap to H1 by sub-score and route command (above; `pilot_sft/heads/by_command.py`).
+    - **Done 16:47:** the gap to H1 by sub-score and route command (above; `pilot_sft/heads/by_command.py`).
     - **Next:** restart the driver on a310a21 when it is not scoring (deferred at 16:44). Then the phase-3 seed results as they land: A1's seeds give the first between-seed spread.
 
 ## Waiting on the researcher
