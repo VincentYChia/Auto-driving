@@ -94,7 +94,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--cache", required=True, help="folder with train/ and dev/ cache splits")
     p.add_argument("--out", required=True)
-    p.add_argument("--kind", required=True, choices=("masked", "ddim", "flow", "anchor"))
+    p.add_argument("--kind", required=True, choices=("masked", "ddim", "flow", "anchor", "regression"))
     p.add_argument("--layers", default=None, help="stored layers to read (default: all in the cache)")
     p.add_argument("--width", type=int, default=384)
     p.add_argument("--depth", type=int, default=12)
@@ -125,7 +125,7 @@ def main() -> None:
     layers = [int(x) for x in args.layers.split(",")] if args.layers else None
     train = features.Store(os.path.join(args.cache, "train"), layers)
     dev = features.Store(os.path.join(args.cache, "dev"), layers)
-    default_steps = {"masked": 4, "ddim": 5, "flow": 2, "anchor": 2}[args.kind]
+    default_steps = {"masked": 4, "ddim": 5, "flow": 2, "anchor": 2, "regression": 1}[args.kind]
     cfg = hm.HeadConfig(kind=args.kind, layers=train.layers, d_in=train.width, width=args.width, depth=args.depth,
                         heads=args.heads, max_tokens=max(train.tokens, dev.tokens), bin_m=args.bin_m,
                         metric_embed=not args.no_metric_embed, soft_sigma=args.soft_sigma, l1_weight=args.l1_weight,

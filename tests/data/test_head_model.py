@@ -32,7 +32,7 @@ def batch(b=3, t=7):
 
 @pytest.mark.parametrize("kind,kw", [
     ("masked", {}), ("masked", {"soft_sigma": 1.0, "l1_weight": 1.0, "offset": True}),
-    ("masked", {"metric_embed": False}), ("ddim", {}), ("flow", {}), ("anchor", {}),
+    ("masked", {"metric_embed": False}), ("ddim", {}), ("flow", {}), ("anchor", {}), ("regression", {}),
 ])
 def test_each_head_trains_and_generates(kind, kw):
     head = tiny(kind, **kw)
@@ -100,3 +100,23 @@ def test_rows_longer_than_the_position_table_still_run():
     mask = torch.ones(2, 18, dtype=torch.bool)
     paths, _ = head.generate(feats, mask, torch.randn(2, hm.EGO_DIM), k=1, steps=2, temperature=0.0)
     assert paths.shape == (2, 1, 8, 2) and torch.isfinite(paths).all()
+
+
+@pytest.mark.parametrize("kind", ["masked", "ddim", "flow", "anchor", "regression"])
+def test_temperature_zero_is_the_deterministic_best_guess(kind):
+    head = tiny(kind).eval()
+    feats, mask, ego, _ = batch()
+    a, _ = head.generate(feats, mask, ego, k=1, steps=2, temperature=0.0, generator=torch.Generator().manual_seed(1))
+    b, _ = head.generate(feats, mask, ego, k=1, steps=2, temperature=0.0, generator=torch.Generator().manual_seed(2))
+    assert torch.equal(a, b)  # no randomness left at temperature 0, whatever the seed
+
+
+@pytest.mark.parametrize("kind", ["ddim", "flow"])
+def test_sampling_scale_sets_the_spread_of_the_k_paths(kind):
+    head = tiny(kind).eval()
+    feats, mask, ego, _ = batch()
+    spread = {}
+    for x in (0.0, 1.0):
+        paths, _ = head.generate(feats, mask, ego, k=4, steps=2, temperature=x, generator=torch.Generator().manual_seed(0))
+        spread[x] = float((paths - paths.mean(1, keepdim=True)).abs().mean())
+    assert spread[0.0] == 0.0 and spread[1.0] > 0.0  # scale 0: K identical paths; scale 1: K different ones

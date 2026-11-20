@@ -15,6 +15,11 @@ input and output layers change between options:
 - ``flow`` (C): the same tokens, rectified flow from a narrow Gaussian start (``flow_sigma``), Euler steps.
 - ``anchor`` (D): one token per anchor path (``anchors`` k-means paths), truncated diffusion from the noised
   anchors (DiffusionDrive), a score per anchor; generation ranks the refined anchors.
+- ``regression`` (R): the control without generation: 8 query tokens, an L1 loss on the normalised
+  waypoints, one path.
+
+``generate(..., temperature=0)`` is every method's deterministic best guess; above 0 it is each method's one
+sampling setting (docs/HEADS_PLAN.md R7).
 
 K paths per scene share one copy of the scene's features: their tokens sit side by side in one row with a
 block-diagonal self-attention mask, so the memory is never repeated. Settings are [proposed] starting points.
@@ -37,7 +42,7 @@ EGO_SCALE = [10.0, 3.0, 0.5] + [10.0, 2.0, 0.5] * 4 + [1.0] * 4  # speed, accel,
 
 @dataclass
 class HeadConfig:
-    kind: str = "masked"  # masked | ddim | flow | anchor
+    kind: str = "masked"  # masked (A) | ddim (B) | flow (C) | anchor (D) | regression (R)
     layers: List[int] = field(default_factory=lambda: [12, 18, 24])
     d_in: int = 1024
     width: int = 384
@@ -201,6 +206,9 @@ class Head(nn.Module):
             self.inp = nn.Sequential(nn.Linear(2 * N_WP, w), nn.SiLU(), nn.Linear(w, w))
             self.out = nn.Linear(w, 2 * N_WP)
             self.score = nn.Linear(w, 1)
+        elif cfg.kind == "regression":  # R: the control without generation, one path from 8 query tokens
+            self.slot = nn.Parameter(torch.randn(N_WP, w) * 0.02)
+            self.out = nn.Linear(w, 2)
         else:
             raise ValueError(f"unknown head kind {cfg.kind}")
 
@@ -375,11 +383,13 @@ class Head(nn.Module):
         return {"loss": loss, "mse": loss.detach()}
 
     @torch.no_grad()
-    def cont_generate(self, kvs, mem_mask, ego, k: int, steps: int, generator=None):
+    def cont_generate(self, kvs, mem_mask, ego, k: int, steps: int, scale: float = 1.0, generator=None):
+        """B and C from a start of scale x their training noise: 0 is the zero-noise start, the deterministic
+        best guess; the sampler itself is deterministic (DDIM with eta 0, Euler steps)."""
         b, dev = ego.shape[0], ego.device
         shape = (b, k, N_WP, 2)
         if self.cfg.kind == "ddim":  # deterministic DDIM (eta 0), predicting the clean path
-            z = torch.randn(shape, device=dev, generator=generator)
+            z = torch.randn(shape, device=dev, generator=generator) * scale
             ts = torch.linspace(1.0, 0.0, steps + 1, device=dev)
             for i in range(steps):
                 t, tn = ts[i], ts[i + 1]
@@ -389,7 +399,7 @@ class Head(nn.Module):
                 z = an.sqrt() * x0 + (1 - an).sqrt() * eps
             out = z
         else:  # Euler steps along the learned velocity
-            z = torch.randn(shape, device=dev, generator=generator) * self.cfg.flow_sigma
+            z = torch.randn(shape, device=dev, generator=generator) * self.cfg.flow_sigma * scale
             for i in range(steps):
                 t = torch.full((b,), i / steps, device=dev)
                 z = z + self.cont_forward(z, kvs, mem_mask, ego, t, k).float() / steps
@@ -417,17 +427,21 @@ class Head(nn.Module):
         return {"loss": cls + reg, "cls": cls.detach(), "reg": reg.detach()}
 
     @torch.no_grad()
-    def anchor_generate(self, kvs, mem_mask, ego, k: int, steps: int, generator=None):
-        """The top-k refined anchors by score; more paths than anchors come from further noise draws."""
+    def anchor_generate(self, kvs, mem_mask, ego, k: int, steps: int, scale: float = 1.0, generator=None):
+        """The top-k refined anchors by score. The anchors start with scale x their training noise: 0 starts
+        from the clean anchors, the deterministic best guess. More paths than anchors come from further noise
+        draws."""
         a = self.cfg.anchors
         if k > a:
-            parts = [self.anchor_generate(kvs, mem_mask, ego, min(a, k - i), steps, generator) for i in range(0, k, a)]
+            parts = [self.anchor_generate(kvs, mem_mask, ego, min(a, k - i), steps, scale, generator)
+                     for i in range(0, k, a)]
             return torch.cat([p[0] for p in parts], 1), torch.cat([p[1] for p in parts], 1)
         b, dev = ego.shape[0], ego.device
         anchors = self.anchor_paths[None].expand(b, -1, -1)
         ts = torch.linspace(self.cfg.anchor_trunc, 0.0, steps + 1, device=dev)
         a0 = self.alpha_bar(ts[0])
-        z = a0.sqrt() * anchors + (1 - a0).sqrt() * torch.randn(anchors.shape, device=dev, generator=generator)
+        noise = torch.randn(anchors.shape, device=dev, generator=generator) * scale
+        z = a0.sqrt() * anchors + (1 - a0).sqrt() * noise
         for i in range(steps):
             t, tn = ts[i], ts[i + 1]
             x0, score = self.anchor_forward(z, kvs, mem_mask, ego, t.expand(b))
@@ -439,6 +453,17 @@ class Head(nn.Module):
         paths = z.gather(1, order[..., None].expand(-1, -1, 2 * N_WP)).reshape(b, k, N_WP, 2)
         return self.denorm(paths), torch.log_softmax(score.float(), -1).gather(1, order)
 
+    # ---- regression (R) ---------------------------------------------------------------------------------------
+    def regression_forward(self, kvs, mem_mask, ego):
+        b = ego.shape[0]
+        x = self.slot[None].expand(b, -1, -1)
+        h = self.trunk(x, kvs, mem_mask, self.trunk.condition(ego, torch.zeros(b, device=ego.device)))
+        return self.out(h).float()  # normalised (x, y) per waypoint, [B, 8, 2]
+
+    def regression_loss(self, kvs, mem_mask, ego, xy):
+        loss = F.l1_loss(self.regression_forward(kvs, mem_mask, ego), self.norm(xy))
+        return {"loss": loss, "l1": loss.detach()}
+
     # ---- entry points -----------------------------------------------------------------------------------------
     def loss(self, feats, mask, ego, xy):
         kvs, mem_mask = self.trunk.memory(feats, mask)
@@ -446,20 +471,29 @@ class Head(nn.Module):
             return self.masked_loss(kvs, mem_mask, ego, xy)
         if self.cfg.kind == "anchor":
             return self.anchor_loss(kvs, mem_mask, ego, xy)
+        if self.cfg.kind == "regression":
+            return self.regression_loss(kvs, mem_mask, ego, xy)
         return self.cont_loss(kvs, mem_mask, ego, xy)
 
     @torch.no_grad()
     def generate(self, feats, mask, ego, k: int = 1, steps: Optional[int] = None, temperature: float = 1.0,
                  generator=None):
-        """[B, k, 8, 2] metres and a per-path score (higher = the head prefers it). k = 1 with temperature 0
-        is the head's single deterministic path for the masked and anchored heads."""
+        """[B, k, 8, 2] metres and a per-path score (higher = the generator prefers it).
+
+        ``temperature`` is each method's one sampling setting (docs/HEADS_PLAN.md R7): A's sampling temperature,
+        B and C's start-noise multiplier, D's starting-noise multiplier on the anchors. **0 gives every method's
+        deterministic best guess**: A's most confident tokens, B and C from the zero-noise start, D from the
+        clean anchors. R always gives its one path (repeated k times)."""
         steps = steps or self.cfg.steps
         kvs, mem_mask = self.trunk.memory(feats, mask)
         if self.cfg.kind == "masked":
             return self.masked_generate(kvs, mem_mask, ego, k, steps, temperature, generator)
         if self.cfg.kind == "anchor":
-            return self.anchor_generate(kvs, mem_mask, ego, k, steps, generator)
-        return self.cont_generate(kvs, mem_mask, ego, k, steps, generator)
+            return self.anchor_generate(kvs, mem_mask, ego, k, steps, temperature, generator)
+        if self.cfg.kind == "regression":
+            one = self.denorm(self.regression_forward(kvs, mem_mask, ego))
+            return one[:, None].expand(-1, k, -1, -1), torch.zeros(ego.shape[0], k, device=ego.device)
+        return self.cont_generate(kvs, mem_mask, ego, k, steps, temperature, generator)
 
 
 def kmeans_anchors(paths: torch.Tensor, n: int, iters: int = 50, seed: int = 0) -> torch.Tensor:

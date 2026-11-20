@@ -1,12 +1,18 @@
-"""NAVSIM paths from a trained path generator on stored navtest features, for NAVSIM's PDM scorer.
+"""NAVSIM paths from a trained path generator on stored features, for NAVSIM's PDM scorer.
 
     python pilot_sft/heads/predict_head.py --run <exp>/heads/<run> --cache <cache>/navtest --steps 1,2,4,8 --k 6
+    python pilot_sft/heads/predict_head.py --run <run> --split navdev --cache <cache>/dev --weights epoch_10 \\
+        --steps 4 --k 6 --scales 0.5,1,1.5
 
-For every ``--steps`` value it writes ``<run>/navtest_<weights>/steps<S>/single/`` (the head's one path: greedy
-for the masked head, the top-scored anchor for the anchored head, a fixed noise draw for B and C) and
-``sample_<j>/`` for ``j < k`` (K paths per scene for best-of-K: sampled goals, the top-K anchors, or K noise
-draws), each a ``shard_000_of_001.jsonl`` of ``{"token", "waypoints"}`` rows as ``navsim_eval.predictions``
-reads them. ``timing.json`` holds the generation time per scene (the stored features are read, not computed).
+For every ``--steps`` value it writes, under ``<run>/<split>_<weights>/steps<S>/``:
+- ``single/``: the generator's deterministic best guess (``generate(temperature=0)``: A's most confident tokens,
+  B and C from the zero-noise start, D from the clean anchors, R's one path);
+- for each ``--scales`` value x, ``K`` sampled paths per scene for best-of-K, in ``sample_<j>/`` (x = 1, the
+  training setting) or ``scale<x>_sample_<j>/``. x is each method's one sampling setting (docs/HEADS_PLAN.md R7).
+
+Each folder holds ``shard_000_of_001.jsonl`` with ``{"token", "waypoints"}`` rows as ``navsim_eval.predictions``
+reads them. Tokens are bare NAVSIM tokens: a dev-view id ``openscene/<log>/<token>`` becomes ``<token>``.
+``timing.json`` holds the generation time per scene, from the stored features.
 """
 
 from __future__ import annotations
@@ -33,65 +39,84 @@ def load_head(path: str, device: str) -> hm.Head:
     return head.to(device).eval()
 
 
+def sample_dir(scale: float, j: int) -> str:
+    return f"sample_{j}" if scale == 1.0 else f"scale{scale:g}_sample_{j}"
+
+
+def bare(token: str) -> str:
+    return token.rsplit("/", 1)[-1]
+
+
+def sync(device: str) -> None:
+    if device == "cuda":
+        torch.cuda.synchronize()
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--run", required=True)
     p.add_argument("--weights", default="final", help="final or epoch_<k>")
-    p.add_argument("--cache", required=True, help="the navtest cache split")
-    p.add_argument("--steps", default=None, help="comma-separated step counts (default: the head's own)")
-    p.add_argument("--k", type=int, default=6)
-    p.add_argument("--temperature", type=float, default=1.0, help="masked head: goal sampling for the K paths")
+    p.add_argument("--cache", required=True, help="the stored-feature split to predict (navtest, dev, ...)")
+    p.add_argument("--split", default="navtest", choices=("navtest", "navdev"), help="names the output folder")
+    p.add_argument("--steps", default=None, help="comma-separated step counts (default: the generator's own)")
+    p.add_argument("--k", type=int, default=6, help="sampled paths per scene; 0 = single paths only")
+    p.add_argument("--scales", default="1", help="comma-separated sampling settings for the K paths (R7)")
     p.add_argument("--batch", type=int, default=128)
     p.add_argument("--out", default=None)
     args = p.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     head = load_head(os.path.join(args.run, f"{args.weights}.pt"), device)
     store = features.Store(args.cache, head.cfg.layers)
-    out_root = args.out or os.path.join(args.run, f"navtest_{args.weights}")
+    out_root = args.out or os.path.join(args.run, f"{args.split}_{args.weights}")
     steps_list = [int(s) for s in args.steps.split(",")] if args.steps else [head.cfg.steps]
+    scales = [float(s) for s in args.scales.split(",")] if args.k > 0 else []
+    tokens = [bare(t) for t in store.ids]
     timing = {}
     for steps in steps_list:
-        dirs = {"single": os.path.join(out_root, f"steps{steps}", "single")}
-        dirs.update({f"sample_{j}": os.path.join(out_root, f"steps{steps}", f"sample_{j}") for j in range(args.k)})
+        names = ["single"] + [sample_dir(x, j) for x in scales for j in range(args.k)]
         files = {}
-        for name, d in dirs.items():
+        for name in names:
+            d = os.path.join(out_root, f"steps{steps}", name)
             os.makedirs(d, exist_ok=True)
             files[name] = open(os.path.join(d, "shard_000_of_001.jsonl"), "w", encoding="utf-8")
         g = torch.Generator(device=device).manual_seed(0)
-        t_single = t_k = 0.0
+        t_single, t_k = 0.0, {x: 0.0 for x in scales}
         row = 0
         for b in batches(store, list(range(store.rows)), args.batch, 2):
             t = to_torch(b, device)
-            ids = store.ids[row : row + len(t["ego"])]
+            ids = tokens[row : row + len(t["ego"])]
             row += len(ids)
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device == "cuda"):
-                if device == "cuda":
-                    torch.cuda.synchronize()
+                sync(device)
                 t0 = time.time()
                 one, _ = head.generate(t["feats"], t["mask"], t["ego"], k=1, steps=steps, temperature=0.0, generator=g)
-                if device == "cuda":
-                    torch.cuda.synchronize()
-                t1 = time.time()
-                many, _ = head.generate(t["feats"], t["mask"], t["ego"], k=args.k, steps=steps,
-                                        temperature=args.temperature, generator=g)
-                if device == "cuda":
-                    torch.cuda.synchronize()
-                t2 = time.time()
-            t_single, t_k = t_single + t1 - t0, t_k + t2 - t1
-            one, many = one.float().cpu(), many.float().cpu()
+                sync(device)
+                t_single += time.time() - t0
+                many = {}
+                for x in scales:
+                    t0 = time.time()
+                    many[x], _ = head.generate(t["feats"], t["mask"], t["ego"], k=args.k, steps=steps,
+                                               temperature=x, generator=g)
+                    sync(device)
+                    t_k[x] += time.time() - t0
+            one = one.float().cpu()
+            many = {x: m.float().cpu() for x, m in many.items()}
             for i, tok in enumerate(ids):
                 files["single"].write(json.dumps({"token": tok, "waypoints": one[i, 0].round(decimals=3).tolist()}) + "\n")
-                for j in range(args.k):
-                    files[f"sample_{j}"].write(json.dumps({"token": tok, "waypoints": many[i, j].round(decimals=3).tolist()}) + "\n")
+                for x in scales:
+                    for j in range(args.k):
+                        files[sample_dir(x, j)].write(
+                            json.dumps({"token": tok, "waypoints": many[x][i, j].round(decimals=3).tolist()}) + "\n")
         for f in files.values():
             f.close()
         timing[f"steps{steps}"] = {"single_ms_per_scene": round(1000 * t_single / store.rows, 3),
-                                   f"k{args.k}_ms_per_scene": round(1000 * t_k / store.rows, 3),
+                                   **{f"k{args.k}_scale{x:g}_ms_per_scene": round(1000 * v / store.rows, 3)
+                                      for x, v in t_k.items()},
                                    "batch": args.batch, "scenes": store.rows}
         print(json.dumps({f"steps{steps}": timing[f"steps{steps}"]}), flush=True)
     with open(os.path.join(out_root, "timing.json"), "w", encoding="utf-8") as f:
-        json.dump({"weights": args.weights, "device": torch.cuda.get_device_name(0) if device == "cuda" else "cpu",
-                   **timing}, f, indent=1)
+        json.dump({"weights": args.weights, "split": args.split, "cache": os.path.abspath(args.cache),
+                   "device": torch.cuda.get_device_name(0) if device == "cuda" else "cpu", **timing}, f, indent=1)
 
 
 if __name__ == "__main__":

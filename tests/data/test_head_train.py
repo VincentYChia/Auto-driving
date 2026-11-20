@@ -16,7 +16,7 @@ sys.path.insert(0, str(HEADS))
 import features  # noqa: E402
 
 
-def make_split(folder, rows, targets=True, seed=0):
+def make_split(folder, rows, targets=True, seed=0, prefix=""):
     rng = np.random.default_rng(seed)
     w = features.Writer(str(folder), [12, 24], rows=rows, tokens=6, width=16, settings={"model": "synthetic"})
     for s in range(0, rows, 4):
@@ -24,7 +24,7 @@ def make_split(folder, rows, targets=True, seed=0):
         feats = {l: rng.integers(0, 2**15, size=(b, 6, 16), dtype=np.uint16) & 0x3FFF for l in (12, 24)}
         metas = []
         for i in range(b):
-            m = {"id": f"t{s + i}", "ego": rng.normal(size=features.EGO_DIM).tolist()}
+            m = {"id": f"{prefix}t{s + i}", "ego": rng.normal(size=features.EGO_DIM).tolist()}
             if targets:
                 m["target_xy"] = np.cumsum(rng.uniform(0, 2, size=(8, 2)) * [1, 0.1], axis=0).tolist()
                 m["target_yaw"] = [0.0] * 8
@@ -40,7 +40,7 @@ def run(script, *args):
 
 
 @pytest.mark.parametrize("kind,extra", [("masked", ["--soft-sigma", "1", "--l1-weight", "1", "--offset"]),
-                                        ("anchor", ["--anchors", "4"]), ("flow", [])])
+                                        ("anchor", ["--anchors", "4"]), ("flow", []), ("regression", [])])
 def test_train_resume_predict(tmp_path, kind, extra):
     cache = tmp_path / "cache"
     make_split(cache / "train", 24, seed=0)
@@ -63,3 +63,11 @@ def test_train_resume_predict(tmp_path, kind, extra):
             assert [r["token"] for r in rows] == [f"t{i}" for i in range(6)]
             assert np.asarray(rows[0]["waypoints"]).shape == (8, 2)
     assert "steps2" in json.loads((out / "navtest_final" / "timing.json").read_text())
+    # navdev: dev-view ids ("openscene/<log>/<token>") come out as bare tokens; a scale grid adds folders
+    make_split(cache / "devids", 5, seed=3, prefix="openscene/2021.06.14.18.33.41_veh-35_00001_00002/")
+    run("predict_head.py", "--run", str(out), "--split", "navdev", "--cache", str(cache / "devids"), "--weights",
+        "epoch_1", "--steps", "2", "--k", "2", "--scales", "0.5,1")
+    for name in ("single", "sample_1", "scale0.5_sample_0"):
+        rows = [json.loads(l) for l in (out / "navdev_epoch_1" / "steps2" / name / "shard_000_of_001.jsonl")
+                .read_text().splitlines()]
+        assert [r["token"] for r in rows] == [f"t{i}" for i in range(5)]
