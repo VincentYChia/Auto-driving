@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 16:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 16:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -15,10 +15,9 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
-  - **Done since 12:30:** R reading layers 12/18/24, the last phase-1 training run (12:30-14:40), with its navdev grid; R's navtest paths at layer 24 (14:40).
-  - **Running:** seed 1 of A1 at layers 12/18/24 (39a1, since 14:40; about 2.3 h, as A1's first run).
-  - **Queued: 22 jobs, about 46 h before phase 6 (an estimate):**
-    - R's navtest paths at layers 12/18/24, a one-minute job, next after A1's seed 1;
+  - **Done since 12:30:** R reading layers 12/18/24, the last phase-1 training run (12:30-14:40), with its navdev grid and navtest paths; seed 1 of A1 at layers 12/18/24 (14:40-16:36), whose navdev and navtest paths are being scored.
+  - **Running:** seed 2 of A1 at layers 12/18/24 (39a2, since 16:36; about 2 h).
+  - **Queued: 20 jobs, about 42 h before phase 6 (an estimate):**
     - phase 3: seeds 1-2 of A1, B, C, D and R at layers 12/18/24 (39a2-39r2; R's two queued 14:47);
     - phase 2: A's continuity series A0, A2, A3, A4 (400-403);
     - phase 4 (R16): RL4 and RL6 for B and C (45b0, 45b0r6, 45c0, 45c0r6). A's and D's RL4 and RL6 seeds 0-2 are queued when their supervised seeds finish;
@@ -62,7 +61,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   | B (DDIM) | 81.0 / 88.2 | 81.4 / 89.3 | 12/18/24 | 84.6 / 91.9 (-1.05, -1.5 to -0.6) |
   | D (anchored) | 76.8 / 89.6 | 78.4 / 92.2 | 12/18/24 | 82.9 / **93.7** (-2.7, -3.5 to -1.8) |
   | C (flow) | 78.4 / 89.5 | 80.8 / 89.7 | 12/18/24 (12:04) | 84.3 / 91.9 (-1.27, -1.9 to -0.6) |
-  | R (regression, one path) | 81.0 / - | 81.6 / - | 12/18/24 (14:47) | layer 24: 84.8 (-0.85, -1.4 to -0.3); 12/18/24 about 17:00 |
+  | R (regression, one path) | 81.0 / - | 81.6 / - | 12/18/24 (14:47) | 84.6 (-1.03, -1.5 to -0.6); layer 24: 84.8 (-0.85, -1.4 to -0.3) |
 
   - **Layer test on navtest** (layers 12/18/24 minus 24 alone; single path; best-of-6):
     - A: -0.01 (-0.43 to +0.41); -0.03.
@@ -77,12 +76,23 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - B - D: +1.64 (+0.96 to +2.35); -1.79 (-2.18 to -1.36).
     - C - D: +1.42 (+0.77 to +1.99); -1.76 (-2.26 to -1.21).
   - **Generation steps (navtest, single path, layers 12/18/24, point estimates):** two steps come within 0.1 of each method's best step count. One step costs 0.1-0.8, and A loses 0.4-0.7 at 8 steps. navdev chose 8 steps for A1, which scores 84.67 on navtest against 85.10 at 4 steps. Generation from stored features takes 0.24-1.4 ms per scene on the 4090 (batch 128), 6 paths included. Details: `docs/GAPS.md` H7 and H8.
-  - **R, the regression control with no generation, is level with the path generators' own picks.**
-    - navtest, layer 24: 84.76, -0.85 against H1's text output (-1.36 to -0.26). That is as high as any path generator's single path on navtest: A1 84.7, B 84.6, C 84.3 and D 82.9, at their layer choices.
-    - navdev, at layers 12/18/24 (R's layer choice, 14:47): 81.58, -0.83 against H1 (-2.41 to +0.11).
-    - Paired on navdev, at each method's layer choice: A - R +0.28 (-1.14 to +1.76), B - R -0.18 (-1.71 to +1.94), C - R -0.81 (-2.77 to +2.32), D - R -3.16 (-5.69 to -1.50).
-    - So before RL, no path generator's own pick beats plain regression. What generation adds so far is its candidates (best-of-6 91.8-93.7 on navtest, against R's one path) and a handle for RL.
-    - R's navtest score at layers 12/18/24, with its paired intervals, comes about 17:00.
+  - **R, the regression control with no generation, is level with the path generators' own picks** (navtest, 16:40).
+    - R at layers 12/18/24 (its layer choice) scores 84.57, -1.03 against H1's text output (-1.48 to -0.58). At layer 24 it scores 84.76. R's layer test: -0.18 (-0.64 to +0.22), so no layer effect.
+    - Paired on navtest, at each method's layer choice:
+      - A - R +0.10 (-0.26 to +0.47);
+      - B - R -0.02 (-0.32 to +0.32);
+      - C - R -0.24 (-0.76 to +0.24);
+      - D - R -1.65 (-2.42 to -0.90).
+      - navdev agrees: A - R +0.28 (-1.14 to +1.76), D - R -3.16.
+    - So before RL, no path generator's own pick beats plain regression. What generation adds so far is its candidates (best-of-6 91.8-93.7 on navtest) and a handle for RL. That is why R16 judges the final system with its selector.
+  - **What the gap to H1's text output is made of** (navtest sub-scores, layers 12/18/24, point estimates; `docs/navsim_eval/results/heads_by_command_2026-11-20.json`):
+    - Every path generator and R trails H1 most in drivable-area compliance (DAC): -0.6 to -0.9 points for A, B, C and R, and -2.3 for D. Then come time-to-collision (-0.4 to -1.5) and progress (-0.1 to -2.1).
+    - DAC is a gate (a failed scene scores 0), so each point of DAC costs about 0.9 PDMS [D]. That is most of A's -0.94.
+    - Turns carry the failures. DAC fails in 3.6% of H1's straight scenes (8,070) against 9.6-10.7% of its turns (2,501 left, 1,575 right).
+      - D fails 5.2% straight and 13.7% at turns.
+      - R loses about 1.5 PDMS to H1 at turns, against 0.8 going straight.
+      - A stays about 1 point behind H1 in every command.
+    - Turns are where a selector that predicts DAC per candidate has the most room.
   - References: H1's text output scores 82.4 on navdev and 85.6 on navtest; constant velocity scores 19.8 on navdev.
   - Choices: A1 epoch 15, 8 steps, setting 1.5. B epoch 20, 10 steps, setting 1.5 (earlier written here as "B epoch 10"; epoch 10 is B's RL start). D epoch 10, 2 steps, setting 0.5. C epoch 10, 2 steps, setting 2.0, at both layer settings. RL starts (R11): A epoch 20, B epoch 10, C epoch 10, D epoch 5.
   - **C's layer choice (12:04): layers 12/18/24.** navdev single path 80.77 against 78.41 for layer 24 alone; best-of-6 89.74 against 89.45. C's navdev single path by epoch: 76.2, 80.8, 79.2, 80.6 (epochs 5-20); by steps at epoch 10: 79.6, 80.8, 80.0 (1, 2, 5 steps). Its candidates were best at the widest sampling setting tried (2.0: 89.7, against 87.3 at 1.0 and 84.0 at 0.5), as at layer 24.
@@ -114,7 +124,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - scores navtest for the report.
    - Its status is `~/navsim_workspace/exp/heads/driver_status.json`; its log is `driver.log`.
    - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
-7. ~~Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice.~~ **Done 14:47.** Layer choices: 12/18/24 for every method (A, B, C, D, R). R's navtest score at 12/18/24 lands about 17:00.
+7. ~~Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice.~~ **Done 14:47** (R's navtest at 12/18/24 landed 16:40). Layer choices: 12/18/24 for every method (A, B, C, D, R).
 8. **RL recipe rounds: done.** R12 and R13 are complete, and the driver chose RL4 at 10:17 (`choices/rl_recipe.json` on the desktop). Phase 4 runs RL4 on every method, after phases 2-3: B's seed-0 job is queued (45b0); A's and D's 3 seeds each follow their supervised seeds 1-2; C's follows its layer choice.
 9. ~~Report at 12:00 Fri Nov 20.~~ **Done 11:18, refreshed 11:45** (the work set out phase by phase; R14 added): `navsim_demo_renders/heads_report_2026-11-20.html` on the home PC (charts with drive intervals, R12 and R13, problems and fixes, next steps, the two questions below). Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`, and the headline numbers are on this page.
 10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). `c-l12-18-24` and `r-l24` too, with matching checksums (12:53), and `r-l12-18-24` (14:51): all 10 phase-1 training runs are on both machines.
@@ -162,7 +172,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - C: training times can follow pi0's Beta or SD3's logit-normal (`--time-sampling`).
       - Training, generation, RL sampling and RL log-probabilities all use the same clean-path estimate. The defaults reproduce phase 1 exactly.
       - 10 new tests; all 116 heads tests pass. The driver now holds no method back for missing flags.
-    - **Next:** analysis while the GPU trains: where H1's text output beats every path generator's own pick (sub-scores, scene types), and what R's regression gets right.
+    - **Done 16:50:** the gap to H1 by sub-score and route command (above; `pilot_sft/heads/by_command.py`).
+    - **Next:** restart the driver on a310a21 when it is not scoring (deferred at 16:44). Then the phase-3 seed results as they land: A1's seeds give the first between-seed spread.
 
 ## Waiting on the researcher
 - **Nothing is waiting on you.** Your 13:45 answers, now R16 in `docs/HEADS_PLAN.md`, registered 13:51 before any phase-4 run had started:

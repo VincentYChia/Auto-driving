@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-20 14:48:17",
+ "generated": "2026-11-20 16:44:18",
  "references": {
   "h1_text_navdev": {
    "pdms": 0.824,
@@ -964,6 +964,31 @@
      "comfort": 0.9987
     }
    },
+   "navtest_single": {
+    "pdms": 0.8457,
+    "ci_drives": [
+     0.8326,
+     0.86
+    ],
+    "scenes": 12146,
+    "drives": 44,
+    "vs_h1_text": {
+     "difference": -0.0103,
+     "ci_drives": [
+      -0.0148,
+      -0.0058
+     ],
+     "scenes": 12146
+    },
+    "subscores": {
+     "no_at_fault_collisions": 0.9784,
+     "drivable_area_compliance": 0.9367,
+     "driving_direction_compliance": 0.9809,
+     "ego_progress": 0.7959,
+     "time_to_collision_within_bound": 0.9249,
+     "comfort": 0.9996
+    }
+   },
    "dev_ade": 0.7358,
    "dev_best6_ade": 0.7358,
    "kind": "regression",
@@ -1213,6 +1238,14 @@
      0.0164
     ],
     "scenes": 743
+   },
+   "navtest_single": {
+    "difference": -0.0018,
+    "ci_drives": [
+     -0.0064,
+     0.0022
+    ],
+    "scenes": 12146
    }
   }
  },
@@ -1343,6 +1376,14 @@
      0.0176
     ],
     "scenes": 743
+   },
+   "navtest_single": {
+    "difference": 0.001,
+    "ci_drives": [
+     -0.0026,
+     0.0047
+    ],
+    "scenes": 12146
    }
   },
   "B-C": {
@@ -1433,6 +1474,14 @@
      0.0194
     ],
     "scenes": 743
+   },
+   "navtest_single": {
+    "difference": -0.0002,
+    "ci_drives": [
+     -0.0032,
+     0.0032
+    ],
+    "scenes": 12146
    }
   },
   "C-D": {
@@ -1485,6 +1534,14 @@
      0.0232
     ],
     "scenes": 743
+   },
+   "navtest_single": {
+    "difference": -0.0024,
+    "ci_drives": [
+     -0.0076,
+     0.0024
+    ],
+    "scenes": 12146
    }
   },
   "D-R": {
@@ -1499,6 +1556,14 @@
      -0.015
     ],
     "scenes": 743
+   },
+   "navtest_single": {
+    "difference": -0.0165,
+    "ci_drives": [
+     -0.0242,
+     -0.009
+    ],
+    "scenes": 12146
    }
   }
  },
