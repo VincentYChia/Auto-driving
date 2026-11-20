@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-19 22:00 EST
+**Updated:** 2026-11-19 22:05 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -33,11 +33,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
 2. ~~Code: regression R as a configuration kind, with tests; queue its two phase-1 training runs.~~ **Done** (bb05104; jobs 380, 381 queued).
-3. Phase 0, navdev:
-   - **Done:** the scene filter navdev_all (2,000 tokens, 34 logs, 11 drives) in `navsim_eval/navsim_configs`; split-aware scoring and summary with a drive-cluster bootstrap; drive maps on the desktop.
-   - **Running:** the metric cache plus constant-velocity and human-path scores, Anvil job 22322227 on `wide` (est. start 22:07).
-   - **Then:** copy to the desktop and rewrite the metadata paths.
-   - **Finding:** navtest's 12,146 scenes come from only 44 drives (16–985 scenes each), so drive-level intervals on navtest will also be much wider than the scene-level ones reported so far.
+3. ~~Phase 0, navdev.~~ **Done** (02a8d7d):
+   - The cache was built on the desktop instead: Anvil's wide queue had no start estimate. It took 586 s, including the constant-velocity and human-path scores.
+   - Of the 2,000 dev-v2 scenes, 1,990 can be scored. navtest's filter removes 1,071 near-trivial scenes (constant velocity > 0.8) and 217 noisy labels (human < 0.8).
+   - **navdev = 743 scenes from 11 drives.** Choices made on it stay unbiased for navtest, but they will be noisy. The limit is the 11 drives, not the scene count, so more scenes from the same drives would barely narrow the per-drive intervals.
+   - navtest's 12,146 scenes come from 44 drives.
 4. Phase 0:
    - **Difficulty filter: verified.** navtest's own rule (constant velocity PDMS ≤ 0.8 and human PDMS ≥ 0.8) keeps 12,129 of 12,146 navtest scenes (99.86%). It is applied to navdev once its scores exist.
    - **Leakage audit: passes** (`docs/navsim_eval/results/heads_leakage_audit_2026-11-19.json`):
@@ -53,8 +53,14 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - scores navtest for the report.
    - Its status is `~/navsim_workspace/exp/heads/driver_status.json`; its log is `driver.log`.
    - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
-7. Phase 1: navdev and navtest paths and scores for all 10 runs; the per-method layer choice.
-8. RL code (phase 4), written and tested while phases 2–3 train.
+7. Phase 1: navdev and navtest paths and scores for all 10 runs; each method's layer choice. **Under way:** the driver scores as the GPU jobs land.
+8. RL code (phase 4), A and D first:
+   - **Written and tested:**
+     - the PDM scoring service (`pdm_server.py`), which scores each candidate alone next to the PDM-Closed reference, exactly as run_pdm_score does;
+     - the policies (`Head.rl_sample` / `rl_logprob`): A's exact token log-probability, and D's anchor draw plus its stochastic refinement;
+     - the trainer (`rl_head.py`).
+   - **Next:** check the service against official scores and measure its speed; a 200-update trial on A1 (needs part of the navtrain cache); then B's and C's policies.
+   - **To watch:** in a toy test, RL on A's 0.1 m bins (951 values for x) gave a weak signal over 25 updates, while 5 m bins learned at once. Each sampled path reinforces only its own bins. Phase 4 measures whether this costs A.
 9. **Report at 12:00 Fri Nov 20.**
 
 ## Waiting on the researcher
