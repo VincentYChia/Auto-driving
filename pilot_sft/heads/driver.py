@@ -613,6 +613,14 @@ def recipe_stage() -> Optional[int]:
         if not start:
             return None
         ready_methods[m] = (lc, start)
+    for r in RECIPES:  # every recipe run is queued before any scoring, which can take a while
+        for m in RECIPE_METHODS:
+            lc, start = ready_methods[m]
+            if recipe_run(r, lc["kind"]) == r:
+                queue_job(f"351{r}{m.lower()}_rlrecipe-{lc['run']}",
+                          f"R{12 if r < 4 else 13} recipe RL{r} on {lc['run']} (seed 0, from epoch {start['epoch']}, "
+                          "500 updates)", rl_body(lc, lc["run"], f"{lc['run']}-rlrecipe{r}", start["epoch"], 0, r,
+                                                  RECIPE_CHECKPOINTS))
     gains, per_recipe, stand_in = {}, {}, {}
     for r in RECIPES:
         per = {}
@@ -620,11 +628,7 @@ def recipe_stage() -> Optional[int]:
             lc, start = ready_methods[m]
             q = recipe_run(r, lc["kind"])
             rl = f"{lc['run']}-rlrecipe{q}"
-            if q == r:
-                queue_job(f"351{r}{m.lower()}_rlrecipe-{lc['run']}",
-                          f"R{12 if r < 4 else 13} recipe RL{r} on {lc['run']} (seed 0, from epoch {start['epoch']}, "
-                          "500 updates)", rl_body(lc, lc["run"], rl, start["epoch"], 0, r, RECIPE_CHECKPOINTS))
-            else:
+            if q != r:
                 stand_in[f"RL{r} on {m}"] = f"RL{q} (the same settings for {lc['kind']})"
             ch = rl_choose(rl, lc, lc["run"], start["epoch"], RECIPE_CHECKPOINTS, navtest=False)
             if ch:
