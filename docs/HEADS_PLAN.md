@@ -190,6 +190,12 @@ Every run's navtest scores are reported.
   - B and C: s = 0, once their policies exist: B, stochastic DDPM steps with the noise SD floored at 0.01 as for D; C, Flow-GRPO's SDE, its noise level read from the Flow-GRPO paper and code first.
   - R: no RL, since it has no stochastic policy. It stays a supervised control.
 - **Evaluation:** each RL run saves checkpoints at 250, 500, …, 1,500 updates, and each is scored on navdev: the single path (temperature 0) and best-of-6 at the chosen setting.
+- **B's and C's RL samplers** (fixed 2026-11-19 ~23:10, before any RL result):
+  - **B:** stochastic DDIM (eta 1) from `scale` × unit noise, with the per-step noise SD floored at 0.01 as for D. The log-density is that of every step.
+  - **C:** Flow-GRPO's SDE (arXiv 2505.05470; read 2026-11-19 from its paper and its code `sde_step_with_logprob`), with noise level a = 0.7, the code default (paper §5.3: "a=0.7"). Two adaptations, both needed for our flow:
+    - Our start noise has SD c = 0.1, not 1. The score becomes −(z − τv)/(c²(1 − τ)), and σ_t = a·c·√(t/(1−t)), which keeps the SDE scale-equivariant. Here t = 1 − τ is Flow-GRPO's time, with 1 = noise.
+    - σ and the drift's coefficient are taken at each step's midpoint, since σ_t is infinite at the noise end (Flow-GRPO's code avoids that point too).
+  - Evaluation for both uses the deterministic samplers (DDIM eta 0, Euler), as in Flow-GRPO.
 - **The RL checkpoint** is the one with the highest navdev single-path PDMS; a tie goes to the earlier checkpoint.
 - **The decision** (R5) uses each method's seed-averaged navdev single-path PDMS at its RL checkpoint. navtest scores are reported for every checkpoint used.
 - **Measured:** the RL scoring service equals NAVSIM's official per-scene scores, with a maximum difference of 0.0 on 200 navtest scenes. It scores 71.8 paths/s with 4 workers at 8 candidates per scene, so a 1,500-update run needs about 1 h of scoring.

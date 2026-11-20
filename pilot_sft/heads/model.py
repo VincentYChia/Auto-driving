@@ -536,6 +536,68 @@ class Head(nn.Module):
             total.append(lp)
         return torch.stack(total, 1)
 
+    # ---- RL for the continuous methods (B, C) ---------------------------------------------------------------
+    FLOW_GRPO_A = 0.7  # Flow-GRPO's noise level a (its code default, paper section 5.3)
+
+    def _flow_sde_step(self, z, v, tau, dtau):
+        """One step of Flow-GRPO's SDE in our time (tau: 0 = noise, 1 = data; Flow-GRPO's t = 1 - tau).
+
+        Our start noise has SD c = ``flow_sigma``, so the score is -(z - tau v) / (c^2 (1 - tau)), and
+        sigma_t = a c sqrt(t / (1 - t)) keeps Flow-GRPO's SDE scale-equivariant. That gives
+        mean = z + v dtau - a^2 / (2 tau_m) (z - tau v) dtau and SD = a c sqrt((1 - tau_m) / tau_m) sqrt(dtau),
+        with tau_m = tau + dtau / 2: Flow-GRPO's sigma is infinite at the noise end, which its code also avoids."""
+        a, c = self.FLOW_GRPO_A, self.cfg.flow_sigma
+        tm = tau + dtau / 2
+        mu = z + v * dtau - (a ** 2) / (2 * tm) * (z - tau * v) * dtau
+        sd = a * c * math.sqrt((1 - tm) / tm) * math.sqrt(dtau)
+        return mu, torch.tensor(sd, device=z.device)
+
+    @torch.no_grad()
+    def cont_rl_sample(self, kvs, mem_mask, ego, g: int, steps: int, scale: float, generator=None):
+        """G candidates per scene for RL. B: stochastic DDIM (eta 1, noise SD floored at 0.01 as for D) from a start
+        of ``scale`` x unit noise. C: Flow-GRPO's SDE (``_flow_sde_step``) from ``scale`` x its training noise.
+        Returns metres [B, G, 8, 2] and the trace ``cont_logprob`` needs."""
+        b, dev = ego.shape[0], ego.device
+        shape = (b, g, N_WP, 2)
+        if self.cfg.kind == "ddim":
+            z = torch.randn(shape, device=dev, generator=generator) * scale
+            ts = torch.linspace(1.0, 0.0, steps + 1, device=dev)
+            seq = [z]
+            for i in range(steps):
+                x0 = self.cont_forward(z, kvs, mem_mask, ego, ts[i].expand(b), g).float()
+                mu, sig = self._anchor_step(z, x0, ts[i], ts[i + 1])
+                z = mu + sig * torch.randn(shape, device=dev, generator=generator)
+                seq.append(z)
+        else:
+            z = torch.randn(shape, device=dev, generator=generator) * self.cfg.flow_sigma * scale
+            seq = [z]
+            for i in range(steps):
+                tau = i / steps
+                v = self.cont_forward(z, kvs, mem_mask, ego, torch.full((b,), tau, device=dev), g).float()
+                mu, sd = self._flow_sde_step(z, v, tau, 1.0 / steps)
+                z = mu + sd * torch.randn(shape, device=dev, generator=generator)
+                seq.append(z)
+        return self.denorm(z), {"kind": self.cfg.kind, "z": torch.stack(seq), "steps": steps, "k": g}
+
+    def cont_logprob(self, kvs, mem_mask, ego, trace: dict) -> torch.Tensor:
+        """Log-probability [B, G] of B's or C's sampled candidates, with gradients: the Gaussian log-density of every
+        stochastic step (the start noise does not depend on the network)."""
+        z, steps, g = trace["z"], trace["steps"], trace["k"]  # z [steps+1, B, G, 8, 2]
+        b, dev = z.shape[1], z.device
+        ts = torch.linspace(1.0, 0.0, steps + 1, device=dev)
+        lp = torch.zeros(b, g, device=dev)
+        for i in range(steps):
+            if trace["kind"] == "ddim":
+                x0 = self.cont_forward(z[i], kvs, mem_mask, ego, ts[i].expand(b), g).float()
+                mu, sd = self._anchor_step(z[i], x0, ts[i], ts[i + 1])
+            else:
+                tau = i / steps
+                v = self.cont_forward(z[i], kvs, mem_mask, ego, torch.full((b,), tau, device=dev), g).float()
+                mu, sd = self._flow_sde_step(z[i], v, tau, 1.0 / steps)
+            d = (z[i + 1] - mu) / sd
+            lp = lp + (-0.5 * d ** 2 - torch.log(sd) - 0.5 * math.log(2 * math.pi)).sum((-1, -2))
+        return lp
+
     # ---- RL entry points ---------------------------------------------------------------------------------------
     @torch.no_grad()
     def rl_sample(self, feats, mask, ego, g: int, steps: int, scale: float, generator=None):
@@ -547,7 +609,9 @@ class Head(nn.Module):
             return xy, trace
         if self.cfg.kind == "anchor":
             return self.anchor_rl_sample(kvs, mem_mask, ego, g, steps, scale, generator)
-        raise NotImplementedError(f"RL for '{self.cfg.kind}' is not written yet (A and D come first; plan phase 4)")
+        if self.cfg.kind in ("ddim", "flow"):
+            return self.cont_rl_sample(kvs, mem_mask, ego, g, steps, scale, generator)
+        raise NotImplementedError(f"no RL policy for '{self.cfg.kind}': R has no stochastic policy (docs/HEADS_PLAN.md R11)")
 
     def rl_logprob(self, feats, mask, ego, trace: dict) -> torch.Tensor:
         """The exact log-probability [B, G] of the candidates ``rl_sample`` drew, with gradients."""
@@ -556,6 +620,8 @@ class Head(nn.Module):
             return self.masked_logprob(kvs, mem_mask, ego, trace)
         if trace["kind"] == "anchor":
             return self.anchor_logprob(kvs, mem_mask, ego, trace)
+        if trace["kind"] in ("ddim", "flow"):
+            return self.cont_logprob(kvs, mem_mask, ego, trace)
         raise NotImplementedError(trace["kind"])
 
     # ---- regression (R) ---------------------------------------------------------------------------------------

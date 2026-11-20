@@ -50,14 +50,14 @@ def test_anchor_logprob_is_finite_has_gradients_and_depends_on_the_pick():
         assert not torch.allclose(head.rl_logprob(feats, mask, ego, other), lp.detach())
 
 
-def test_rl_is_not_silently_run_for_methods_without_a_policy_yet():
-    head = tiny("ddim")
+def test_regression_has_no_rl_policy():
+    head = tiny("regression")
     feats, mask, ego, _ = batch()
     with pytest.raises(NotImplementedError):
         head.rl_sample(feats, mask, ego, g=2, steps=2, scale=1.0)
 
 
-@pytest.mark.parametrize("kind", ["masked", "anchor"])
+@pytest.mark.parametrize("kind", ["masked", "anchor", "ddim", "flow"])
 def test_policy_gradient_raises_a_toy_reward(kind):
     """Reward = the end point's x coordinate. Group-relative advantages and -A * log p should push it up."""
     torch.manual_seed(0)
@@ -83,7 +83,7 @@ def test_policy_gradient_raises_a_toy_reward(kind):
     assert mean_reward() > before
 
 
-@pytest.mark.parametrize("kind", ["masked", "anchor"])
+@pytest.mark.parametrize("kind", ["masked", "anchor", "ddim", "flow"])
 def test_one_step_moves_probability_toward_the_better_candidate(kind):
     """Two candidates, rewards 1 and 0 (advantages +1 and -1): one small gradient step on -A * log p widens the
     gap log p(better) - log p(worse). That gap is the quantity the update raises to first order. Each value alone
@@ -99,3 +99,24 @@ def test_one_step_moves_probability_toward_the_better_candidate(kind):
     opt.step()
     after = head.rl_logprob(feats, mask, ego, trace).detach()
     assert (after[0, 0] - after[0, 1]) > (before[0, 0] - before[0, 1])
+
+
+@pytest.mark.parametrize("kind", ["ddim", "flow"])
+def test_continuous_logprob_is_finite_and_has_gradients(kind):
+    head = tiny(kind)
+    feats, mask, ego, _ = batch()
+    xy, trace = head.rl_sample(feats, mask, ego, g=3, steps=2, scale=1.0, generator=torch.Generator().manual_seed(4))
+    assert xy.shape == (3, 3, 8, 2) and trace["z"].shape == (3, 3, 3, 8, 2)
+    lp = head.rl_logprob(feats, mask, ego, trace)
+    assert lp.shape == (3, 3) and torch.isfinite(lp).all()
+    lp.sum().backward()
+    assert head.out.weight.grad.abs().sum() > 0
+
+
+def test_flow_sde_reduces_to_the_euler_ode_without_noise(monkeypatch):
+    """With Flow-GRPO's noise level a = 0 the SDE step is exactly the deterministic Euler step used in evaluation."""
+    head = tiny("flow")
+    monkeypatch.setattr(head, "FLOW_GRPO_A", 0.0)
+    z, v = torch.randn(2, 1, 8, 2), torch.randn(2, 1, 8, 2)
+    mu, sd = head._flow_sde_step(z, v, 0.5, 0.25)
+    assert torch.allclose(mu, z + 0.25 * v) and float(sd) == 0.0
