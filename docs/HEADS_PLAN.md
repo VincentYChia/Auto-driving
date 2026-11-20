@@ -355,7 +355,7 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
     - direct target: BCE on the PDMS;
     - listwise: KL between softmaxes over the scene's candidates of the min-max-normalised true and predicted PDMS at temperature 0.5, weight 0.25;
     - imitation: a sixth output trained by soft cross-entropy towards softmax(−ADE to the logged path / 1 m) over the scene's candidates, entering selection as predicted PDMS × q^0.1 (WoTE's weight).
-    - The boundary-path generator is not written yet.
+    - boundary paths (`boundary_paths.py`, fixed 13:13, before any run on real data): 16 perturbations of each RL scene's logged path. Twelve are lateral, an offset along each waypoint's left normal that grows linearly to d at 4 s, d in {±0.5, ±1, ±1.5, ±2, ±3, ±4} m. Four are longitudinal, each waypoint moved to 0.6, 0.8, 1.2 or 1.4 times its distance along the path. All are scored by the PDM scoring service. On each lateral side and each longitudinal direction, the scorer finds the first perturbation that fails NC or DAC. Per scene, 4 are kept: the last passing and the first failing perturbation on the lateral side that fails first, and the same pair in the longitudinal direction that fails first. Without a failure, the outermost are kept. They are training-only candidates (`train_selector.py --extra-candidates`); selection never sees them. Cost [D]: 80,626 × 16 = 1.29M scored paths, about 1.8 h of desktop CPU at 200 paths/s.
 - **Cost** [D]:
   - Each candidate set is about 80,626 × 7 = 564k paths, about 50 min at the 190–210 paths/s measured in our RL runs.
   - The two half generators add about 2 × 4 h of GPU time: about 1 h of training on half the data, and about 3 h for 5,000 RL updates (the recipe runs took 17–20 min per 500).

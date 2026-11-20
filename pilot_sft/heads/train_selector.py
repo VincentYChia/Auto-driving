@@ -83,12 +83,25 @@ def scores_from_jsonl(path: str, names: List[str]) -> Dict[str, Tuple[np.ndarray
     return out
 
 
-class CandidateSet:
-    """Candidates of scenes in one stored-feature split: rows, waypoints, true sub-scores, PDMS and validity."""
+def folder_names(paths: str) -> List[str]:
+    """Every candidate folder of a steps folder, sorted (for extra candidates such as boundary_0 ... boundary_3)."""
+    names = sorted(d for d in os.listdir(paths) if os.path.isfile(os.path.join(paths, d, "shard_000_of_001.jsonl")))
+    if not names:
+        raise SystemExit(f"no candidate folders in {paths}")
+    return names
 
-    def __init__(self, store: features.Store, pairs: List[Tuple[str, str]], scale: float, k: int):
+
+class CandidateSet:
+    """Candidates of scenes in one stored-feature split: rows, waypoints, true sub-scores, PDMS and validity.
+
+    ``extras`` (path folder, score file) pairs add training-only candidates per scene, such as R14's boundary paths:
+    ``xy_extra`` etc. ``[N, E, ...]``, invalid where a scene has none. Selection never sees them."""
+
+    def __init__(self, store: features.Store, pairs: List[Tuple[str, str]], scale: float, k: int,
+                 extras: Optional[List[Tuple[str, str]]] = None):
         row_of = {bare(i): r for r, i in enumerate(store.ids)}
         rows, xy, sub, pdms, valid, seen = [], [], [], [], [], set()
+        self_tokens: List[str] = []
         self.sources = []
         for paths, scores in pairs:
             names = candidate_names(paths, scale, k)
@@ -103,6 +116,7 @@ class CandidateSet:
                 raise SystemExit(f"{len(dup)} scenes appear in two candidate sets, e.g. {dup[0]}")
             seen.update(toks)
             for t in toks:
+                self_tokens.append(t)
                 rows.append(row_of[t])
                 xy.append(P[t])
                 sub.append(S[t][0])
@@ -112,12 +126,50 @@ class CandidateSet:
                                  "scenes": len(toks), "unscored": len(P) - len(toks)})
         if not rows:
             raise SystemExit("no scored candidates")
+        self.tokens = self_tokens
         self.rows, self.xy = np.asarray(rows), np.stack(xy)
         self.sub, self.pdms, self.valid = np.stack(sub), np.stack(pdms), np.stack(valid)
         self.drives = np.array([drive_map.drive_of_id(store.ids[r]) for r in self.rows])
+        self.n_extra, self.extra_sources = 0, []
+        if extras:
+            per: Dict[str, list] = {}
+            for paths, scores in extras:
+                names = folder_names(paths)
+                P, S = read_paths(paths, names), scores_from_jsonl(scores, names)
+                for t in P:
+                    if t in S:
+                        per.setdefault(t, []).append((P[t], *S[t]))
+                self.extra_sources.append({"paths": os.path.abspath(paths), "scores": os.path.abspath(scores),
+                                           "names": names, "scenes": sum(1 for t in P if t in S)})
+            self.n_extra = max((sum(len(p[0]) for p in v) for v in per.values()), default=0)
+            n, e = len(self.rows), self.n_extra
+            self.xy_extra = np.zeros((n, e, *self.xy.shape[2:]), dtype=np.float32)
+            self.sub_extra = np.zeros((n, e, len(sl.SUBS)), dtype=np.float32)
+            self.pdms_extra = np.zeros((n, e), dtype=np.float32)
+            self.valid_extra = np.zeros((n, e), dtype=bool)
+            for i, t in enumerate(self.tokens):
+                if t in per:
+                    x = [np.concatenate(z) for z in zip(*per[t])]
+                    m = len(x[0])
+                    self.xy_extra[i, :m], self.sub_extra[i, :m], self.pdms_extra[i, :m], self.valid_extra[i, :m] = x
         self.ade = None
         if store.has_targets:  # the imitation ablation's target: each candidate's ADE to the logged path
-            self.ade = np.linalg.norm(self.xy - store.target_xy[self.rows][:, None], axis=-1).mean(-1)
+            logged = store.target_xy[self.rows][:, None]
+            self.ade = np.linalg.norm(self.xy - logged, axis=-1).mean(-1)
+            if self.n_extra:
+                self.ade_extra = np.linalg.norm(self.xy_extra - logged, axis=-1).mean(-1)
+
+    def training(self, idx: np.ndarray) -> Dict[str, np.ndarray]:
+        """The training candidates of scenes ``idx``: the deployed ones, then any extra ones."""
+        out = {"xy": self.xy[idx], "sub": self.sub[idx], "pdms": self.pdms[idx], "valid": self.valid[idx],
+               "ade": self.ade[idx] if self.ade is not None else None}
+        if self.n_extra:
+            for k, x in (("xy", self.xy_extra), ("sub", self.sub_extra), ("pdms", self.pdms_extra),
+                         ("valid", self.valid_extra)):
+                out[k] = np.concatenate([out[k], x[idx]], axis=1)
+            if out["ade"] is not None:
+                out["ade"] = np.concatenate([out["ade"], self.ade_extra[idx]], axis=1)
+        return out
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -147,6 +199,8 @@ def main() -> None:
     p.add_argument("--cache", required=True, help="the stored-feature split holding the candidate scenes (train)")
     p.add_argument("--generator", required=True, help="the chosen path generator's weights (.pt): statistics, layers")
     p.add_argument("--candidates", nargs=2, action="append", required=True, metavar=("PATHS", "SCORES"))
+    p.add_argument("--extra-candidates", nargs=2, action="append", default=None, metavar=("PATHS", "SCORES"),
+                   help="training-only candidates, every folder in PATHS (ablation: boundary_paths.py pick's output)")
     p.add_argument("--scale", type=float, required=True, help="the method's chosen sampling setting")
     p.add_argument("--k", type=int, default=6, help="samples per scene besides the own pick")
     p.add_argument("--out", required=True)
@@ -175,7 +229,8 @@ def main() -> None:
     gen = torch.load(args.generator, map_location="cpu", weights_only=False)
     layers = [int(x) for x in args.layers.split(",")] if args.layers else list(gen["config"]["layers"])
     store = features.Store(args.cache, layers)
-    cs = CandidateSet(store, [tuple(c) for c in args.candidates], args.scale, args.k)
+    cs = CandidateSet(store, [tuple(c) for c in args.candidates], args.scale, args.k,
+                      [tuple(c) for c in args.extra_candidates] if args.extra_candidates else None)
     held = drive_map.heldout_drives([store.ids[r] for r in cs.rows], args.heldout_drives, seed=0)
     is_held = np.isin(cs.drives, sorted(held))
     train_idx, held_idx = np.flatnonzero(~is_held), np.flatnonzero(is_held)
@@ -213,6 +268,7 @@ def main() -> None:
            "scenes": {"train": int(len(train_idx)), "heldout": int(len(held_idx))},
            "drives": {"train": int(len(set(cs.drives[train_idx]))), "heldout": sorted(held)},
            "candidates_per_scene": int(cs.xy.shape[1]), "unscorable_candidates": int((~cs.valid).sum()),
+           "extra_candidates_per_scene": cs.n_extra, "extra_sources": cs.extra_sources,
            "rule": "docs/HEADS_PLAN.md R14", "device": torch.cuda.get_device_name(0) if device == "cuda" else "cpu"}
     with open(os.path.join(args.out, "run.json"), "w", encoding="utf-8") as f:
         json.dump(run, f, indent=1)
@@ -230,10 +286,11 @@ def main() -> None:
         t_epoch = time.time()
         for part, b in zip(slices, batches(store, [int(r) for s in slices for r in cs.rows[s]], args.batch, args.workers)):
             t = to_torch(b, device)
+            c = cs.training(part)
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device == "cuda"):
-                logits = model(t["feats"], t["mask"], t["ego"], T(cs.xy[part]))
-            out = sl.loss(logits, T(cs.sub[part]), T(cs.pdms[part]), T(cs.valid[part]), cfg,
-                          T(cs.ade[part]) if cs.ade is not None else None)
+                logits = model(t["feats"], t["mask"], t["ego"], T(c["xy"]))
+            out = sl.loss(logits, T(c["sub"]), T(c["pdms"]), T(c["valid"]), cfg,
+                          T(c["ade"]) if c["ade"] is not None else None)
             opt.zero_grad(set_to_none=True)
             out["loss"].backward()
             gn = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
