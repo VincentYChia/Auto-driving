@@ -30,12 +30,20 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - NAVSIM scores to come (navtest, for the report; the choice will be made on navdev once it exists).
 - **NAVSIM scoring now runs on the desktop.** H1 re-scored there matches Anvil on all 12,146 scenes: PDMS 0.856069 on both, with 53 ego-progress values off by at most 1.3e-11 from CPU rounding.
 
-## Next (the week plan: `pilot_sft/EXPERIMENTS.md`, "Path-generator heads: the week of 2026-11-19")
-1. Layer test: score both training runs, then fix the stored layers by the rule set in advance.
-2. Method A's continuity series (A0, A2, A3, A4, A-0.25m, A-0.05m), then configurations D, B and C.
-3. Second seeds.
-4. A short matched RL stage.
-5. The choice of generation method by the decision rule. With a clear winner, the selector and the full RL stage; on a tie, wait for the researcher.
+## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
+1. Code: temperature 0 means the deterministic best guess for every method (B and C from the zero-noise start; D's anchors without starting noise); the generate argument is a per-method sampling scale for the R7 grids.
+2. Code: regression R as a configuration kind, with tests. Queue its two phase-1 training runs.
+3. Phase 0, navdev:
+   - the scene filter for the 2,000 dev-v2 tokens;
+   - the metric cache on Anvil's CPUs from only the 40 needed trainval logs;
+   - a copy on the desktop;
+   - scoring and a drive-cluster bootstrap for navdev and navtest.
+4. Phase 0: the difficulty filter as navtest's, checked on navtest; the leakage audit; navdev's resolution measured; references scored (constant velocity, H1's text output).
+5. Phase 0: commit rules R1–R9 and the phase-4 RL settings, and record the hash here.
+6. Script the phase-1 choices on navdev and the phase transitions on the desktop, so the GPU queue keeps moving without the session.
+7. Phase 1: navdev and navtest paths and scores for all 10 runs; the per-method layer choice.
+8. RL code (phase 4), written and tested while phases 2–3 train.
+9. **Report at 12:00 Fri Nov 20.**
 
 ## Waiting on the researcher
 - Nothing. **The plan (`docs/HEADS_PLAN.md`, revision 2) was approved 2026-11-19 ~21:00, and the HOLD is lifted.** Two clarifications are in the plan's header:
