@@ -874,7 +874,7 @@ R15_TUNING = {  # R15: 4 runs over each method's own main settings (A: its phase
     "C": [["--flow-sigma", "0.3"], ["--flow-sigma", "1.0"], ["--time-sampling", "beta"], ["--time-sampling", "logit-normal"]],
     "D": [["--anchors", "10"], ["--anchors", "40"], ["--anchor-trunc", "0.02"], ["--anchor-trunc", "0.1"]],
 }
-R15_READY: set = {"D"}  # methods whose R15 training flags exist in train_head.py (D: --anchors, --anchor-trunc)
+R15_READY: set = {"B", "C", "D"}  # methods whose R15 training flags exist in train_head.py
 
 
 R16_CONTENDERS = (("A", 4), ("A", 6), ("D", 4), ("D", 6))  # R16: at least A and D, each under RL4 and RL6

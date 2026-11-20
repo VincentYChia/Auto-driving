@@ -191,19 +191,24 @@ def test_phase6_takes_a_under_both_recipes_through_full_rl_to_the_selector_specs
     assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("350_navtest-a1")]  # no navtest yet (R16)
 
 
-def test_phase6_queues_d_tuning_and_holds_methods_without_their_flags(tree):  # noqa: F811
+def test_phase6_queues_tuning_runs_and_holds_methods_without_their_flags(tree, monkeypatch):  # noqa: F811
     for run in ("d-l24", "d-l12-18-24", "b-l24", "b-l12-18-24"):
         make_run(run, "anchor" if run.startswith("d") else "ddim")
     choices = Path(driver.P["heads"]) / "choices"
     choices.mkdir(parents=True, exist_ok=True)
     (choices / "phase6_gate_bc.json").write_text(json.dumps({"B": {"joins": True}, "C": {"joins": False}}))
     assert driver.contenders() == [("A", 4), ("A", 6), ("D", 4), ("D", 6), ("B", 4), ("B", 6)]
+    monkeypatch.setattr(driver, "R15_READY", {"D"})  # B admitted, but without its training flags: held
     driver.phase6({})
-    lc = driver.choose_layers("D")
-    tag = driver.layers_tag(lc["layers"])
+    tag = driver.layers_tag(driver.choose_layers("D")["layers"])
     jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("46"))
     assert jobs == [f"46d{i}_train-d-r15{i}-{tag}.sh" for i in range(4)]  # queued once for both of D's recipes
     assert "--anchor-trunc 0.02" in (Path(driver.P["queue"]) / f"46d2_train-d-r152-{tag}.sh").read_text()
+    monkeypatch.setattr(driver, "R15_READY", {"B", "C", "D"})  # B's flags exist: its 4 runs follow
+    driver.phase6({})
+    jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("46b"))
+    assert jobs == [f"46b{i}_train-b-r15{i}-{tag}.sh" for i in range(4)]
+    assert "--target eps --schedule linear" in (Path(driver.P["queue"]) / f"46b3_train-b-r153-{tag}.sh").read_text()
     assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("47")]  # nothing until the tuning is done
 
 

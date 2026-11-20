@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 14:51 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 16:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -157,7 +157,12 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - the final system is chosen on navdev, then every contender is scored once on navtest.
       - D's tuning runs (R15) need `--anchor-trunc`, which `train_head.py` now has. They are queued now and run after phase 4.
       - 4 new tests; all 106 heads tests pass.
-    - **Next:** B's and C's tuning flags, only if they join phase 6.
+    - **Done 16:43: B's and C's R15 training flags**, ready before the gate decides, so admitted methods start tuning the same day.
+      - B: the network can predict the noise or v instead of the clean path (`--target`), with DDPM's linear schedule as an alternative (`--schedule`).
+      - C: training times can follow pi0's Beta or SD3's logit-normal (`--time-sampling`).
+      - Training, generation, RL sampling and RL log-probabilities all use the same clean-path estimate. The defaults reproduce phase 1 exactly.
+      - 10 new tests; all 116 heads tests pass. The driver now holds no method back for missing flags.
+    - **Next:** analysis while the GPU trains: where H1's text output beats every path generator's own pick (sub-scores, scene types), and what R's regression gets right.
 
 ## Waiting on the researcher
 - **Nothing is waiting on you.** Your 13:45 answers, now R16 in `docs/HEADS_PLAN.md`, registered 13:51 before any phase-4 run had started:

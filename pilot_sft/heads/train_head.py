@@ -114,6 +114,10 @@ def main() -> None:
     p.add_argument("--anchors", type=int, default=20)
     p.add_argument("--anchor-trunc", type=float, default=0.05,
                    help="D: the noise level the anchors start from, as a share of the schedule (R15 tunes it)")
+    p.add_argument("--target", default="x0", choices=("x0", "eps", "v"), help="B: what the network predicts (R15)")
+    p.add_argument("--schedule", default="cosine", choices=("cosine", "linear"), help="B: the noise schedule (R15)")
+    p.add_argument("--time-sampling", default="uniform", choices=("uniform", "beta", "logit-normal"),
+                   help="C: how training times are drawn (R15)")
     p.add_argument("--epochs", type=int, default=20)
     p.add_argument("--batch", type=int, default=256)
     p.add_argument("--lr", type=float, default=1e-4)
@@ -139,7 +143,8 @@ def main() -> None:
     cfg = hm.HeadConfig(kind=args.kind, layers=train.layers, d_in=train.width, width=args.width, depth=args.depth,
                         heads=args.heads, max_tokens=max(train.tokens, dev.tokens), bin_m=args.bin_m,
                         metric_embed=not args.no_metric_embed, soft_sigma=args.soft_sigma, l1_weight=args.l1_weight,
-                        offset=args.offset, flow_sigma=args.flow_sigma, anchors=args.anchors, anchor_trunc=args.anchor_trunc,
+                        offset=args.offset, flow_sigma=args.flow_sigma, anchors=args.anchors, anchor_trunc=args.anchor_trunc, target=args.target, schedule=args.schedule,
+                        time_sampling=args.time_sampling,
                         steps=args.steps or default_steps)
     ckpt_path = os.path.join(args.out, "checkpoint.pt")
     resume = torch.load(ckpt_path, map_location="cpu", weights_only=False) if args.resume and os.path.exists(ckpt_path) else None

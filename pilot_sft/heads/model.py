@@ -64,6 +64,10 @@ class HeadConfig:
     anchors: int = 20
     anchor_trunc: float = 0.05  # DiffusionDrive: 50 of 1,000 noise steps
     steps: int = 4
+    # R15's tuning settings (docs/HEADS_PLAN.md); the defaults are the phase-1 configurations
+    target: str = "x0"  # B: what the network predicts: x0 (the clean path), eps (the noise) or v
+    schedule: str = "cosine"  # B: cosine, or linear (DDPM's beta from 1e-4 to 0.02 over 1,000 steps)
+    time_sampling: str = "uniform"  # C's training times: uniform, beta (pi0) or logit-normal (SD3)
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -219,9 +223,38 @@ class Head(nn.Module):
     def denorm(self, z):
         return z * self.std + self.mean
 
-    @staticmethod
-    def alpha_bar(t: torch.Tensor) -> torch.Tensor:  # cosine schedule, t in [0, 1]
-        return torch.cos((t.clamp(0, 1) + 0.008) / 1.008 * math.pi / 2) ** 2
+    def alpha_bar(self, t: torch.Tensor) -> torch.Tensor:
+        """The signal share at noise level t in [0, 1]: the cosine schedule, or with ``schedule="linear"`` DDPM's
+        betas from 1e-4 to 0.02 over 1,000 steps in continuous time: alpha_bar(1) = 4.3e-5 (DDPM's discrete product
+        gives 4.0e-5)."""
+        t = t.clamp(0, 1)
+        if self.cfg.schedule == "linear":
+            return torch.exp(-1000.0 * (1e-4 * t + (0.02 - 1e-4) * t ** 2 / 2))
+        return torch.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2
+
+    def ddim_x0(self, out: torch.Tensor, z: torch.Tensor, a: torch.Tensor) -> torch.Tensor:
+        """B's clean-path estimate from the network output ``out`` at the noisy ``z`` with signal share ``a``, by
+        ``cfg.target`` (R15). The noise target's estimate is clipped to +-6 SD (normalised), as DDPM samplers clip
+        theirs; DDIM then recomputes the noise from the clipped estimate."""
+        if self.cfg.target == "x0":
+            return out
+        if self.cfg.target == "eps":
+            return ((z - (1 - a).sqrt() * out) / a.sqrt().clamp_min(1e-3)).clamp(-6.0, 6.0)
+        if self.cfg.target == "v":
+            return a.sqrt() * z - (1 - a).sqrt() * out
+        raise ValueError(f"unknown target {self.cfg.target}")
+
+    def flow_times(self, b: int, dev) -> torch.Tensor:
+        """C's training times (0 = noise, 1 = data): uniform; pi0's tau = 0.999 (1 - u), u ~ Beta(1.5, 1), weighted
+        toward the noisy end; or SD3's logit-normal(0, 1)."""
+        if self.cfg.time_sampling == "beta":
+            u = torch.distributions.Beta(torch.tensor(1.5, device=dev), torch.tensor(1.0, device=dev)).sample((b,))
+            return 0.999 * (1 - u)
+        if self.cfg.time_sampling == "logit-normal":
+            return torch.sigmoid(torch.randn(b, device=dev))
+        if self.cfg.time_sampling != "uniform":
+            raise ValueError(f"unknown time sampling {self.cfg.time_sampling}")
+        return torch.rand(b, device=dev)
 
     # ---- masked (A) -------------------------------------------------------------------------------------------
     def bins(self, xy: torch.Tensor) -> torch.Tensor:
@@ -409,12 +442,15 @@ class Head(nn.Module):
 
     def cont_loss(self, kvs, mem_mask, ego, xy):
         b, x1 = xy.shape[0], self.norm(xy)[:, None]
-        t = torch.rand(b, device=xy.device)
         if self.cfg.kind == "ddim":
+            t = torch.rand(b, device=xy.device)
             a = self.alpha_bar(t)[:, None, None, None]
-            zt = a.sqrt() * x1 + (1 - a).sqrt() * torch.randn_like(x1)
-            loss = F.mse_loss(self.cont_forward(zt, kvs, mem_mask, ego, t).float(), x1)
+            noise = torch.randn_like(x1)
+            zt = a.sqrt() * x1 + (1 - a).sqrt() * noise
+            target = {"x0": x1, "eps": noise, "v": a.sqrt() * noise - (1 - a).sqrt() * x1}[self.cfg.target]
+            loss = F.mse_loss(self.cont_forward(zt, kvs, mem_mask, ego, t).float(), target)
         else:
+            t = self.flow_times(b, xy.device)
             z0 = torch.randn_like(x1) * self.cfg.flow_sigma
             tt = t[:, None, None, None]
             zt = (1 - tt) * z0 + tt * x1
@@ -432,8 +468,8 @@ class Head(nn.Module):
             ts = torch.linspace(1.0, 0.0, steps + 1, device=dev)
             for i in range(steps):
                 t, tn = ts[i], ts[i + 1]
-                x0 = self.cont_forward(z, kvs, mem_mask, ego, t.expand(b), k).float()
                 a, an = self.alpha_bar(t), self.alpha_bar(tn)
+                x0 = self.ddim_x0(self.cont_forward(z, kvs, mem_mask, ego, t.expand(b), k).float(), z, a)
                 eps = (z - a.sqrt() * x0) / (1 - a).sqrt().clamp_min(1e-6)
                 z = an.sqrt() * x0 + (1 - an).sqrt() * eps
             out = z
@@ -592,7 +628,8 @@ class Head(nn.Module):
             ts = torch.linspace(1.0, 0.0, steps + 1, device=dev)
             seq = [z]
             for i in range(steps):
-                x0 = self.cont_forward(z, kvs, mem_mask, ego, ts[i].expand(b), g).float()
+                x0 = self.ddim_x0(self.cont_forward(z, kvs, mem_mask, ego, ts[i].expand(b), g).float(), z,
+                                  self.alpha_bar(ts[i]))
                 mu, sig = self._anchor_step(z, x0, ts[i], ts[i + 1])
                 z = mu + sig * torch.randn(shape, device=dev, generator=generator)
                 seq.append(z)
@@ -610,7 +647,8 @@ class Head(nn.Module):
     def _cont_mean(self, head, z, kvs, mem_mask, ego, kind, i, steps, ts, g):
         b, dev = z.shape[0], z.device
         if kind == "ddim":
-            x0 = head.cont_forward(z, kvs, mem_mask, ego, ts[i].expand(b), g).float()
+            x0 = head.ddim_x0(head.cont_forward(z, kvs, mem_mask, ego, ts[i].expand(b), g).float(), z,
+                              head.alpha_bar(ts[i]))
             return head._anchor_step(z, x0, ts[i], ts[i + 1])
         tau = i / steps
         v = head.cont_forward(z, kvs, mem_mask, ego, torch.full((b,), tau, device=dev), g).float()
