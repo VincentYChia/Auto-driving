@@ -218,7 +218,9 @@ def main() -> None:
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--weight-decay", type=float, default=0.01)
     p.add_argument("--warmup", type=int, default=1000)
-    p.add_argument("--workers", type=int, default=4)
+    # 8 readers (2026-11-20): with 4, the readers ran at 420% CPU while the 4090 was about 40% busy and disk wait
+    # was 2-3%, so reading, not the GPU, set the pace. The data order is fixed by the seed; readers only prefetch.
+    p.add_argument("--workers", type=int, default=8, help="threads reading features ahead of the GPU")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--resume", action="store_true")
     args = p.parse_args()
