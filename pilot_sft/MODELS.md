@@ -90,5 +90,12 @@ An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update
 |---|---|---|---|---|---|---|---|---|
 | `a1-l24-rl-trial` | `a1-l24` final (epoch 20) | as registered: lr 1e-5, no KL, 8 candidates × 32 scenes | 2,662 (3 training drives) | 100, 200 | 0.79 | rl_100 `797714288468da1a`, rl_200 `30025febf573336c` | yes | yes |
 | `a1-l12-18-24-rlrecipe0` | `a1-l12-18-24` epoch 20 | R12 recipe RL0 (as registered) | 80,626 (navtrain in our data) | 250, 500 | 0.81 | rl_250 `3a0d63cf9db4f15c`, rl_500 `b7dc9b3a7217bf3e` | yes | yes |
+| `a1-l12-18-24-rlrecipe1` | `a1-l12-18-24` epoch 20 | R12 RL1: lr 1e-5, KL β 0.04, 8 × 32 | 80,626 | 250, 500 | 0.82 | rl_250 `76bbe925ba243f10`, rl_500 `0d6deb00ce921927` | yes | yes |
+| `a1-l12-18-24-rlrecipe2` | `a1-l12-18-24` epoch 20 | R12 RL2: lr 3e-6, KL β 0.04, 8 × 32 | 80,626 | 250, 500 | 0.82 | rl_250 `f035f5484bd22147`, rl_500 `6b81a968e1e72ca2` | yes | yes |
+| `a1-l12-18-24-rlrecipe3` | `a1-l12-18-24` epoch 20 | R12 RL3: lr 3e-6, KL β 0.04, 16 × 16 | 80,626 | 250, 500 | 0.81 | rl_250 `9bed347cf859ab87`, rl_500 `289906f0920dab69` | yes | yes |
+| `d-l12-18-24-rlrecipe0` | `d-l12-18-24` epoch 5 | R12 RL0 (as registered) | 80,626 | 250, 500 | 0.81 | rl_250 `b09f696a9e726178`, rl_500 `56be595268e47e5c` | yes | yes |
+| `d-l12-18-24-rlrecipe1` | `d-l12-18-24` epoch 5 | R12 RL1 | 80,626 | 250, 500 | 0.81 | rl_250 `a6981d1dc8c37fc6`, rl_500 `3dc03640e2c86393` | yes | yes |
+| `d-l12-18-24-rlrecipe2` | `d-l12-18-24` epoch 5 | R12 RL2 | 80,626 | 250, 500 | 0.81 | rl_250 `a11aec0e814bc9a5`, rl_500 `0b3b86d5b99c84cf` | yes | yes |
+| `d-l12-18-24-rlrecipe3` | `d-l12-18-24` epoch 5 | R12 RL3 | 80,626 | 250, 500 | 0.78 | rl_250 `784fb59d4c021807`, rl_500 `1ae831b1d42ef387` | yes | yes |
 
 The RL trial lowered navdev's single-path PDMS (81.18 → 73.97 after 200 updates), which led to R12 in `docs/HEADS_PLAN.md`. It is kept as the evidence for that rule, not used further.

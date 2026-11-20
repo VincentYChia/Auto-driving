@@ -95,7 +95,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 7. Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice. A, B and D are done; C and R are training.
 8. **RL recipe rounds:** R12 is scored except RL2 and RL3. R13's 7 runs come next on the GPU, and the driver chooses over RL0-RL7 by itself. If a recipe helps, phase 4 starts with it; if every recipe lowers both methods, phase 4 waits for you.
 9. **Report at 12:00 Fri Nov 20:** an HTML overview on the home PC (results with drive intervals, R12 and as much of R13 as has landed, problems and fixes, next steps); the headline numbers go here.
-10. Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md` (a1-l12-18-24-rlrecipe0 is there already).
+10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done 07:17:** all 8 on both machines, checksums match. R13's runs follow when they finish.
 
 ## Waiting on the researcher
 - **A question for your 12:00 check; it blocks nothing.**
