@@ -82,6 +82,8 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `b-l24` | B (DDIM, predicts the clean path) | 24 | 0 | 20 | 40.2M | 47 min | 4.0 | `36268012f4f5179f` | yes | yes |
 | `b-l12-18-24` | B | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 3 min | 3.9 | `afa0797e37e1d862` | yes | yes |
 | `c-l24` | C (flow matching, start noise SD 0.1) | 24 | 0 | 20 | 40.2M | 40 min | 3.9 | `d55bcfc919735b40` | yes | yes |
+| `c-l12-18-24` | C | 12, 18, 24 | 0 | 20 | 41.0M | 1 h 43 min | 3.9 | `eca30a454091ef89` | yes | yes |
+| `r-l24` | R (regression control, L1 on the normalised waypoints) | 24 | 0 | 20 | 40.2M | 39 min | 3.6 | `416805a4384dbb8d` | yes | yes |
 
 ### RL runs
 
