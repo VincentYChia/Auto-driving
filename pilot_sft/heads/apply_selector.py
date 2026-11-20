@@ -130,32 +130,36 @@ def main() -> None:
         truth = scores_from_jsonl(args.scores, names)
     elif args.exp:
         truth = scores_from_exp(args.exp, args.paths, names, args.split)
-    true = true_sub = None
-    if truth is not None:
-        unscored = sum(1 for t in tokens if t not in truth)
-        if unscored:
-            raise SystemExit(f"{unscored} scenes have no true scores")
-        true = np.stack([truth[t][1] for t in tokens])
-        true_sub = np.stack([truth[t][0] for t in tokens])
+    # The candidate folders can hold more scenes than were scored: a dev-split folder has all 2,000 rows, NAVSIM's
+    # navdev filter scores 743. The measures cover the scored scenes; every scene still gets its selected path.
+    scored = [i for i, t in enumerate(tokens) if truth is not None and t in truth]
+    if truth is not None and not scored:
+        raise SystemExit("no candidate scene has true scores")
+    true_of = {i: truth[tokens[i]] for i in scored}
     with open(os.path.join(args.out, "selection.jsonl"), "w", encoding="utf-8") as f:
         for i, t in enumerate(tokens):
             rec = {"token": t, "chosen": int(chosen[i]), "chosen_name": names[chosen[i]],
                    "score": np.round(score[i], 5).tolist(), "pdms": np.round(pdms[i], 5).tolist()}
             if sub is not None:
                 rec["sub"] = np.round(sub[i], 4).tolist()
-            if true is not None:  # the system path's true PDMS, and the own pick's (R16's final choice reads these)
-                rec["true_chosen"], rec["true_own"] = float(true[i, chosen[i]]), float(true[i, 0])
+            if i in true_of:  # the system path's true PDMS, and the own pick's (R16's final choice reads these)
+                rec["true_chosen"], rec["true_own"] = float(true_of[i][1][chosen[i]]), float(true_of[i][1][0])
             f.write(json.dumps(rec) + "\n")
     summary = {"selector": os.path.abspath(args.selector), "weights": weights, "delta": delta, "names": names,
                "paths": os.path.abspath(args.paths), "scenes": len(tokens), "switch_rate": float((chosen != 0).mean())}
     if truth is not None:
-        drives = list(tokens)  # without a drive map, each scene is its own group
+        idx = np.array(scored)
+        true = np.stack([true_of[i][1] for i in scored])
+        true_sub = np.stack([true_of[i][0] for i in scored])
+        drives = [tokens[i] for i in scored]  # without a drive map, each scene is its own group
         if args.drives:
             with open(args.drives, encoding="utf-8") as f:
                 dm = json.load(f)
-            drives = [dm[t] for t in tokens]
-        summary["report"] = sl.report(true, true_sub, score, chosen, drives, paths=xy, pred_sub=sub)
+            drives = [dm[tokens[i]] for i in scored]
+        summary["report"] = sl.report(true, true_sub, score[idx], chosen[idx], drives, paths=xy[idx],
+                                      pred_sub=sub[idx] if sub is not None else None)
         summary["intervals_by"] = "drive" if args.drives else "scene"
+        summary["scenes_scored"], summary["scenes_without_scores"] = len(scored), len(tokens) - len(scored)
     with open(os.path.join(args.out, "report.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=1)
     print(json.dumps({k: summary[k] for k in ("scenes", "weights", "delta", "switch_rate")}), flush=True)

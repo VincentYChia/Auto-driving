@@ -301,7 +301,7 @@ def main() -> None:
             step += 1
             seen += len(part)
             for k, v in out.items():
-                acc[k] = acc.get(k, 0.0) + float(v)
+                acc[k] = acc.get(k, 0.0) + float(v.detach() if torch.is_tensor(v) else v)
             if step % 50 == 0:
                 rec = {"step": step, "epoch": round(epoch + (step - epoch * steps_per_epoch) / steps_per_epoch, 3),
                        **{k: round(v / 50, 5) for k, v in acc.items()}, "grad_norm": round(float(gn), 3),

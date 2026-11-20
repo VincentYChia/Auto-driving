@@ -254,3 +254,14 @@ def test_train_and_apply_end_to_end(tmp_path):
     run("apply_selector.py", *app, "--out", str(tmp_path / "applied2"), "--exp", str(exp), "--split", "navdev")
     rep2 = json.loads((tmp_path / "applied2" / "report.json").read_text())
     assert rep2["report"]["selected_pdms"] == pytest.approx(rep["report"]["selected_pdms"], abs=1e-6)
+
+    # a candidate folder with more scenes than were scored (a dev-split folder: navdev scores a filtered subset)
+    partial = "".join(dlines[:5])
+    (tmp_path / "dev_scores_part.jsonl").write_text(partial)
+    run("apply_selector.py", *app, "--out", str(tmp_path / "applied3"), "--scores", str(tmp_path / "dev_scores_part.jsonl"))
+    rep3 = json.loads((tmp_path / "applied3" / "report.json").read_text())
+    assert rep3["scenes"] == 9 and rep3["scenes_scored"] == 5 and rep3["scenes_without_scores"] == 4
+    assert rep3["report"]["scenes"] == 5
+    sel3 = [json.loads(l) for l in (tmp_path / "applied3" / "selection.jsonl").read_text().splitlines()]
+    assert sum("true_chosen" in r for r in sel3) == 5 and len(sel3) == 9
+    assert len((tmp_path / "applied3" / "selected" / "shard_000_of_001.jsonl").read_text().splitlines()) == 9
