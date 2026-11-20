@@ -2,15 +2,18 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-19 19:35 EST
+**Updated:** 2026-11-19 20:00 EST
+
+**Goal to Mon 2026-11-30:** a controlled, same-backbone answer to "which diffusion head, and how continuous", measured on the full navtest before and after a matched RL stage. Then the best single-path score with head + RL + selector, against 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
 - Read up to: no notes yet.
 
 ## Running now
 - **4090 desktop, GPU queue:**
-  - Job 361 is training head A rung 1 on the last layer only, about 2 min per pass, 20 passes; then its navtest paths.
-  - Job 362 is next: the same head on layers 12, 18 and 24.
+  - Job 361 (head A rung 1, last layer only) trained all 20 passes in 41 min, and every pass is saved. Its prediction step failed on the one navtest scene with 420 tokens; fixed in f08b281.
+  - Job 362 (the same head on layers 12, 18 and 24) is training.
+  - Job 363 (361's navtest paths) runs next.
 - **4090 desktop, CPU queue:** scoring jobs 371 and 372 wait for those runs' paths, then score them on NAVSIM (about an hour each).
 - **Anvil:** wide job 22320518 builds the navtrain metric cache, the reward for the RL stage. Estimated start Nov 20 19:05.
 
@@ -26,12 +29,20 @@ Written only by the Claude session on the home PC, and pushed whenever something
 2. Head A's continuity ladder, then D, B and C.
 3. Second seeds.
 4. A short matched RL stage.
-5. Stop at the head choice and wait for the researcher.
+5. The head choice by the pre-set rule. With a clear winner, the selector and full RL; on a tie, wait for the researcher.
 
 ## Waiting on the researcher
-- See the questions of 2026-11-19 evening (asked in the home PC's terminal).
+- Nothing. The 2026-11-19 evening questions are answered:
+  - **Spare GPU time:** no filler runs, only what a comprehensive comparison needs. Rung 0 (plain bin embeddings) was added to A's ladder for that reason. The ego-as-tokens run and the backbone snapshot runs are dropped.
+  - **After the head choice:** continue to the selector and full RL if the rule gives a clear winner; on a tie, stop and wait.
+  - **The ~650 GB feature cache:** keep it all week, and ask before deleting it.
+  - **The repo:** commit everything allowed, and keep it current and descriptive. Pages with nuPlan camera images stay on the home PC.
+
+## Decisions made by rule (no input needed)
+- **Desktop NAVSIM scores accepted.** They equal Anvil's to at most 1.3e-11 per scene, with identical PDMS.
 
 ## Where things are
+- **Research and plan:** `docs/research/heads/` (head research report, test plan, five topic notes) and `docs/research/sft_literature_check/`.
 - **Code:**
   - `pilot_sft/heads/` (features, model, train, predict, summarize);
   - `scripts/desk/score_head_run.sh`.

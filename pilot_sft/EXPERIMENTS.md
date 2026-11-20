@@ -159,7 +159,15 @@ v1-full (676k) holds the same moving rows plus 186k more standstill frames. Stan
 
 ## Path-generator heads: the week of 2026-11-19 [agreed: researcher approved the head plan 2026-11-19]
 
-The test plan is in `reports/Diffusion head test plan.html` (outer folder). The code is in `pilot_sft/heads/`. Every model is kept (`MODELS.md`), and results go into `docs/GAPS.md` under its strict rule. The researcher's choices: explore all four head types whatever the gain, and file no GitHub issues.
+The test plan is `docs/research/heads/head_test_plan.html`, with the research behind it in `docs/research/heads/`. The code is in `pilot_sft/heads/`. Every model is kept (`MODELS.md`), and results go into `docs/GAPS.md` under its strict rule. The current state is always in `docs/STATUS.md`, and notes from other computers go in `docs/INBOX.md`.
+
+The researcher's choices (2026-11-19):
+- Explore all four head types, whatever the gain.
+- File no GitHub issues.
+- Run only what a comprehensive comparison needs; don't fill spare GPU time with extra runs ("don't just flood the computer with more work").
+- Continue past the head choice when the rule gives a clear winner.
+- Keep the feature cache all week, and ask before deleting it.
+- Commit everything allowed, and keep the repo text current and descriptive.
 
 Order. The 4090 runs one job at a time, scoring uses the CPUs, and the RL code is written while the GPU trains.
 1. **Store H1's features** (job 360): layers 12, 18 and 24 from the image on, for v1-hard train, dev, navtest and replay_v2. Done 2026-11-19 ~19:45.
@@ -171,6 +179,7 @@ Order. The 4090 runs one job at a time, scoring uses the CPUs, and the RL code i
    - **Sanity gate before anything else is queued:** the head must clearly beat constant velocity, and its dev ADE must be within reach of the text pilot's 0.77 m. Otherwise debug first.
    - **Choice:** higher single-path PDMS. Under 0.5 apart, the higher best-of-6. Still tied, the last layer alone (a third of the reading).
 4. **A's continuity ladder** on the chosen layers:
+   - rung 0, plain bin embeddings that don't know distances: the pure-discrete end of the scale, so the metric embeddings' share is measured too;
    - rung 2, soft labels;
    - rung 3, adds the L1 and expectation readout;
    - rung 4, adds the deterministic offset;
@@ -180,7 +189,11 @@ Order. The 4090 runs one job at a time, scoring uses the CPUs, and the RL code i
 7. **RL, a short matched stage** (same group size, updates and scorer budget):
    - A and D first; B and C if cheap.
    - Needs the navtrain metric cache (Anvil wide job 22320518), copied to the desktop.
-8. **Stop at the head choice** (plan step 7). Report and wait for the researcher before the selector and full RL.
+8. **The head choice** (plan step 7), by the pre-set rule:
+   - keep A if it matches D within noise after RL and holds an equal or better best-of-6 at 4 steps or fewer;
+   - switch to D if D wins by more than noise.
+
+   Report it in `docs/STATUS.md`, the README and an HTML report. With a clear winner, continue to the selector and full RL (researcher, 2026-11-19: "Continue if clear"). Plan those first, in this file, with the reason for each run. On a tie, stop and wait for the researcher.
 
 Measured for every head:
 - single-path PDMS at 1, 2, 4 and 8 steps, from the same weights;
@@ -190,3 +203,34 @@ Measured for every head:
 - generation time on the 4090.
 
 A head that beats 85.6 gets the 20 s replay demo.
+
+### Compute plan to Monday 2026-11-30 [proposed 2026-11-19]
+
+**Goal:**
+1. A controlled answer to "which kind of diffusion head, and how continuous": the same backbone, data and network body, scored on the full navtest before and after a matched RL stage. No paper has published this; it fills gaps H1–H10 in `docs/GAPS.md`.
+2. Then the instinctual layer's best single-path score with head + RL + selector, against 85.6 today. The published pattern suggests about 88–90; that is an extrapolation, not a promise.
+
+**Speeds measured 2026-11-19:**
+- Feature cache: 53 rows/s.
+- A head run reading one layer: about 2 min per pass, 45 min for 20 passes.
+- A NAVSIM score on the desktop: 220 s on 12 threads, so about 1 h of CPU per head run (17 scores).
+
+| Days | 4090 (one GPU job at a time) | Desktop CPU | Anvil CPU (cis220051) | Why |
+|---|---|---|---|---|
+| Thu 19 – Fri 20 morning | Layer probe (361 done; 362 training; 363 predictions) | Score both | navtrain metric cache (wide, est. Fri 19:05) | Settle the layers once, before the four heads are compared |
+| Fri 20 | A's ladder: rungs 0, 2, 3, 4 and the 0.25 m and 0.05 m bins (6 runs, about 5–12 h) | Score each | | "How continuous", one piece at a time |
+| Fri 20 – Sat 21 (code) | RL code, tested on CPU, then a smoke test on the probe's head | Scorer throughput test | | RL is the riskiest and least-measured step; start it early, in parallel |
+| Sat 21 | D, B and C (3 runs); a second seed of the best A rung and of D (2 runs) | Score each; copy the navtrain cache (~55 GB) | | Complete the four types; measure our own run-to-run noise for the tie rule |
+| Sun 22 – Mon 23 | Matched short RL: A and D, then B and C if the code carries over | RL rewards (PDM score per sampled path) | | The scores after RL decide; one recipe, budget and group size for all |
+| Tue 24 | Predictions of the RL heads | Score them | | The head choice by the pre-set rule; report |
+| Wed 25 – Thu 26 | If clear: the chosen head's K = 16 paths on navtrain; train the selector (about 1–2 h) | Score candidates | Bulk-score candidates on `wide` | The selector learns to pick the best of K (published gain about +1) |
+| Fri 27 – Sat 28 | Full RL of the chosen head (about 1–2 navtrain passes, 10–20 h, limited by scoring) | RL rewards | | The larger published gains come from RL |
+| Sun 29 | Final navtest: head + RL + selector; the 20 s replay if it is a new best | Score | | The week's headline number |
+| Mon 30 | Report: HTML on the home PC; numbers in `docs/STATUS.md`, the README and `docs/GAPS.md` | | | |
+
+**Budget:**
+- **4090:** about 45–70 GPU-hours of the ~260 available. The rest is left idle on purpose ("don't flood").
+- **Desktop CPU:** the real limit (scoring and RL rewards on 16 E-cores), about 60–80 core-hours.
+- **Anvil:** CPU only. The navtrain cache needs about 2 h on 128 cores; selector candidates about 2–4 h on 128 cores if the desktop's CPUs are busy.
+
+**Not this week** (for the researcher to decide afterwards): unfreezing the backbone together with the head, RL on the backbone itself, and a 2B backbone. Each takes 1–2 days of GPU. They matter only if the frozen H1 features turn out to cap the heads.

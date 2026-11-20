@@ -10,8 +10,8 @@ Started 2026-11-19. Updated whenever a result lands. Researcher, 2026-11-19: "a 
 Items that are new only in part are listed with exactly what is new and what is already published. Items that contradict published work are listed as conflicts, not as gaps.
 
 Literature checks:
-- `research_notes/SFT findings literature check/sft_claims.md`, 2026-11-19, about 42 searches and page reads. This is in the outer project folder, not in this repository.
-- The head research, `research_notes/Driving action head diffusion type/` and its report in `reports/`, 2026-11-19.
+- `docs/research/sft_literature_check/sft_claims.md`, 2026-11-19, about 42 searches and page reads.
+- The head research, `docs/research/heads/` (report, test plan and five topic notes), 2026-11-19.
 
 ## Filled
 

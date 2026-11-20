@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diffusion head plan</title>
+<style>
+:root {
+  color-scheme: light;
+  --desk: #f4f3ef; --paper: #ffffff; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --rule: #d3d2ca;
+  --s1: #2a78d6; --s1-bg: #e6f0fb; --s2: #eb6834; --s2-bg: #fdeee6; --gray: #b9b8b0; --row: #f3f7fd;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --desk: #0d0d0d; --paper: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --rule: #3a3a37;
+    --s1: #3987e5; --s1-bg: #16263a; --s2: #d95926; --s2-bg: #3a2116; --gray: #5d5c57; --row: #1d2633;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --desk: #0d0d0d; --paper: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --rule: #3a3a37;
+  --s1: #3987e5; --s1-bg: #16263a; --s2: #d95926; --s2-bg: #3a2116; --gray: #5d5c57; --row: #1d2633;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--desk); color: var(--ink); font: 15px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif; }
+main { max-width: 920px; margin: 0 auto; padding: 28px 16px 60px; }
+.kicker { color: var(--muted); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+h1 { font-size: 28px; line-height: 1.2; margin: 4px 0 10px; font-weight: 650; }
+h2 { font-size: 20px; margin: 34px 0 10px; font-weight: 650; padding-bottom: 4px; border-bottom: 1.5px solid var(--ink); }
+h3 { font-size: 17px; margin: 0 0 4px; font-weight: 650; }
+p { margin: 0 0 10px; }
+.lede { font-size: 16.5px; color: var(--ink-2); }
+.lede b, p b, li b { color: var(--ink); }
+.muted { color: var(--muted); }
+.tag { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 20px; margin: 14px 0; }
+.card.first { border-color: var(--s1); box-shadow: 0 0 0 1px var(--s1) inset; }
+.head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; }
+.badge { font-size: 12px; font-weight: 650; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-2); white-space: nowrap; }
+.badge.b1 { border-color: var(--s1); color: var(--s1); }
+.grid2 { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+.facts { display: grid; grid-template-columns: 128px 1fr; gap: 4px 12px; font-size: 14px; margin-top: 6px; }
+.facts dt { color: var(--muted); font-weight: 600; }
+.facts dd { margin: 0; color: var(--ink-2); }
+.facts dd b { color: var(--ink); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; background: var(--paper); }
+th.n { text-align: right; }
+th, td { padding: 6px 9px; border-bottom: 1px solid var(--grid); text-align: left; vertical-align: top; }
+th { color: var(--ink-2); font-weight: 600; border-bottom: 1px solid var(--ink-2); }
+td.n { text-align: right; white-space: nowrap; }
+tr.ours td { background: var(--row); }
+.wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px; }
+.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; }
+.steps li { counter-increment: s; position: relative; padding: 10px 0 10px 44px; border-bottom: 1px solid var(--grid); }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 9px; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--s1-bg); color: var(--s1); font-weight: 700; display: grid; place-items: center; font-size: 14px; }
+.scores { margin: 6px 0 0; padding-left: 20px; }
+.scores li { margin: 0 0 7px; color: var(--ink-2); }
+.scores li b { color: var(--ink); }
+.ladder { margin: 6px 0 0; padding-left: 20px; color: var(--ink-2); }
+.ladder li { margin: 0 0 5px; }
+.note { border-left: 3px solid var(--s2); padding: 4px 0 4px 12px; color: var(--ink-2); margin: 12px 0; }
+.note b { color: var(--ink); }
+.bx { fill: var(--paper); stroke: var(--ink-2); stroke-width: 1.3; }
+.bx.built { fill: var(--s1-bg); stroke: var(--s1); }
+.bx.new { stroke: var(--ink-2); stroke-dasharray: 5 3; }
+.ar { stroke: var(--ink-2); stroke-width: 1.4; fill: none; }
+.bt { fill: var(--ink); font-size: 13px; font-weight: 650; }
+.bs { fill: var(--ink-2); font-size: 11.5px; }
+@media (max-width: 720px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .facts { grid-template-columns: 1fr; }
+  .facts dt { margin-top: 6px; }
+  h1 { font-size: 23px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">Step 1 of the architecture · path generator · test plan · Nov 19, 2026, updated with the research report</div>
+  <h1>Which kind of diffusion should turn our driving model's features into paths?</h1>
+  <p class="lede">Today the 0.8B model writes its path as text, one number at a time (85.6 on NAVSIM). The next step replaces that text with a small <b>path generator</b>: a separate network that reads what the model has already understood about the scene and produces the 8 path points directly, several candidate paths at once. There are four ways to build that generator. This page explains each one, what the published work says about it, and how we will test all four head to head, since <b>no one has compared them on NAVSIM with the same model and data</b>. We report each one's effect, even where the gain is small, so we understand the system. The evidence behind it is in the research report, <i>Driving action head diffusion type</i> (same folder).</p>
+  <p class="tag">Evidence tags: V = read in the paper's text, tables or code; R = abstract or snippet only; D = our own arithmetic. Scores are NAVSIM v1 navtest PDMS, each paper's own report, so numbers across papers are context, not a controlled comparison.</p>
+
+  <h2>NAVSIM scores for the heads we haven't tested yet</h2>
+  <p>What published models report for each kind of head, NAVSIM v1 navtest PDMS. Different backbones, cameras and data, so these are ranges to expect, not a ranking. Ours today, text output: <b>85.6</b>.</p>
+  <ul class="scores">
+    <li><b>Masked diffusion (A):</b> 84.8–86.7 with supervised training only (WAM-Diff 86.6, DriveFine 86.7, ReflectDrive 84.8; ReflectDrive-2, a 0.7B model, 84.8 → 87.7 with extra losses, V); <b>88.9–91.0 after RL</b> (WAM-Diff 91.0, DriveFine 90.7, ReflectDrive-2 91.0, MD-Drive 88.9, V). All run the diffusion through the whole language model; 3–5 decoding steps.</li>
+    <li><b>Discrete flow, a masked-diffusion cousin:</b> WAM-Flow 86.7 → <b>90.3</b> after RL; 89.1 at 1 step, 90.3 at 5 (V).</li>
+    <li><b>Discrete with continuous extras:</b> Discrete-WAM, about 1B, <b>92.2</b> final, the top masked-style number; no supervised-only score reported, and it relies on long pretraining (V).</li>
+    <li><b>Continuous diffusion DiT (B):</b> ReCogDrive 86.5 → <b>90.8</b> after RL; DiffAdapterVLA on a frozen 8B model 88.3 → 90.3 (V). About 5 steps; the noise-predicting form scores 1.9 at 1 step (V).</li>
+    <li><b>Flow matching (C):</b> DriveVLA-W0's flow expert 87.2 at 10 steps (V); DriveWLA, a flow head on a frozen model, 90.8 → <b>92.3</b> with RL on the head only (V); GoalFlow 88.9 at 1 step, 90.3 at 5 (V).</li>
+    <li><b>Anchored diffusion (D):</b> DiffusionDrive <b>88.1</b> (87.9 at 1 step, 2 steps standard; camera + LiDAR, no language model, V); DiffusionDriveV2 <b>91.2</b> with RL and a selector, of which RL alone gave about +2.1 (V/D).</li>
+    <li><b>For reference, a plain regression head:</b> 88.4 on DriveVLA-W0 (V), but it gives only one path and no handle for RL.</li>
+  </ul>
+  <p class="tag" style="margin-top:6px">Gains from RL shrink as the starting score rises (+4.3 from 86.5, +1.0 from 89.4), so the family matters less than the starting point (D).</p>
+
+  <h2>What every option shares</h2>
+  <p>All four generators plug into the same place. The driving model reads the camera image and the prompt once, exactly as today, but instead of writing text it hands over its internal features. Those features are computed once and stored, so every generator trains on identical inputs and the comparison is fair.</p>
+  <svg viewBox="0 0 880 150" role="img" aria-label="Pipeline: camera image and prompt go into the frozen 0.8B driving model, read once; its internal features are stored; a path generator, the part we are choosing, reads the features and the car's speed and recent path, and outputs K candidate paths; a selector, a later step, picks one.">
+    <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/></marker></defs>
+    <rect class="bx built" x="0" y="30" width="150" height="70" rx="7"/>
+    <text class="bt" x="75" y="58" text-anchor="middle">Camera image</text>
+    <text class="bs" x="75" y="76" text-anchor="middle">+ speed, 4 past poses,</text>
+    <text class="bs" x="75" y="91" text-anchor="middle">route command</text>
+    <path class="ar" d="M150,65 L178,65" marker-end="url(#a)"/>
+    <rect class="bx built" x="180" y="30" width="160" height="70" rx="7"/>
+    <text class="bt" x="260" y="58" text-anchor="middle">0.8B driving model</text>
+    <text class="bs" x="260" y="76" text-anchor="middle">our best (85.6), frozen,</text>
+    <text class="bs" x="260" y="91" text-anchor="middle">read once, no text</text>
+    <path class="ar" d="M340,65 L368,65" marker-end="url(#a)"/>
+    <rect class="bx" x="370" y="30" width="130" height="70" rx="7"/>
+    <text class="bt" x="435" y="58" text-anchor="middle">Its features</text>
+    <text class="bs" x="435" y="76" text-anchor="middle">stored once, shared</text>
+    <text class="bs" x="435" y="91" text-anchor="middle">by every option</text>
+    <path class="ar" d="M500,65 L528,65" marker-end="url(#a)"/>
+    <rect class="bx new" x="530" y="22" width="180" height="86" rx="7"/>
+    <text class="bt" x="620" y="52" text-anchor="middle">Path generator</text>
+    <text class="bs" x="620" y="70" text-anchor="middle">the part we are choosing:</text>
+    <text class="bs" x="620" y="86" text-anchor="middle">options A–D below</text>
+    <path class="ar" d="M710,65 L738,65" marker-end="url(#a)"/>
+    <rect class="bx new" x="740" y="30" width="140" height="70" rx="7"/>
+    <text class="bt" x="810" y="58" text-anchor="middle">K paths</text>
+    <text class="bs" x="810" y="76" text-anchor="middle">a selector picks one</text>
+    <text class="bs" x="810" y="91" text-anchor="middle">(a later step)</text>
+    <text class="bs" x="620" y="132" text-anchor="middle">speed and recent path also enter here directly (AdaLN)</text>
+    <path class="ar" d="M620,124 L620,110" marker-end="url(#a)"/>
+  </svg>
+  <div class="note"><b>One finding shapes all four options:</b> which of the model's layers the generator reads matters a lot. With a frozen 8B model, reading only the final layer scored 80.2, while reading several late layers scored 85.2–86.9 (DiffAdapterVLA, V). GR00T also found a middle layer better than the last. So we store a few layers, not just the last one, and test that choice once.</div>
+  <p><b>One network body for all four.</b> Following the one published same-body comparison (DiscreteRTC), every option uses the same transformer: about 16 layers × 384 wide (~35M parameters, ReCogDrive's planner size), cross-attention to the stored layers, and the car's speed and recent path entering through AdaLN. Only the input and output layers change between options, so differences come from the kind of diffusion, not from the network.</p>
+
+  <h2>The four options</h2>
+  <p>They differ in one thing: how the generator gets from "no path yet" to a finished path. That also decides how continuous the output is, how many candidate paths come out, and how reinforcement learning (RL) can train it later.</p>
+
+  <!-- A -->
+  <div class="card first">
+    <div class="head"><h3>A · Masked diffusion over path tokens</h3><span class="badge b1">test first (your choice)</span><span class="badge">discrete</span></div>
+    <div class="grid2">
+      <svg viewBox="0 0 300 206" role="img" aria-label="Masked diffusion: 16 slots, the x and y of 8 path points, start blank; at each of a few steps the generator fills in the slots it is most sure of, the far end of the path first, until all 16 are filled.">
+        <g id="mask-grid"></g>
+      </svg>
+      <div>
+        <p><b>How it works.</b> Each path point's x and y is rounded to a grid (for example every 10 cm), so a path becomes 16 "tokens", like 16 words. Training hides a random share of them and asks the generator to fill them back in. To make a path, it starts with all 16 blank and fills in the ones it is most sure of over a few rounds. This is the same idea as the language-diffusion model we forked (MVLAD-AD), but as a small separate network instead of the whole language model.</p>
+        <dl class="facts">
+          <dt>How continuous</dt><dd>Discrete only in what it samples: 0.1 m bins (about 4 cm average rounding, D). Everything else is metric: bin embeddings that know each bin's distance in metres, soft labels that also credit neighbouring bins, an extra position-error loss, and a readout averaged within the chosen bin's neighbourhood. These are added one at a time (the ladder below).</dd>
+          <dt>Steps</dt><dd>4 rounds, most-confident tokens first, end point first; we also run 1, 2 and 8. Published: ReflectDrive peaks at 5; DriveFine 90.5 at 4 (V).</dd>
+          <dt>K paths</dt><dd>Sample 3–6 end points about 1 m apart, then fill in each path; all in one batch over the same stored features.</dd>
+          <dt>Published</dt><dd>Masked-diffusion planners score <b>84.8–86.7</b> before RL and <b>90–91</b> after (WAM-Diff 86.6 → 91.0, DriveFine 86.7 → 90.7, V). Filling the far end first beats near-to-far: 91.0 vs 88.9 (WAM-Diff, V). In robotics, with the same backbone, masked diffusion matched continuous diffusion: 95.1 vs 94.9 on LIBERO (Discrete Diffusion VLA, V).</dd>
+          <dt>RL later</dt><dd>Possible but less standard; with only 16 tokens our small generator can compute the exact likelihood of its fill-in order, which removes the usual difficulty.</dd>
+          <dt>Unknown</dt><dd>No driving paper uses a <b>separate</b> small masked-diffusion head on a normal model; every one runs it through the full language model. Ours would be the first.</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card">
+    <div class="head"><h3>B · Continuous diffusion (DiT)</h3><span class="badge">continuous</span><span class="badge">exploration arm</span></div>
+    <div class="grid2">
+      <svg viewBox="0 0 300 206" role="img" aria-label="Continuous diffusion: start from 8 random points, then over a few denoising steps move them, a little at a time, onto a smooth path.">
+        <g id="ddim"></g>
+      </svg>
+      <div>
+        <p><b>How it works.</b> The path stays as real numbers. Training adds random noise to true paths and teaches a transformer (a DiT, conditioned on speed and step through AdaLN, reading the features through cross-attention) to undo it. To make a path, it starts from pure noise and removes noise over several steps. This is ReCogDrive's planner, the published recipe closest to ours.</p>
+        <dl class="facts">
+          <dt>How continuous</dt><dd>Fully continuous, no rounding.</dd>
+          <dt>Steps</dt><dd>Depends on what it predicts. Predicting the noise collapses at few steps: 1.9 at 1 step, 82.6 at 2, 87.0 at 5 (DiffAdapterVLA, V). Predicting the clean path directly holds up better, so that is what we do; the research says this plain form from pure noise is weak at few steps and gives near-identical paths (11% diversity, V), so we run it to measure that on our model, not as the main contender.</dd>
+          <dt>K paths</dt><dd>Start from K different noise draws, in one batch.</dd>
+          <dt>Published</dt><dd>ReCogDrive on the same model: text 84.1, MLP head 75.5, query decoder 85.0, plain diffusion 85.4, <b>refined DiT 86.5</b>, then <b>90.8</b> after RL (V). Its planner is ~35M parameters, 5 steps. Caution: on its 8B model text already scored 86.4, so the head added only +0.1 (README, V). The gain shrinks when the text model is already strong, as ours is.</dd>
+          <dt>RL later</dt><dd>Well established (ReCogDrive's DiffGRPO): each denoising step has an exact probability.</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="card">
+    <div class="head"><h3>C · Flow matching</h3><span class="badge">continuous</span><span class="badge">exploration arm</span></div>
+    <div class="grid2">
+      <svg viewBox="0 0 300 206" role="img" aria-label="Flow matching: each random start point moves along a straight line to its place on the path, so one or two steps can be enough.">
+        <g id="flow"></g>
+      </svg>
+      <div>
+        <p><b>How it works.</b> A close cousin of B with the same network. Instead of learning to remove noise, it learns a direction to move each point, along a straight line from the random start to the true path. Straight lines can be followed in very few steps. This is the action-expert style used by π0 and GR00T.</p>
+        <dl class="facts">
+          <dt>How continuous</dt><dd>Fully continuous.</dd>
+          <dt>Steps</dt><dd>Often 1–5. GoalFlow: 88.9 at 1 step, 90.3 at 5 (V). The random start must be narrow: noise of 0.1 gave 90.3, 0.2 gave 49.0 (GoalFlow, V).</dd>
+          <dt>K paths</dt><dd>K different starts, in one batch.</dd>
+          <dt>Published</dt><dd>DriveVLA-W0's flow expert: 87.2 at 10 steps, but a simple regression head on the same model scored 88.4 (V). Flow-GRPO RL on a flow head: 90.8 → 92.3 (DriveWLA, V).</dd>
+          <dt>RL later</dt><dd>Works (Flow-GRPO, ReinFlow), with care at 1 step.</dd>
+          <dt>Our settings</dt><dd>A narrow start (noise about 0.1), 1, 2 and 5 steps. Small to test: same network, different training target.</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- D -->
+  <div class="card">
+    <div class="head"><h3>D · Anchored diffusion (coarse choice + continuous refinement)</h3><span class="badge b1">main comparison for A</span><span class="badge">hybrid</span></div>
+    <div class="grid2">
+      <svg viewBox="0 0 300 206" role="img" aria-label="Anchored diffusion: a fixed fan of typical paths (anchors); the generator scores each anchor, then nudges the chosen ones onto the exact path in one or two steps.">
+        <g id="anchor"></g>
+      </svg>
+      <div>
+        <p><b>How it works.</b> Collect about 20 typical paths from the training data (gentle left, straight, hard right, stopping, and so on). The generator scores which of these "anchors" fits the scene, then nudges each one onto the exact path in 1–2 continuous steps. It is half discrete (pick a type of path) and half continuous (refine it).</p>
+        <dl class="facts">
+          <dt>How continuous</dt><dd>Coarse choice, then fully continuous refinement.</dd>
+          <dt>Steps</dt><dd>1–2: 87.9 at 1 step, 88.1 at 2, against 84.6 for plain 20-step diffusion (DiffusionDrive, V).</dd>
+          <dt>K paths</dt><dd>Built in, one per anchor, and genuinely different: plan diversity rose from 11% to about 70% over plain diffusion (V). Quality levels off around K = 20 (84.9 / 88.1 / 88.2 at K = 10 / 20 / 40, V).</dd>
+          <dt>Published</dt><dd>DiffusionDrive 88.1 (no language model); with RL and a selector 91.2, of which RL alone gave about +2.1 (DiffusionDriveV2, V/D). RL lowered diversity from 42.3 to 30.3 (V), something to watch for the selector.</dd>
+          <dt>RL later</dt><dd>Works, but needs grouping by anchor, or RL collapses onto "go straight" (DiffusionDriveV2, V).</dd>
+          <dt>Our settings</dt><dd>About 20 anchors from the training paths, predicting the clean path, 2 steps. The research recommends this, not plain B, as the continuous head to compare against A: it is the only continuous design with NAVSIM evidence at few steps and with many different paths.</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <h2>How continuous should it be?</h2>
+  <p>"Continuous" is a scale, not a yes or no. Our text output already sits on it: the model writes each number with one decimal, so today it is effectively a 0.1 m grid.</p>
+  <svg viewBox="0 0 880 128" role="img" aria-label="Scale from coarse to continuous: 0.5 metre bins (about 20 cm rounding), 0.25 metre bins (about 10 cm, best in one NAVSIM study inside a language model), 0.1 metre bins (about 4 cm, same as today's text), bins plus a continuous offset, and fully continuous (options B, C and the refinement step of D).">
+    <g id="scale"></g>
+  </svg>
+  <p class="muted" style="font-size:13.5px">Rounding figures: average error of a uniform grid is about 0.41 × the bin size (D). The one NAVSIM sweep (MD-Drive, inside a language model): 0.5 m bins 78.2, 0.25 m 81.4, 0.1 m 80.8 (V). Finer bins stopped helping there, but in a language model every extra bin is an extra word in its vocabulary; a separate generator can afford 1,000–2,000 classes (D). Below 0.1 m, rounding is no longer where the points are lost.</p>
+  <p><b>The "how continuous" ladder inside option A.</b> One trained network, one change at a time, each scored on NAVSIM, so we see what each step of continuity is worth. No driving paper has isolated these, so every rung is new data:</p>
+  <ol class="ladder">
+    <li>Hard labels on 0.1 m bins, bin embeddings that know distances (worth +2.3 in WAM-Flow, V).</li>
+    <li>+ soft labels that also credit the neighbouring bins.</li>
+    <li>+ an extra loss on position error, and a readout averaged around the chosen bin.</li>
+    <li>+ a small continuous offset per token (kept deterministic, so RL still works on the tokens).</li>
+    <li>Side arms: 0.25 m and 0.05 m bins.</li>
+  </ol>
+
+  <h2>What the evidence says, in one table</h2>
+  <div class="wrap"><table>
+    <thead><tr><th>Option</th><th>Output</th><th>Steps that work</th><th class="n">Before RL</th><th class="n">After RL</th><th>K diverse paths</th><th>RL recipe</th></tr></thead>
+    <tbody>
+      <tr class="ours"><td><b>Today: text</b></td><td>0.1 m numbers, one at a time</td><td>~80 tokens</td><td class="n"><b>85.6</b> (ours)</td><td class="n">–</td><td>weak (resampling text)</td><td>GRPO on the model</td></tr>
+      <tr><td>A · Masked diffusion</td><td>bins + metric extras</td><td>3–5</td><td class="n">84.8–86.7</td><td class="n">88.9–91.0</td><td>sample end points, then fill in</td><td>less standard; exact for 16 tokens</td></tr>
+      <tr><td>Discrete flow (WAM-Flow)</td><td>bins, metric path</td><td>1–5</td><td class="n">86.7</td><td class="n">90.3</td><td>not reported</td><td>GRPO, per token</td></tr>
+      <tr><td>B · Continuous DiT</td><td>continuous</td><td>about 5 (fewer if it predicts the path)</td><td class="n">86.5–88.3</td><td class="n">90.3–90.8</td><td>different noise starts; near-identical</td><td>DiffGRPO, established</td></tr>
+      <tr><td>C · Flow matching</td><td>continuous</td><td>1–5</td><td class="n">87.2–88.9</td><td class="n">92.3 (from 90.8)</td><td>different narrow starts</td><td>Flow-GRPO</td></tr>
+      <tr><td>D · Anchored</td><td>anchor + continuous</td><td>1–2</td><td class="n">88.1</td><td class="n">91.2 (with selector)</td><td>built in, most diverse</td><td>GRPO grouped by anchor</td></tr>
+    </tbody>
+  </table></div>
+  <p class="tag" style="margin-top:6px">Each paper's own model and setup, as reported (V); different backbones, cameras and data, so read the rows as ranges, not a ranking. C's 88.9 is GoalFlow, which also uses goal-point guidance; D's 88.1 has no language model at all.</p>
+
+  <h2>The test plan</h2>
+  <ol class="steps">
+    <li><b>Store the features once.</b> Run our best model (H1) over the training scenes (v1-hard, 236k), the 1,000 dev scenes and all 12,146 test scenes, and save a few of its layers. One job on the lab 4090; about 180 GB per stored layer for the training set (D), against 1.6 TB free, so a handful of layers fits.</li>
+    <li><b>Build the shared network once, and settle which layers to read.</b> Head A reading the last layer only vs several layers; the better choice is then fixed for every option.</li>
+    <li><b>Option A and its ladder</b> (the five rungs above), at 1, 2, 4 and 8 rounds.</li>
+    <li><b>Option D,</b> the main continuous comparison: about 20 anchors, 2 steps.</li>
+    <li><b>Options B and C,</b> the exploration arms on the same network: 1, 2, 5 and 10 steps for B; 1, 2 and 5 for C.</li>
+    <li><b>A short, matched RL stage</b> for A and D (and B, C if cheap): same group size, same number of updates, same scorer budget. This needs NAVSIM's score cache for the training scenes, built on Anvil's CPUs.</li>
+    <li><b>Pick the head, then move on</b> to the selector and full RL (steps 2–3 of the overall plan).</li>
+  </ol>
+
+  <h3 style="margin-top:20px">What we measure for every option</h3>
+  <div class="wrap"><table>
+    <thead><tr><th>Measure</th><th>Why</th><th>Bar to clear</th></tr></thead>
+    <tbody>
+      <tr><td>NAVSIM score of one path, full test set, official scorer</td><td>the headline, comparable to papers</td><td>beat today's text, 85.6</td></tr>
+      <tr><td>Best of K paths (K = 6, 20), and one diversity measure for every option</td><td>how much a selector could gain later</td><td>as high and as varied as possible</td></tr>
+      <tr><td>Score at 1, 2, 4, 8 steps</td><td>how few steps it really needs</td><td>holds up at 4 or fewer</td></tr>
+      <tr><td>Average position error on the 1,000 dev scenes</td><td>quick check during training</td><td>H1 text: 0.77 m</td></tr>
+      <tr><td>Time per plan on the 4090 (features + generator, vs features + text)</td><td>the speed gain over writing text</td><td>much faster than text</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:20px">How we decide</h3>
+  <p>We score every option twice: after supervised training, and again after the short matched RL stage. The research expects the options to land within about a point of each other after supervised training alone, so the deciding numbers are the ones <b>after RL</b>: the single-path score, together with the best-of-6 score (the room a selector will have). We keep A if it matches D within run-to-run noise and holds an equal or better best-of-6 at 4 rounds or fewer; we switch to D if D wins after RL by more than noise. Gaps under about half a point to a point in a single run count as ties. Every option's numbers are reported either way. Everything uses the same stored features, the same 236k training scenes and the same training budget, so the result is a clean comparison nobody has published for NAVSIM.</p>
+
+  <div class="note"><b>Two honest cautions.</b> First, our text model is already strong (85.6), and ReCogDrive saw the head's gain shrink from +2.4 to +0.1 as its text model improved, so the first gain may be small; the larger gains in every paper come from RL and the selector that this step makes possible. Second, published work warns that over-fitting the supervised model leaves less room for RL (an over-fitted model gained only +1.5 from RL against +8.6 for a less-fitted one, MD-Drive, V), so we keep the checkpoint with the best best-of-K score, not the lowest training error.</div>
+  <p><b>What to expect.</b> From 85.6, the published pattern adds a small supervised gain from the head (+0.1 to +2.4), then +2 to +4.4 from RL and about +1 from a selector: roughly <b>89–91 for one path after RL</b>, and 3–4.5 points more for the best of 6. That is an extrapolation from 1.5–8B models, not a measurement; ReflectDrive-2 (0.7B, 91.0 after RL) shows the size class can get there.</p>
+
+  <p class="muted" style="margin-top:26px;font-size:13px">Sources: the research notes in docs/research/heads/notes/ (five topic files) and the full report in docs/research/heads/head_research_report.md. Public papers and code only.</p>
+</main>
+<script>
+const NS = "http://www.w3.org/2000/svg";
+function el(t, a, p) { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; }
+function tx(p, x, y, s, o = {}) { const t = el("text", { x, y, fill: o.fill || "var(--ink-2)", "font-size": o.size || 11, "text-anchor": o.anchor || "start", "font-weight": o.weight || 400 }, p); t.textContent = s; return t; }
+// a gentle right curve, 8 points, in a 300x190 panel (x across, y up the page)
+const PATH = Array.from({ length: 8 }, (_, i) => { const u = (i + 1) / 8; return [150 + 70 * u * u, 168 - 140 * u]; });
+
+// A: 16 token slots, 4 rounds; the far end fills first
+(function () {
+  const g = document.getElementById("mask-grid");
+  const order = [[14, 15], [12, 13, 0, 1], [10, 11, 2, 3, 8, 9], [4, 5, 6, 7]]; // tokens unmasked per round
+  const cw = 15.5, x0 = 26, y0 = 18, rh = 40;
+  ["blank", "round 1", "round 2", "round 3", "round 4"].forEach((lab, r) => {
+    if (r === 0) return;
+  });
+  const shown = new Set();
+  for (let r = 0; r < 4; r++) {
+    order[r].forEach(t => shown.add(t));
+    const y = y0 + r * rh;
+    tx(g, 0, y + 15, `${r + 1}`, { fill: "var(--muted)", size: 11, weight: 600 });
+    for (let t = 0; t < 16; t++) {
+      const on = shown.has(t), fresh = order[r].includes(t);
+      el("rect", { x: x0 + t * cw, y, width: cw - 2.5, height: 22, rx: 3, fill: on ? (fresh ? "var(--s1)" : "var(--s1-bg)") : "var(--grid)", stroke: on ? "var(--s1)" : "none", "stroke-width": 1 }, g);
+      if (!on) tx(g, x0 + t * cw + (cw - 2.5) / 2, y + 15, "?", { anchor: "middle", fill: "var(--muted)", size: 10 });
+    }
+  }
+  tx(g, x0, y0 + 4 * rh - 2, "x₁ y₁  x₂ y₂ …", { fill: "var(--muted)", size: 10.5 });
+  tx(g, x0 + 16 * cw - 2, y0 + 4 * rh - 2, "… x₈ y₈", { anchor: "end", fill: "var(--muted)", size: 10.5 });
+  tx(g, 0, 200, "dark = filled this round; the far end of the path goes first", { fill: "var(--ink-2)", size: 10.5 });
+})();
+
+// helpers for B, C, D panels
+function road(g) { el("line", { x1: 110, y1: 182, x2: 110, y2: 12, stroke: "var(--grid)", "stroke-width": 1.5, "stroke-dasharray": "6 5" }, g); el("line", { x1: 250, y1: 182, x2: 250, y2: 12, stroke: "var(--grid)", "stroke-width": 1.5, "stroke-dasharray": "6 5" }, g); el("rect", { x: 144, y: 168, width: 12, height: 18, rx: 3, fill: "var(--ink-2)" }, g); }
+function line(g, pts, col, w, dash) { el("path", { d: "M" + pts.map(p => p.join(",")).join("L"), fill: "none", stroke: col, "stroke-width": w, "stroke-linejoin": "round", "stroke-linecap": "round", ...(dash ? { "stroke-dasharray": dash } : {}) }, g); }
+function dots(g, pts, col, r) { pts.forEach(p => el("circle", { cx: p[0], cy: p[1], r, fill: col, stroke: "var(--paper)", "stroke-width": 1 }, g)); }
+const JIT = [[-38, 12], [30, -20], [-26, -14], [42, 18], [-44, 6], [24, 26], [-18, -30], [36, -8]];
+
+// B: noise -> path over steps
+(function () {
+  const g = document.getElementById("ddim"); road(g);
+  const lv = [1, 0.55, 0.22, 0];
+  const cols = ["var(--gray)", "var(--axis)", "var(--s1-bg)", "var(--s1)"];
+  lv.forEach((a, k) => {
+    const pts = PATH.map((p, i) => [p[0] + a * JIT[i][0], p[1] + a * JIT[i][1]]);
+    if (k === 3) line(g, pts, "var(--s1)", 2); else line(g, pts, cols[k] === "var(--s1-bg)" ? "var(--axis)" : "var(--grid)", 1.2, "3 3");
+    dots(g, pts, k === 3 ? "var(--s1)" : k === 0 ? "var(--gray)" : "var(--axis)", k === 3 ? 3.6 : 2.8);
+  });
+  tx(g, 4, 18, "noise", { fill: "var(--muted)", size: 10.5 });
+  tx(g, 4, 202, "noise is removed over several steps", { fill: "var(--ink-2)", size: 10.5 });
+})();
+
+// C: straight lines from start to path
+(function () {
+  const g = document.getElementById("flow"); road(g);
+  const start = PATH.map((p, i) => [p[0] + JIT[i][0], p[1] + JIT[i][1]]);
+  start.forEach((s, i) => el("line", { x1: s[0], y1: s[1], x2: PATH[i][0], y2: PATH[i][1], stroke: "var(--axis)", "stroke-width": 1.3 }, g));
+  dots(g, start, "var(--gray)", 2.8);
+  line(g, PATH, "var(--s1)", 2); dots(g, PATH, "var(--s1)", 3.6);
+  tx(g, 4, 202, "each point moves in a straight line: 1–5 steps", { fill: "var(--ink-2)", size: 10.5 });
+})();
+
+// D: fan of anchors, one chosen and refined
+(function () {
+  const g = document.getElementById("anchor"); road(g);
+  const anchors = [-0.9, -0.5, -0.2, 0, 0.35, 0.7, 1.0].map(c => Array.from({ length: 8 }, (_, i) => { const u = (i + 1) / 8; return [150 + 95 * c * u * u, 168 - 140 * u * (1 - 0.25 * Math.abs(c))]; }));
+  anchors.forEach((a, k) => line(g, a, k === 5 ? "var(--s2)" : "var(--grid)", k === 5 ? 1.6 : 1.4, k === 5 ? "4 3" : null));
+  line(g, PATH, "var(--s1)", 2); dots(g, PATH, "var(--s1)", 3.4);
+  tx(g, 4, 18, "anchors", { fill: "var(--muted)", size: 10.5 });
+  tx(g, 4, 202, "pick a typical path (orange), refine it (blue)", { fill: "var(--ink-2)", size: 10.5 });
+})();
+
+// scale of continuity
+(function () {
+  const g = document.getElementById("scale"), W = 880, y = 44;
+  el("line", { x1: 20, y1: y, x2: W - 20, y2: y, stroke: "var(--axis)", "stroke-width": 2 }, g);
+  const P = [
+    { x: 70, t: "0.25 m bins", s: "~10 cm rounding", s2: "side arm" },
+    { x: 240, t: "0.1 m bins", s: "~4 cm rounding", s2: "main; = today's text", hl: true },
+    { x: 410, t: "0.05 m bins", s: "~2 cm rounding", s2: "side arm" },
+    { x: 600, t: "bins + metric extras", s: "soft labels, L1, offset", s2: "the ladder" },
+    { x: 800, t: "continuous", s: "no rounding", s2: "B, C, D's refinement" },
+  ];
+  tx(g, 20, 16, "COARSE", { fill: "var(--muted)", size: 10.5, weight: 600 });
+  tx(g, W - 20, 16, "CONTINUOUS", { anchor: "end", fill: "var(--muted)", size: 10.5, weight: 600 });
+  P.forEach(p => {
+    el("circle", { cx: p.x, cy: y, r: p.hl ? 7 : 5.5, fill: p.hl ? "var(--s1)" : "var(--paper)", stroke: p.hl ? "var(--s1)" : "var(--ink-2)", "stroke-width": 1.6 }, g);
+    tx(g, p.x, y + 26, p.t, { anchor: "middle", fill: "var(--ink)", size: 13, weight: 650 });
+    tx(g, p.x, y + 44, p.s, { anchor: "middle", fill: "var(--ink-2)", size: 11.5 });
+    tx(g, p.x, y + 60, p.s2, { anchor: "middle", fill: "var(--muted)", size: 11 });
+  });
+  el("rect", { x: 20, y: y - 12, width: 680, height: 24, rx: 12, fill: "none", stroke: "var(--s1)", "stroke-width": 1.2, "stroke-dasharray": "4 3" }, g);
+  tx(g, 360, y - 18, "option A tests all of these", { anchor: "middle", fill: "var(--s1)", size: 11, weight: 600 });
+})();
+</script>
+</body>
+</html>
