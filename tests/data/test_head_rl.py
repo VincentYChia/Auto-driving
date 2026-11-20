@@ -138,3 +138,25 @@ def test_kl_to_the_reference_is_zero_for_itself_and_positive_after_a_change(kind
     assert (kl > 0).all()
     kl.sum().backward()
     assert any(q.grad is not None and q.grad.abs().sum() > 0 for q in head.parameters())
+
+
+@pytest.mark.parametrize("kind", ["masked", "anchor", "ddim", "flow"])
+def test_the_sd_floor_only_shrinks_small_gaussian_steps(kind):
+    """R13: with --lp-sd-floor, every Gaussian step's SD is at least the floor inside the log-probability. A has no
+    Gaussian steps, so nothing changes; for D, B and C the small-SD steps (D's last step sits at the 0.01 floor)
+    count less, so the gradient is smaller, and the sampled candidates are the same."""
+    head = tiny(kind)
+    feats, mask, ego, _ = batch()
+    _, trace = head.rl_sample(feats, mask, ego, g=3, steps=2, scale=1.0, generator=torch.Generator().manual_seed(8))
+    norms, lps = [], []
+    for floor in (0.0, 0.1):
+        head.zero_grad(set_to_none=True)
+        lp = head.rl_logprob(feats, mask, ego, trace, lp_floor=floor)
+        assert torch.isfinite(lp).all()
+        lp.sum().backward()
+        norms.append(float(torch.norm(torch.stack([q.grad.norm() for q in head.parameters() if q.grad is not None]))))
+        lps.append(lp.detach())
+    if kind == "masked":
+        assert torch.equal(lps[0], lps[1]) and norms[0] == norms[1]
+    else:
+        assert not torch.allclose(lps[0], lps[1]) and norms[1] < norms[0]

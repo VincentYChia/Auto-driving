@@ -131,7 +131,9 @@ def test_navtest_scores_at_the_choices_are_reported_only(tree):
         driver.score_navtest_run("b-l24", "ddim", c)
 
 
-def test_rl_recipes_come_first_then_phase_4_with_the_chosen_recipe(tree):
+def recipe_setup():
+    """Phase 1 done for A and D, and the navtrain cache ready: the recipe runs get queued. Returns A's and D's layer
+    choices and ``finish(r)``, which writes recipe r's navdev paths at 250 and 500 updates."""
     for run, kind in (("a1-l24", "masked"), ("a1-l12-18-24", "masked"), ("d-l24", "anchor"), ("d-l12-18-24", "anchor")):
         make_run(run, kind)
     la, ld = driver.choose_layers("A"), driver.choose_layers("D")
@@ -143,17 +145,11 @@ def test_rl_recipes_come_first_then_phase_4_with_the_chosen_recipe(tree):
     (Path(driver.P["exp"]) / "metric_cache_navtrain_v1").mkdir(parents=True)
     (Path(driver.P["exp"]) / "metric_cache_navtrain_v1" / ".ready").write_text("")
     driver.phase4(status)
-    jobs = sorted(os.listdir(driver.P["queue"]))
-    recipe_jobs = [j for j in jobs if j.startswith("351")]
-    assert len(recipe_jobs) == 8 and not [j for j in jobs if j.startswith("396")]  # recipes first, no phase 4 yet
-    # the runner starts jobs in name order: the recipe runs go after the 350_ path jobs, before phase-1 training
-    assert all("350_~" < j < "360" for j in recipe_jobs)
-    rl2 = (Path(driver.P["queue"]) / "3512a_rlrecipe-a1-l12-18-24.sh").read_text()
-    assert "--lr 3e-06" in rl2 and "--kl-beta 0.04" in rl2 and "--g 8" in rl2 and "--updates 500" in rl2
-    rl3 = (Path(driver.P["queue"]) / "3513d_rlrecipe-d-l24.sh").read_text()
-    assert "--g 16 --scenes-per-update 16" in rl3
-    def finish(r):  # recipe r's runs finish: navdev paths at 250 and 500 updates (the fake scores them below the start)
+
+    def finish(r):
         for lc, kind in ((la, "masked"), (ld, "anchor")):
+            if driver.recipe_run(r, kind) != r:
+                continue  # another recipe's run stands for this one
             g = driver.GRID[kind]
             rd = Path(driver.P["heads"]) / f"{lc['run']}-rlrecipe{r}"
             for u in driver.RECIPE_CHECKPOINTS:
@@ -164,7 +160,33 @@ def test_rl_recipes_come_first_then_phase_4_with_the_chosen_recipe(tree):
                     (base / n).mkdir(parents=True, exist_ok=True)
                     (base / n / "shard_000_of_001.jsonl").write_text("{}" + chr(10))
                 (rd / f"navdev_rl_{u}" / "timing.json").write_text("{}")
+        for s in (1, 2):
+            for lc in (la, ld):
+                (Path(driver.P["heads"]) / f"{lc['run']}-s{s}").mkdir(parents=True, exist_ok=True)
+                (Path(driver.P["heads"]) / f"{lc['run']}-s{s}" / "final.pt").write_text("x")
 
+    return la, ld, finish, status
+
+
+def test_rl_recipes_come_first_and_phase_4_is_held_when_every_recipe_hurts(tree):
+    la, ld, finish, status = recipe_setup()
+    jobs = sorted(os.listdir(driver.P["queue"]))
+    recipe_jobs = [j for j in jobs if j.startswith("351")]
+    # R12's RL0-RL3 and R13's RL4-RL7 on A and D, except A's RL7: without Gaussian steps it is RL0
+    assert len(recipe_jobs) == 15 and not [j for j in jobs if j.startswith("396")]  # recipes first, no phase 4 yet
+    assert "3517a_rlrecipe-a1-l12-18-24.sh" not in jobs and "3517d_rlrecipe-d-l24.sh" in jobs
+    # the runner starts jobs in name order: the recipe runs go after the 350_ path jobs, before phase-1 training
+    assert all("350_~" < j < "360" for j in recipe_jobs)
+    q = Path(driver.P["queue"])
+    rl2 = (q / "3512a_rlrecipe-a1-l12-18-24.sh").read_text()
+    assert "--lr 3e-06" in rl2 and "--kl-beta 0.04" in rl2 and "--g 8" in rl2 and "--updates 500" in rl2
+    assert "--adv grpo --bc-balance 0 --lp-sd-floor 0" in rl2
+    assert "--g 16 --scenes-per-update 16" in (q / "3513d_rlrecipe-d-l24.sh").read_text()
+    assert "--adv dr --bc-balance 0 --lp-sd-floor 0 " in (q / "3514a_rlrecipe-a1-l12-18-24.sh").read_text()  # A: no floor
+    assert "--adv dr --bc-balance 0 --lp-sd-floor 0.1" in (q / "3514d_rlrecipe-d-l24.sh").read_text()
+    assert "--adv grpo --bc-balance 1 --lp-sd-floor 0.1" in (q / "3515d_rlrecipe-d-l24.sh").read_text()
+    assert "--adv dr --bc-balance 1 --lp-sd-floor 0.1" in (q / "3516d_rlrecipe-d-l24.sh").read_text()
+    assert "--adv grpo --bc-balance 0 --lp-sd-floor 0.1" in (q / "3517d_rlrecipe-d-l24.sh").read_text()
     # recipe 0 finishes first: its checkpoint choices are saved, and no recipe is chosen while the others run
     finish(0)
     driver.phase4(status)
@@ -173,19 +195,47 @@ def test_rl_recipes_come_first_then_phase_4_with_the_chosen_recipe(tree):
     # a later pass reads recipe 0's saved choices back from JSON (string keys) while scoring the rest
     for r in list(driver.RECIPES)[1:]:
         finish(r)
-    for s in (1, 2):
-        for lc in (la, ld):
-            (Path(driver.P["heads"]) / f"{lc['run']}-s{s}").mkdir(parents=True, exist_ok=True)
-            (Path(driver.P["heads"]) / f"{lc['run']}-s{s}" / "final.pt").write_text("x")
     driver.phase4(status)
     rec = json.loads((Path(driver.P["heads"]) / "choices" / "rl_recipe.json").read_text())
-    assert rec["recipe"] == 0 and rec["every_recipe_lowers_both_methods"]  # all tied below the start: the first recipe
-    jobs = sorted(os.listdir(driver.P["queue"]))
-    assert {"396a0_rl-a1-l12-18-24.sh", "396a1_rl-a1-l12-18-24-s1.sh", "396a2_rl-a1-l12-18-24-s2.sh"} <= set(jobs)
-    body = (Path(driver.P["queue"]) / "396a1_rl-a1-l12-18-24-s1.sh").read_text()
-    assert "--weights epoch_15" in body and "--seed 1" in body and "--lr 1e-05" in body and "--updates 1500" in body
+    assert set(rec["mean_gain_navdev_single"]) == {str(r) for r in driver.RECIPES}
+    assert rec["every_recipe_lowers_both_methods"] and rec["phase4"].startswith("held")  # the fake scores RL below
+    assert rec["runs_standing_in"] == {"RL7 on A": "RL0 (the same settings for masked)"}
+    assert rec["gain_by_method"]["7"]["A"] == rec["gain_by_method"]["0"]["A"]
+    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("396")]  # R13: phase 4 waits for the researcher
+    assert status["rl_recipe"] is None
     ch = json.loads((Path(driver.P["heads"]) / "a1-l12-18-24-rlrecipe0" / "choices_navdev.json").read_text())
     assert ch["checkpoint"] == "start"  # RL only lowered the score here, so update 0 is kept
+
+
+def test_phase_4_runs_the_recipe_that_helps(tree, monkeypatch):
+    def scorer(folder, split, exp_name, **kw):  # RL6's paths score above the start, the other recipes' below
+        fake_scorer(folder, split, exp_name, **kw)
+        if "rlrecipe6" in folder:
+            f = Path(driver.P["exp"]) / exp_name / "run" / "scores.csv"
+            df = pd.read_csv(f)
+            df["score"] = (df["score"] + 0.08).clip(upper=1.0)
+            df.to_csv(f, index=False)
+
+    monkeypatch.setattr(driver, "SCORER", scorer)
+    la, ld, finish, status = recipe_setup()
+    # an R12-only choice written before R13 existed is kept under another name, and the stage goes on
+    old = Path(driver.P["heads"]) / "choices" / "rl_recipe.json"
+    old.parent.mkdir(parents=True, exist_ok=True)
+    old.write_text(json.dumps({"recipe": 3, "mean_gain_navdev_single": {str(r): -0.01 for r in range(4)},
+                               "every_recipe_lowers_both_methods": True}))
+    for r in driver.RECIPES:
+        finish(r)
+    driver.phase4(status)
+    assert (old.parent / "rl_recipe_RL0-RL3.json").exists()
+    rec = json.loads(old.read_text())
+    assert rec["recipe"] == 6 and not rec["every_recipe_lowers_both_methods"] and rec["phase4"] == "started with RL6"
+    assert status["rl_recipe"] == 6
+    jobs = set(os.listdir(driver.P["queue"]))
+    assert {"396a0_rl-a1-l12-18-24.sh", "396a1_rl-a1-l12-18-24-s1.sh", "396a2_rl-a1-l12-18-24-s2.sh"} <= jobs
+    body = (Path(driver.P["queue"]) / "396a1_rl-a1-l12-18-24-s1.sh").read_text()
+    assert "--weights epoch_15" in body and "--seed 1" in body and "--lr 1e-05" in body and "--updates 1500" in body
+    assert "--adv dr --bc-balance 1 --lp-sd-floor 0 " in body  # A has no Gaussian steps
+    assert "--adv dr --bc-balance 1 --lp-sd-floor 0.1" in (Path(driver.P["queue"]) / "396d1_rl-d-l24-s1.sh").read_text()
 
 
 def test_decision_needs_a_gap_beyond_drive_and_seed_noise():

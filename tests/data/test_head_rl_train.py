@@ -37,7 +37,12 @@ def fake_server(port, stop):
         conn.close()
 
 
-@pytest.mark.parametrize("kind,extra,rl_extra", [("masked", [], []), ("anchor", ["--anchors", "4"], ["--kl-beta", "0.04"])])
+@pytest.mark.parametrize("kind,extra,rl_extra", [
+    ("masked", [], []),
+    ("anchor", ["--anchors", "4"], ["--kl-beta", "0.04"]),
+    ("masked", [], ["--adv", "dr", "--bc-balance", "1"]),  # R13's RL6 on A
+    ("anchor", ["--anchors", "4"], ["--adv", "dr", "--bc-balance", "1", "--lp-sd-floor", "0.1"]),  # R13's RL6 on D
+])
 def test_rl_updates_and_checkpoints(tmp_path, kind, extra, rl_extra):
     cache = tmp_path / "cache"
     make_split(cache / "train", 24, seed=0)
@@ -62,11 +67,31 @@ def test_rl_updates_and_checkpoints(tmp_path, kind, extra, rl_extra):
     log = [json.loads(l) for l in (rl / "log.jsonl").read_text().splitlines()]
     assert [r["update"] for r in log] == [1, 2, 3]
     assert all(0.0 <= r["reward"] <= 1.0 and r["scorer_errors"] == 0 for r in log)
-    if rl_extra:  # with the KL term the policy starts at the reference, then drifts a little
+    if "--kl-beta" in rl_extra:  # with the KL term the policy starts at the reference, then drifts a little
         assert log[0]["kl"] < 1e-4 and all(r["kl"] >= 0 for r in log)
+    meta = json.loads((rl / "run.json").read_text())
+    if "--bc-balance" in rl_extra:  # R13: the BC weight was measured at the start, and every update has the BC term
+        assert meta["bc"]["weight"] > 0 and len(meta["bc"]["rl_grad_norms"]) == 4 and all(r["bc"] > 0 for r in log)
+        assert meta["args"]["adv"] == "dr"
+    else:
+        assert "bc" not in meta and all("bc" not in r for r in log)
     for f in ("rl_2.pt", "rl_3.pt", "checkpoint.pt", "run.json"):
         assert (rl / f).exists(), f
     assert json.loads((rl / "run.json").read_text())["rl_scenes"] == 12
     run("predict_head.py", "--run", str(rl), "--weights", "rl_3", "--cache", str(cache / "dev"), "--split", "navdev",
         "--steps", "2", "--k", "2")
     assert (rl / "navdev_rl_3" / "steps2" / "single" / "shard_000_of_001.jsonl").exists()
+
+
+def test_advantages_with_and_without_the_group_sd():
+    """R13: the SD division turns a group's tiny progress gaps into full-size advantages; Dr. GRPO keeps them in reward
+    units. A group whose rewards are all equal gives no gradient either way."""
+    import torch
+
+    import rl_head
+    r = torch.tensor([[0.9, 0.9, 0.9, 0.9], [0.80, 0.81, 0.82, 0.83], [0.0, 1.0, 1.0, 1.0]])
+    a, d = rl_head.advantages(r, "grpo"), rl_head.advantages(r, "dr")
+    assert torch.all(a[0] == 0) and torch.all(d[0] == 0)
+    assert a[1].abs().max() > 1.0 and d[1].abs().max() < 0.02
+    assert torch.allclose(d[2], torch.tensor([-0.75, 0.25, 0.25, 0.25]))
+    assert torch.allclose(a.sum(1), torch.zeros(3), atol=1e-6) and torch.allclose(d.sum(1), torch.zeros(3), atol=1e-6)

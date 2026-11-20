@@ -426,18 +426,36 @@ def rl_start(method: str, lc: dict) -> Optional[dict]:
     return res
 
 
-RECIPES = {  # R12: the candidate RL recipes, the same for every method
+RECIPES = {  # R12 (RL0-RL3) and R13 (RL4-RL7): the candidate RL recipes, the same for every method
     0: {"lr": 1e-5, "kl_beta": 0.0, "g": 8, "scenes": 32},
     1: {"lr": 1e-5, "kl_beta": 0.04, "g": 8, "scenes": 32},
     2: {"lr": 3e-6, "kl_beta": 0.04, "g": 8, "scenes": 32},
     3: {"lr": 3e-6, "kl_beta": 0.04, "g": 16, "scenes": 16},
+    4: {"lr": 1e-5, "kl_beta": 0.0, "g": 8, "scenes": 32, "adv": "dr", "lp_floor": 0.1},
+    5: {"lr": 1e-5, "kl_beta": 0.0, "g": 8, "scenes": 32, "bc": 1.0, "lp_floor": 0.1},
+    6: {"lr": 1e-5, "kl_beta": 0.0, "g": 8, "scenes": 32, "adv": "dr", "bc": 1.0, "lp_floor": 0.1},
+    7: {"lr": 1e-5, "kl_beta": 0.0, "g": 8, "scenes": 32, "lp_floor": 0.1},
 }
+GAUSSIAN_STEPS = ("anchor", "ddim", "flow")  # kinds whose log-probability has Gaussian steps (R13's SD floor)
 RECIPE_METHODS = ("A", "D")
 RECIPE_CHECKPOINTS = (250, 500)
 
 
+def recipe_settings(recipe: int, kind: str) -> dict:
+    """The recipe's settings as they act on this kind: the SD floor does nothing without Gaussian steps."""
+    s = {"adv": "grpo", "bc": 0.0, "lp_floor": 0.0, **RECIPES[recipe]}
+    if kind not in GAUSSIAN_STEPS:
+        s["lp_floor"] = 0.0
+    return s
+
+
+def recipe_run(recipe: int, kind: str) -> int:
+    """The earliest recipe that acts identically on this kind; its run stands for both (R13: A's RL7 is RL0)."""
+    return min(q for q in RECIPES if recipe_settings(q, kind) == recipe_settings(recipe, kind))
+
+
 def rl_body(lc: dict, sft: str, rl: str, epoch: int, seed: int, recipe: int, checkpoints) -> str:
-    c, g, r = lc["choice"], GRID[lc["kind"]], RECIPES[recipe]
+    c, g, r = lc["choice"], GRID[lc["kind"]], recipe_settings(recipe, lc["kind"])
     k = g["k"] if c["scale"] is not None else 0
     sc = f"--scales {c['scale']:g}" if k else ""
     return f"""H=$HOME/navsim_workspace/exp/heads; NC=$HOME/navsim_workspace/exp/metric_cache_navtrain_v1; OUT=$H/{rl}
@@ -453,6 +471,7 @@ for i in $(seq 120); do grep -q serving $OUT/server.log && break; sleep 5; done
 taskset -c 16-31 $PY pilot_sft/heads/rl_head.py --run $H/{sft} --weights epoch_{epoch} --out $OUT \\
   --rl-scenes $HOME/navsim_workspace/training_data/pilot_v1/v1-nt-p12 --steps {c['steps']} --scale {(c['scale'] or 1.0):g} \\
   --lr {r['lr']:g} --kl-beta {r['kl_beta']:g} --g {r['g']} --scenes-per-update {r['scenes']} \\
+  --adv {r['adv']} --bc-balance {r['bc']:g} --lp-sd-floor {r['lp_floor']:g} \\
   --seed {seed} --updates {checkpoints[-1]} --save-every {checkpoints[0]} --resume
 rc=$?
 pkill -f "pdm_server.py serve --cache $NC"
@@ -575,12 +594,16 @@ def decide(per_method: Dict[str, List[pd.Series]], drives: Dict[str, str], n: in
 
 
 def recipe_stage() -> Optional[int]:
-    """R12: run every candidate recipe on A and on D (seed 0, from their R11 starting epochs, 500 updates), then
-    choose the recipe whose better checkpoint (250 or 500) gives the highest navdev single-path change from the
-    start, averaged over A and D (a tie goes to the earlier recipe). These runs are in no method comparison."""
+    """R12 and R13: run every candidate recipe on A and on D (seed 0, from their R11 starting epochs, 500 updates),
+    then choose the recipe whose better checkpoint (250 or 500) gives the highest navdev single-path change from the
+    start, averaged over A and D (a tie goes to the earlier recipe). These runs are in no method comparison. If
+    every recipe lowers both methods, phase 4 is held for the researcher (R13): None."""
     out = os.path.join(P["heads"], "choices", "rl_recipe.json")
     if os.path.exists(out):
-        return read_json(out)["recipe"]
+        j = read_json(out)
+        if {int(r) for r in j["mean_gain_navdev_single"]} >= set(RECIPES):
+            return None if j["every_recipe_lowers_both_methods"] else j["recipe"]
+        os.replace(out, out.replace(".json", f"_RL0-RL{max(map(int, j['mean_gain_navdev_single']))}.json"))  # kept
     if not navtrain_ready():
         return None
     ready_methods = {}
@@ -590,15 +613,19 @@ def recipe_stage() -> Optional[int]:
         if not start:
             return None
         ready_methods[m] = (lc, start)
-    gains, per_recipe = {}, {}
+    gains, per_recipe, stand_in = {}, {}, {}
     for r in RECIPES:
         per = {}
         for m in RECIPE_METHODS:
             lc, start = ready_methods[m]
-            rl = f"{lc['run']}-rlrecipe{r}"
-            queue_job(f"351{r}{m.lower()}_rlrecipe-{lc['run']}",
-                      f"R12 recipe RL{r} on {lc['run']} (seed 0, from epoch {start['epoch']}, 500 updates)",
-                      rl_body(lc, lc["run"], rl, start["epoch"], 0, r, RECIPE_CHECKPOINTS))
+            q = recipe_run(r, lc["kind"])
+            rl = f"{lc['run']}-rlrecipe{q}"
+            if q == r:
+                queue_job(f"351{r}{m.lower()}_rlrecipe-{lc['run']}",
+                          f"R{12 if r < 4 else 13} recipe RL{r} on {lc['run']} (seed 0, from epoch {start['epoch']}, "
+                          "500 updates)", rl_body(lc, lc["run"], rl, start["epoch"], 0, r, RECIPE_CHECKPOINTS))
+            else:
+                stand_in[f"RL{r} on {m}"] = f"RL{q} (the same settings for {lc['kind']})"
             ch = rl_choose(rl, lc, lc["run"], start["epoch"], RECIPE_CHECKPOINTS, navtest=False)
             if ch:
                 sb = ch["single_by_checkpoint"]
@@ -608,12 +635,15 @@ def recipe_stage() -> Optional[int]:
     if len(gains) < len(RECIPES):
         return None
     best = max(RECIPES, key=lambda r: (gains[r], -r))
+    hold = all(v < 0 for p in per_recipe.values() for v in p.values())
     res = {"recipe": best, "settings": RECIPES[best], "mean_gain_navdev_single": gains, "gain_by_method": per_recipe,
-           "every_recipe_lowers_both_methods": all(v < 0 for p in per_recipe.values() for v in p.values()),
-           "rule": "docs/HEADS_PLAN.md R12", "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
+           "every_recipe_lowers_both_methods": hold, "runs_standing_in": stand_in,
+           "phase4": ("held: every recipe lowered both methods' navdev single path; the researcher decides the next "
+                      "step (R13)") if hold else f"started with RL{best}",
+           "rule": "docs/HEADS_PLAN.md R12, R13", "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
     write_json(out, res)
-    log(f"R12 recipe: RL{best} {json.dumps(res)}")
-    return best
+    log(f"R12/R13 recipe: RL{best}{' (phase 4 held)' if hold else ''} {json.dumps(res)}")
+    return None if hold else best
 
 
 def phase4(status: dict) -> None:

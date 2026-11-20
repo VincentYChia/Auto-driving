@@ -529,11 +529,12 @@ class Head(nn.Module):
         xy = self.denorm(torch.stack(paths, 1).reshape(b, g, N_WP, 2))
         return xy, {"kind": "anchor", "z": torch.stack(zs), "pick": torch.stack(picks), "steps": steps, "k": g}
 
-    def anchor_logprob(self, kvs, mem_mask, ego, trace: dict, ref=None):
+    def anchor_logprob(self, kvs, mem_mask, ego, trace: dict, ref=None, lp_floor: float = 0.0):
         """Log-probability [B, G] of each candidate, with gradients: the drawn anchor under softmax(score), plus the
         Gaussian log-density of that anchor's refinement steps (docs/HEADS_PLAN.md phase 4). With ``ref``, also the
         exact KL to the reference along the path: the anchor-choice categorical KL plus each step's Gaussian KL,
-        ||mu - mu_ref||^2 / (2 sigma^2) (R12)."""
+        ||mu - mu_ref||^2 / (2 sigma^2) (R12). ``lp_floor`` > 0 (R13) uses max(sigma, lp_floor) inside the
+        log-density and KL of each step; sampling is unchanged, so this scales down the steps with small sigma."""
         z, pick, steps = trace["z"], trace["pick"], trace["steps"]  # z [G, steps+1, B, A, 16], pick [G, B]
         g, b, dev = z.shape[0], z.shape[2], z.device
         ts = torch.linspace(self.cfg.anchor_trunc, 0.0, steps + 1, device=dev)
@@ -544,6 +545,8 @@ class Head(nn.Module):
             for i in range(steps):
                 x0, score = self.anchor_forward(z[gi, i], kvs, mem_mask, ego, ts[i].expand(b))
                 mu, sig = self._anchor_step(z[gi, i], x0.float(), ts[i], ts[i + 1])
+                if lp_floor > 0:
+                    sig = sig.clamp_min(lp_floor)
                 d = (z[gi, i + 1][rows, a] - mu[rows, a]) / sig
                 lp = lp + (-0.5 * d ** 2 - torch.log(sig) - 0.5 * math.log(2 * math.pi)).sum(-1)
                 if ref is not None:
@@ -613,16 +616,19 @@ class Head(nn.Module):
         v = head.cont_forward(z, kvs, mem_mask, ego, torch.full((b,), tau, device=dev), g).float()
         return head._flow_sde_step(z, v, tau, 1.0 / steps)
 
-    def cont_logprob(self, kvs, mem_mask, ego, trace: dict, ref=None):
+    def cont_logprob(self, kvs, mem_mask, ego, trace: dict, ref=None, lp_floor: float = 0.0):
         """Log-probability [B, G] of B's or C's sampled candidates, with gradients: the Gaussian log-density of every
         stochastic step (the start noise does not depend on the network). With ``ref``, also each step's exact
-        Gaussian KL to the reference, ||mu - mu_ref||^2 / (2 sd^2) (R12)."""
+        Gaussian KL to the reference, ||mu - mu_ref||^2 / (2 sd^2) (R12). ``lp_floor`` > 0 (R13) uses
+        max(sd, lp_floor) inside the log-density and KL; sampling is unchanged."""
         z, steps, g, kind = trace["z"], trace["steps"], trace["k"], trace["kind"]  # z [steps+1, B, G, 8, 2]
         b, dev = z.shape[1], z.device
         ts = torch.linspace(1.0, 0.0, steps + 1, device=dev)
         lp, kl = torch.zeros(b, g, device=dev), torch.zeros(b, g, device=dev)
         for i in range(steps):
             mu, sd = self._cont_mean(self, z[i], kvs, mem_mask, ego, kind, i, steps, ts, g)
+            if lp_floor > 0:
+                sd = sd.clamp_min(lp_floor)
             d = (z[i + 1] - mu) / sd
             lp = lp + (-0.5 * d ** 2 - torch.log(sd) - 0.5 * math.log(2 * math.pi)).sum((-1, -2))
             if ref is not None:
@@ -647,9 +653,11 @@ class Head(nn.Module):
             return self.cont_rl_sample(kvs, mem_mask, ego, g, steps, scale, generator)
         raise NotImplementedError(f"no RL policy for '{self.cfg.kind}': R has no stochastic policy (docs/HEADS_PLAN.md R11)")
 
-    def rl_logprob(self, feats, mask, ego, trace: dict, ref: Optional["Head"] = None):
+    def rl_logprob(self, feats, mask, ego, trace: dict, ref: Optional["Head"] = None, lp_floor: float = 0.0):
         """The exact log-probability [B, G] of the candidates ``rl_sample`` drew, with gradients. With a reference
-        head ``ref`` (the frozen starting policy), returns (log-probability, exact KL to ``ref`` along each path)."""
+        head ``ref`` (the frozen starting policy), returns (log-probability, exact KL to ``ref`` along each path).
+        ``lp_floor`` > 0 floors the SD of every Gaussian step inside the log-density and KL (R13; D, B and C; A has
+        no Gaussian steps)."""
         kvs, mem_mask = self.trunk.memory(feats, mask)
         r = None
         if ref is not None:
@@ -658,9 +666,9 @@ class Head(nn.Module):
         if trace["kind"] == "masked":
             lp, kl = self.masked_logprob(kvs, mem_mask, ego, trace, r)
         elif trace["kind"] == "anchor":
-            lp, kl = self.anchor_logprob(kvs, mem_mask, ego, trace, r)
+            lp, kl = self.anchor_logprob(kvs, mem_mask, ego, trace, r, lp_floor)
         elif trace["kind"] in ("ddim", "flow"):
-            lp, kl = self.cont_logprob(kvs, mem_mask, ego, trace, r)
+            lp, kl = self.cont_logprob(kvs, mem_mask, ego, trace, r, lp_floor)
         else:
             raise NotImplementedError(trace["kind"])
         return (lp, kl) if ref is not None else lp
