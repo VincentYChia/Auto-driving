@@ -1,0 +1,44 @@
+{
+ "rule": "docs/HEADS_PLAN.md R6",
+ "must_be_zero": {
+  "drives navdev & train": 0,
+  "drives navdev & rl": 0,
+  "drives navtest & train": 0,
+  "drives navtest & rl": 0,
+  "drives navdev & navtest": 0,
+  "rl tokens not in train": 0,
+  "warm-up tokens in train": 0,
+  "warm-up tokens in rl": 0,
+  "warm-up tokens in navdev": 0
+ },
+ "pass": true,
+ "sizes": {
+  "train": {
+   "scenes": 236133,
+   "logs": 1268,
+   "drives": 158
+  },
+  "rl": {
+   "scenes": 80626,
+   "logs": 975,
+   "drives": 101
+  },
+  "navdev": {
+   "scenes": 2000,
+   "logs": 34,
+   "drives": 11
+  },
+  "navtest": {
+   "scenes": 12146,
+   "logs": 136,
+   "drives": 44
+  }
+ },
+ "warm_up": {
+  "tokens": 563,
+  "logs": 62,
+  "logs shared with train (rows within 7 s excluded, not whole logs)": 0,
+  "logs shared with rl": 0
+ },
+ "not_auditable": "the pre-training data of the Qwen3.5 base model"
+}

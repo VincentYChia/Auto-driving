@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-19 21:40 EST
+**Updated:** 2026-11-19 22:00 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -38,9 +38,21 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - **Running:** the metric cache plus constant-velocity and human-path scores, Anvil job 22322227 on `wide` (est. start 22:07).
    - **Then:** copy to the desktop and rewrite the metadata paths.
    - **Finding:** navtest's 12,146 scenes come from only 44 drives (16–985 scenes each), so drive-level intervals on navtest will also be much wider than the scene-level ones reported so far.
-4. Phase 0: the difficulty filter as navtest's, checked on navtest; the leakage audit; navdev's resolution measured; references scored (constant velocity, H1's text output).
-5. Phase 0: commit rules R1–R9 and the phase-4 RL settings, and record the hash here.
-6. Script the phase-1 choices on navdev and the phase transitions on the desktop, so the GPU queue keeps moving without the session.
+4. Phase 0:
+   - **Difficulty filter: verified.** navtest's own rule (constant velocity PDMS ≤ 0.8 and human PDMS ≥ 0.8) keeps 12,129 of 12,146 navtest scenes (99.86%). It is applied to navdev once its scores exist.
+   - **Leakage audit: passes** (`docs/navsim_eval/results/heads_leakage_audit_2026-11-19.json`):
+     - 0 drives shared between navdev or navtest and the training data (236,133 scenes, 158 drives) or the RL scenes (80,626 scenes, 101 drives);
+     - all RL scenes are inside the training data;
+     - 0 of the 563 NAVSIM warm-up scenes are in any training set.
+   - **Still to do:** navdev's resolution; the references (constant velocity, H1's text output) once the cache exists. H1's navdev paths are job 363b.
+5. ~~Commit the rules.~~ **Done:** R1–R9 and the phase-4 settings in a64e437 and 79df830; R10, the choice procedure, in **b6ba4f5**, all before any navdev score. Still to read and commit before phase 4: Flow-GRPO's SDE noise level for C.
+6. ~~Script the phase-1 choices and the phase transitions.~~ **Done:** `pilot_sft/heads/driver.py` (85dcec1), running on the desktop since 21:55. Every 5 min it:
+   - scores navdev in the R10 order and writes each run's choices;
+   - makes each method's layer choice;
+   - queues navtest paths at the choices, phase 3's seeds and phase 2's series;
+   - scores navtest for the report.
+   - Its status is `~/navsim_workspace/exp/heads/driver_status.json`; its log is `driver.log`.
+   - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
 7. Phase 1: navdev and navtest paths and scores for all 10 runs; the per-method layer choice.
 8. RL code (phase 4), written and tested while phases 2–3 train.
 9. **Report at 12:00 Fri Nov 20.**
