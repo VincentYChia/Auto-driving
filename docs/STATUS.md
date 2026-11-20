@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 05:15 EST
+**Updated:** 2026-11-20 05:30 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -112,7 +112,17 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 9. **Report at 12:00 Fri Nov 20:** results with drive intervals for every configuration so far (navdev for choices, navtest for the report), R12's recipe result if it has landed, problems and fixes, and next steps. An HTML overview stays on the home PC; the headline numbers go here.
 
 ## Waiting on the researcher
-- Nothing. **The plan (`docs/HEADS_PLAN.md`, revision 2) was approved 2026-11-19 ~21:00, and the HOLD is lifted.** Two clarifications are in the plan's header:
+- **A question for your 12:00 check; it blocks nothing.**
+  - **The issue:** R5 chooses the method by its own single path after RL, and the selector (phase 6) is built only for the winner. So far, D has clearly the best candidates and clearly the weakest own pick (A, B and D on navtest; C and R are still training).
+    - D − A, best-of-6: **+1.9** (drive interval +1.6 to +2.2).
+    - D − A, single path: **−1.75** (−2.6 to −0.9).
+  - **Why it matters:** the final system always has a selector, so R5 could choose a method that is not the best one for the final system.
+  - **Options:**
+    1. Keep R5 as it is. It answers "which method gives the best path on its own". This is the default.
+    2. Also build phase 6's cross-fitted selector for the runner-up, when its best-of-6 is clearly higher. The final system then uses whichever generator-plus-selector scores higher on navdev.
+  - **My recommendation is option 2.** It costs one more selector, and R5's answer stays as it is.
+  - Nothing changes unless you say so.
+- **The plan (`docs/HEADS_PLAN.md`, revision 2) was approved 2026-11-19 ~21:00, and the HOLD is lifted.** Two clarifications are in the plan's header:
   - equal tuning until a clear winner: contenders proceed together;
   - quality over schedule: improve RL round after round, even past the dates.
 - **Schedule:**
