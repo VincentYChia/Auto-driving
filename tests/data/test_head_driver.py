@@ -131,25 +131,50 @@ def test_navtest_scores_at_the_choices_are_reported_only(tree):
         driver.score_navtest_run("b-l24", "ddim", c)
 
 
-def test_rl_start_uses_best_of_6_and_rl_waits_for_the_navtrain_cache(tree):
-    for run in ("a1-l24", "a1-l12-18-24"):
-        make_run(run, "masked")
-    lc = driver.choose_layers("A")
-    start = driver.rl_start("A", lc)
-    assert start["epoch"] == 15  # the fake makes epoch 15 best for samples too
-    for s in (1, 2):
-        (Path(driver.P["heads"]) / f"{lc['run']}-s{s}").mkdir(parents=True, exist_ok=True)
-        (Path(driver.P["heads"]) / f"{lc['run']}-s{s}" / "final.pt").write_text("x")
+def test_rl_recipes_come_first_then_phase_4_with_the_chosen_recipe(tree):
+    for run, kind in (("a1-l24", "masked"), ("a1-l12-18-24", "masked"), ("d-l24", "anchor"), ("d-l12-18-24", "anchor")):
+        make_run(run, kind)
+    la, ld = driver.choose_layers("A"), driver.choose_layers("D")
+    assert driver.rl_start("A", la)["epoch"] == 15  # the fake makes epoch 15 best for samples too
     status = {"navdev_ready": True}
     driver.phase4(status)
-    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("45")]  # no cache yet: nothing queued
+    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("39")]  # no navtrain cache: nothing queued
     (Path(driver.P["exp"]) / "metric_cache_navtrain_v1").mkdir(parents=True)
     (Path(driver.P["exp"]) / "metric_cache_navtrain_v1" / ".ready").write_text("")
     driver.phase4(status)
-    rl_jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("45"))
-    assert rl_jobs == ["45a0_rl-a1-l12-18-24.sh", "45a1_rl-a1-l12-18-24-s1.sh", "45a2_rl-a1-l12-18-24-s2.sh"]
-    body = (Path(driver.P["queue"]) / "45a1_rl-a1-l12-18-24-s1.sh").read_text()
-    assert "--weights epoch_15" in body and "--seed 1" in body and "--scale 1.5" in body and "--steps 4" in body
+    jobs = sorted(os.listdir(driver.P["queue"]))
+    recipe_jobs = [j for j in jobs if j.startswith("395")]
+    assert len(recipe_jobs) == 8 and not [j for j in jobs if j.startswith("396")]  # recipes first, no phase 4 yet
+    rl2 = (Path(driver.P["queue"]) / "3952a_rlrecipe-a1-l12-18-24.sh").read_text()
+    assert "--lr 3e-06" in rl2 and "--kl-beta 0.04" in rl2 and "--g 8" in rl2 and "--updates 500" in rl2
+    rl3 = (Path(driver.P["queue"]) / "3953d_rlrecipe-d-l24.sh").read_text()
+    assert "--g 16 --scenes-per-update 16" in rl3
+    # the recipe runs finish: navdev paths at 250 and 500 updates (the fake scores them below the start, epoch 15)
+    for r in driver.RECIPES:
+        for lc, kind in ((la, "masked"), (ld, "anchor")):
+            g = driver.GRID[kind]
+            rd = Path(driver.P["heads"]) / f"{lc['run']}-rlrecipe{r}"
+            for u in driver.RECIPE_CHECKPOINTS:
+                base = rd / f"navdev_rl_{u}" / f"steps{lc['choice']['steps']}"
+                names = ["single"] + ([os.path.basename(f) for f in driver.sample_folders(str(base), lc["choice"]["scale"], g["k"])]
+                                      if lc["choice"]["scale"] is not None else [])
+                for n in names:
+                    (base / n).mkdir(parents=True, exist_ok=True)
+                    (base / n / "shard_000_of_001.jsonl").write_text("{}" + chr(10))
+                (rd / f"navdev_rl_{u}" / "timing.json").write_text("{}")
+    for s in (1, 2):
+        for lc in (la, ld):
+            (Path(driver.P["heads"]) / f"{lc['run']}-s{s}").mkdir(parents=True, exist_ok=True)
+            (Path(driver.P["heads"]) / f"{lc['run']}-s{s}" / "final.pt").write_text("x")
+    driver.phase4(status)
+    rec = json.loads((Path(driver.P["heads"]) / "choices" / "rl_recipe.json").read_text())
+    assert rec["recipe"] == 0 and rec["every_recipe_lowers_both_methods"]  # all tied below the start: the first recipe
+    jobs = sorted(os.listdir(driver.P["queue"]))
+    assert {"396a0_rl-a1-l12-18-24.sh", "396a1_rl-a1-l12-18-24-s1.sh", "396a2_rl-a1-l12-18-24-s2.sh"} <= set(jobs)
+    body = (Path(driver.P["queue"]) / "396a1_rl-a1-l12-18-24-s1.sh").read_text()
+    assert "--weights epoch_15" in body and "--seed 1" in body and "--lr 1e-05" in body and "--updates 1500" in body
+    ch = json.loads((Path(driver.P["heads"]) / "a1-l12-18-24-rlrecipe0" / "choices_navdev.json").read_text())
+    assert ch["checkpoint"] == "start"  # RL only lowered the score here, so update 0 is kept
 
 
 def test_decision_needs_a_gap_beyond_drive_and_seed_noise():

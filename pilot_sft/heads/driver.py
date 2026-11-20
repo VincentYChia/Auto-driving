@@ -419,82 +419,113 @@ def rl_start(method: str, lc: dict) -> Optional[dict]:
     return res
 
 
-def rl_body(method: str, lc: dict, sft: str, rl: str, epoch: int, seed: int) -> str:
-    c = lc["choice"]
+RECIPES = {  # R12: the candidate RL recipes, the same for every method
+    0: {"lr": 1e-5, "kl_beta": 0.0, "g": 8, "scenes": 32},
+    1: {"lr": 1e-5, "kl_beta": 0.04, "g": 8, "scenes": 32},
+    2: {"lr": 3e-6, "kl_beta": 0.04, "g": 8, "scenes": 32},
+    3: {"lr": 3e-6, "kl_beta": 0.04, "g": 16, "scenes": 16},
+}
+RECIPE_METHODS = ("A", "D")
+RECIPE_CHECKPOINTS = (250, 500)
+
+
+def rl_body(lc: dict, sft: str, rl: str, epoch: int, seed: int, recipe: int, checkpoints) -> str:
+    c, g, r = lc["choice"], GRID[lc["kind"]], RECIPES[recipe]
+    k = g["k"] if c["scale"] is not None else 0
+    sc = f"--scales {c['scale']:g}" if k else ""
     return f"""H=$HOME/navsim_workspace/exp/heads; NC=$HOME/navsim_workspace/exp/metric_cache_navtrain_v1; OUT=$H/{rl}
 export NAVSIM_DEVKIT_ROOT=$HOME/navsim-v1.1 OPENSCENE_DATA_ROOT=$HOME/navsim_workspace/dataset
 export NUPLAN_MAPS_ROOT=$HOME/navsim_workspace/dataset/maps NUPLAN_MAP_VERSION=nuplan-maps-v1.0 NAVSIM_EXP_ROOT=$HOME/navsim_workspace/exp
 until [ -f $NC/.ready ]; do sleep 300; done
 mkdir -p $OUT
+# update 0, the start: navdev paths of the supervised run at the starting epoch, if not written yet
+[ -f $H/{sft}/navdev_epoch_{epoch}/timing.json ] || taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $H/{sft} \\
+  --weights epoch_{epoch} --split navdev --cache $C/dev --steps {c['steps']} --k {k} {sc}
 PYTHONPATH=$HOME/Auto-driving setsid nohup taskset -c 16-31 nice -n 5 ~/miniforge3/envs/navsim/bin/python pilot_sft/heads/pdm_server.py serve --cache $NC --workers 12 --port 47411 > $OUT/server.log 2>&1 < /dev/null &
 for i in $(seq 120); do grep -q serving $OUT/server.log && break; sleep 5; done
 taskset -c 16-31 $PY pilot_sft/heads/rl_head.py --run $H/{sft} --weights epoch_{epoch} --out $OUT \\
-  --rl-scenes $HOME/navsim_workspace/training_data/pilot_v1/v1-nt-p12 --steps {c['steps']} --scale {c['scale']:g} \\
-  --seed {seed} --updates {RL_CHECKPOINTS[-1]} --save-every {RL_CHECKPOINTS[0]} --resume
+  --rl-scenes $HOME/navsim_workspace/training_data/pilot_v1/v1-nt-p12 --steps {c['steps']} --scale {(c['scale'] or 1.0):g} \\
+  --lr {r['lr']:g} --kl-beta {r['kl_beta']:g} --g {r['g']} --scenes-per-update {r['scenes']} \\
+  --seed {seed} --updates {checkpoints[-1]} --save-every {checkpoints[0]} --resume
 rc=$?
 pkill -f "pdm_server.py serve --cache $NC"
 [ $rc -eq 0 ] || exit $rc
-for u in {' '.join(map(str, RL_CHECKPOINTS))}; do
+for u in {' '.join(map(str, checkpoints))}; do
   taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $OUT --weights rl_$u --split navdev --cache $C/dev \\
-    --steps {c['steps']} --k 6 --scales {c['scale']:g}
+    --steps {c['steps']} --k {k} {sc}
 done
 """
 
 
-def queue_rl(method: str, lc: dict, start: dict) -> None:
+def queue_rl(method: str, lc: dict, start: dict, recipe: int) -> None:
+    """Phase 4 proper (R11, with R12's chosen recipe): every RL seed of the method, once its supervised seed exists."""
     for s in RL_SEEDS[method]:
         sft = lc["run"] if s == 0 else f"{lc['run']}-s{s}"
         if not os.path.exists(os.path.join(P["heads"], sft, "final.pt")):
             continue
-        queue_job(f"45{method.lower()}{s}_rl-{sft}", f"phase 4, RL (seed {s}) of {sft} from epoch {start['epoch']}",
-                  rl_body(method, lc, sft, f"{sft}-rl", start["epoch"], s))
+        queue_job(f"396{method.lower()}{s}_rl-{sft}",
+                  f"phase 4, RL{recipe} (seed {s}) of {sft} from epoch {start['epoch']}",
+                  rl_body(lc, sft, f"{sft}-rl", start["epoch"], s, recipe, RL_CHECKPOINTS))
 
 
-def rl_choose(rl: str, lc: dict) -> Optional[dict]:
-    """R11: the RL checkpoint with the highest navdev single-path PDMS (a tie goes to the earlier one)."""
+def rl_choose(rl: str, lc: dict, sft: str, epoch: int, checkpoints, navtest: bool = True) -> Optional[dict]:
+    """R11/R12: among update 0 (the start, no RL) and the saved checkpoints, the one with the highest navdev
+    single-path PDMS (a tie goes to the earlier one). Queues its navtest paths when ``navtest``."""
     rd = os.path.join(P["heads"], rl)
     out = os.path.join(rd, "choices_navdev.json")
     if os.path.exists(out):
         return read_json(out)
     c, g = lc["choice"], GRID[lc["kind"]]
-    single, b6, scores = {}, {}, {}
-    for u in RL_CHECKPOINTS:
-        base = os.path.join(rd, f"navdev_rl_{u}", f"steps{c['steps']}")
-        if not os.path.exists(os.path.join(rd, f"navdev_rl_{u}", "timing.json")):
+    single, b6 = {}, {}
+    for u in (0,) + tuple(checkpoints):
+        wdir = (os.path.join(P["heads"], sft, f"navdev_epoch_{epoch}") if u == 0 else os.path.join(rd, f"navdev_rl_{u}"))
+        if not os.path.exists(os.path.join(wdir, "timing.json")):
             return None
+        base = os.path.join(wdir, f"steps{c['steps']}")
         s = score(os.path.join(base, "single"), "navdev")
-        b = best_of(sample_folders(base, c["scale"], g["k"]), "navdev")
-        if s is None or b is None:
+        b = best_of(sample_folders(base, c["scale"], g["k"]), "navdev") if c["scale"] is not None else None
+        if s is None or (c["scale"] is not None and b is None):
             return None
-        single[u], b6[u], scores[u] = round(float(s.mean()), 4), round(b, 4), s
-    u = max(RL_CHECKPOINTS, key=lambda x: (single[x], -x))
-    res = {"run": rl, "checkpoint": f"rl_{u}", "updates": u, "steps": c["steps"], "scale": c["scale"],
+        single[u], b6[u] = round(float(s.mean()), 4), (round(b, 4) if b is not None else None)
+    u = max(single, key=lambda x: (single[x], -x))
+    res = {"run": rl, "start": {"run": sft, "weights": f"epoch_{epoch}"},
+           "checkpoint": "start" if u == 0 else f"rl_{u}", "updates": u, "steps": c["steps"], "scale": c["scale"],
            "navdev_single_pdms": single[u], "navdev_best_of_6": b6[u], "single_by_checkpoint": single,
-           "best_of_6_by_checkpoint": b6, "rule": "docs/HEADS_PLAN.md R11",
+           "best_of_6_by_checkpoint": b6, "rule": "docs/HEADS_PLAN.md R11, R12 (update 0 allowed)",
            "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
     write_json(out, res)
-    log(f"{rl}: RL checkpoint rl_{u} (navdev single {single[u]}, best-of-6 {b6[u]})")
-    g_k = g["k"]
-    queue_job(f"350_navtest-{rl}", f"navtest paths of {rl} at its navdev RL checkpoint rl_{u}",
-              f"taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $HOME/navsim_workspace/exp/heads/{rl} "
-              f"--weights rl_{u} --split navtest --cache $C/navtest --steps {c['steps']} --k {g_k} --scales {c['scale']:g}\n")
+    log(f"{rl}: RL checkpoint {res['checkpoint']} (navdev single {single[u]}; by checkpoint {single})")
+    if navtest:
+        run_dir, weights = (sft, f"epoch_{epoch}") if u == 0 else (rl, f"rl_{u}")
+        if not os.path.exists(os.path.join(P["heads"], run_dir, f"navtest_{weights}", "timing.json")):
+            k = g["k"] if c["scale"] is not None else 0
+            sc = f"--scales {c['scale']:g}" if k else ""
+            queue_job(f"350_navtest-{rl}", f"navtest paths of {rl} at its navdev checkpoint {res['checkpoint']}",
+                      f"taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $HOME/navsim_workspace/exp/heads/{run_dir} "
+                      f"--weights {weights} --split navtest --cache $C/navtest --steps {c['steps']} --k {k} {sc}\n")
     return res
 
 
+def chosen_paths(ch: dict, split: str) -> str:
+    """The path folder (single) of an RL run's chosen checkpoint on ``split``."""
+    run_dir, weights = ((ch["start"]["run"], ch["start"]["weights"]) if ch["checkpoint"] == "start"
+                        else (ch["run"], ch["checkpoint"]))
+    return os.path.join(P["heads"], run_dir, f"{split}_{weights}", f"steps{ch['steps']}")
+
+
 def rl_navtest(rl: str, ch: dict, lc: dict) -> Optional[dict]:
-    rd = os.path.join(P["heads"], rl)
-    out = os.path.join(rd, "navtest_at_choices.json")
+    out = os.path.join(P["heads"], rl, "navtest_at_choices.json")
     if os.path.exists(out):
         return read_json(out)
-    base = os.path.join(rd, f"navtest_{ch['checkpoint']}", f"steps{ch['steps']}")
-    if not os.path.exists(os.path.join(rd, f"navtest_{ch['checkpoint']}", "timing.json")):
+    base = chosen_paths(ch, "navtest")
+    if not os.path.exists(os.path.join(os.path.dirname(base), "timing.json")):
         return None
     s = score(os.path.join(base, "single"), "navtest")
-    b = best_of(sample_folders(base, ch["scale"], GRID[lc["kind"]]["k"]), "navtest")
-    if s is None or b is None:
+    b = best_of(sample_folders(base, ch["scale"], GRID[lc["kind"]]["k"]), "navtest") if ch["scale"] is not None else None
+    if s is None or (ch["scale"] is not None and b is None):
         return None
     res = {"run": rl, "checkpoint": ch["checkpoint"], "navtest_single_pdms_at_choice": round(float(s.mean()), 4),
-           "navtest_best_of_6": round(b, 4), "note": "reporting only; no choice uses navtest (R1)"}
+           "navtest_best_of_6": round(b, 4) if b is not None else None, "note": "reporting only; no choice uses navtest (R1)"}
     write_json(out, res)
     log(f"{rl}: navtest {json.dumps(res)}")
     return res
@@ -533,8 +564,52 @@ def decide(per_method: Dict[str, List[pd.Series]], drives: Dict[str, str], n: in
             "drives": int(len(uniq)), "rule": "docs/HEADS_PLAN.md R5 (navdev, after RL); navtest tests C1-C4 come after"}
 
 
+def recipe_stage() -> Optional[int]:
+    """R12: run every candidate recipe on A and on D (seed 0, from their R11 starting epochs, 500 updates), then
+    choose the recipe whose better checkpoint (250 or 500) gives the highest navdev single-path change from the
+    start, averaged over A and D (a tie goes to the earlier recipe). These runs are in no method comparison."""
+    out = os.path.join(P["heads"], "choices", "rl_recipe.json")
+    if os.path.exists(out):
+        return read_json(out)["recipe"]
+    if not navtrain_ready():
+        return None
+    ready_methods = {}
+    for m in RECIPE_METHODS:  # both methods need their layer choice and starting epoch before any recipe run
+        lc = choose_layers(m)
+        start = rl_start(m, lc) if lc else None
+        if not start:
+            return None
+        ready_methods[m] = (lc, start)
+    gains, per_recipe = {}, {}
+    for r in RECIPES:
+        per = {}
+        for m in RECIPE_METHODS:
+            lc, start = ready_methods[m]
+            rl = f"{lc['run']}-rlrecipe{r}"
+            queue_job(f"395{r}{m.lower()}_rlrecipe-{lc['run']}",
+                      f"R12 recipe RL{r} on {lc['run']} (seed 0, from epoch {start['epoch']}, 500 updates)",
+                      rl_body(lc, lc["run"], rl, start["epoch"], 0, r, RECIPE_CHECKPOINTS))
+            ch = rl_choose(rl, lc, lc["run"], start["epoch"], RECIPE_CHECKPOINTS, navtest=False)
+            if ch:
+                sb = ch["single_by_checkpoint"]
+                per[m] = round(max(sb[u] for u in RECIPE_CHECKPOINTS) - sb[0], 4)
+        if len(per) == len(RECIPE_METHODS):
+            per_recipe[r], gains[r] = per, round(float(np.mean(list(per.values()))), 4)
+    if len(gains) < len(RECIPES):
+        return None
+    best = max(RECIPES, key=lambda r: (gains[r], -r))
+    res = {"recipe": best, "settings": RECIPES[best], "mean_gain_navdev_single": gains, "gain_by_method": per_recipe,
+           "every_recipe_lowers_both_methods": all(v < 0 for p in per_recipe.values() for v in p.values()),
+           "rule": "docs/HEADS_PLAN.md R12", "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
+    write_json(out, res)
+    log(f"R12 recipe: RL{best} {json.dumps(res)}")
+    return best
+
+
 def phase4(status: dict) -> None:
     rl_methods = {}
+    recipe = recipe_stage() if status["navdev_ready"] else None
+    status["rl_recipe"] = recipe
     for method in ("A", "D", "B", "C"):
         lc = choose_layers(method) if status["navdev_ready"] else None
         if not lc:
@@ -542,21 +617,23 @@ def phase4(status: dict) -> None:
         start = rl_start(method, lc)
         if not start:
             continue
+        status.setdefault("phase4", {})[method] = {"start_epoch": start["epoch"]}
+        if recipe is None:
+            continue
         seeds_done = all(os.path.exists(os.path.join(P["heads"], f"{lc['run']}-s{s}", "final.pt"))
                          for s in RL_SEEDS[method] if s > 0)
         if seeds_done and navtrain_ready():  # a job waiting for the cache would hold the GPU queue
-            queue_rl(method, lc, start)
+            queue_rl(method, lc, start, recipe)
         runs = []
         for s in RL_SEEDS[method]:
-            rl = f"{lc['run'] if s == 0 else lc['run'] + '-s' + str(s)}-rl"
-            ch = rl_choose(rl, lc)
+            sft = lc["run"] if s == 0 else f"{lc['run']}-s{s}"
+            ch = rl_choose(f"{sft}-rl", lc, sft, start["epoch"], RL_CHECKPOINTS)
             if ch:
-                runs.append((rl, ch))
-                rl_navtest(rl, ch, lc)
-        status.setdefault("phase4", {})[method] = {"start_epoch": start["epoch"], "rl_runs_chosen": [r for r, _ in runs]}
+                runs.append(ch)
+                rl_navtest(f"{sft}-rl", ch, lc)
+        status["phase4"][method]["rl_runs_chosen"] = [(ch["run"], ch["checkpoint"]) for ch in runs]
         if len(runs) == len(RL_SEEDS[method]):
-            rl_methods[method] = [score(os.path.join(P["heads"], rl, f"navdev_{ch['checkpoint']}", f"steps{ch['steps']}",
-                                                     "single"), "navdev") for rl, ch in runs]
+            rl_methods[method] = [score(os.path.join(chosen_paths(ch, "navdev"), "single"), "navdev") for ch in runs]
     out = os.path.join(P["heads"], "choices", "decision_phase5.json")
     if set(rl_methods) >= {"A", "D", "B", "C"} and not os.path.exists(out):
         drives = read_json(os.path.join(os.path.dirname(P["cache"]), "drives_navdev.json"))
