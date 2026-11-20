@@ -293,7 +293,8 @@ function tiles() {
   if (rr && rr.every_recipe_lowers_both_methods)
     out.push(['RL recipe (R12, R13)', 'none helps', `best: RL${rr.recipe}, mean navdev change ${sgn(100 * rr.mean_gain_navdev_single[rr.recipe])}; phase 4 waits for the researcher`]);
   else
-    out.push(['RL recipe (R12, R13)', rr ? 'RL' + rr.recipe : 'pending', rr ? `mean navdev gain ${sgn(100 * rr.mean_gain_navdev_single[rr.recipe])}` : `${nRec} of 15 recipe runs started`]);
+    out.push(['RL recipe (R12, R13)', rr ? 'RL' + rr.recipe : 'pending', rr ? `mean navdev gain ${sgn(100 * rr.mean_gain_navdev_single[rr.recipe])}`
+      + Object.entries(rr.gain_by_method[rr.recipe] || {}).map(([m, g]) => `; ${m} ${sgn(100 * g)}`).join('') : `${nRec} of 15 recipe runs started`]);
   t.innerHTML = out.map(([l, v, n]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join('');
 }
 function notes() {

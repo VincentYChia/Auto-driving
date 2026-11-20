@@ -87,7 +87,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
      - all RL scenes are inside the training data;
      - 0 of the 563 NAVSIM warm-up scenes are in any training set.
    - **Still to do:** navdev's resolution; the references (constant velocity, H1's text output) once the cache exists. H1's navdev paths are job 363b.
-5. ~~Commit the rules.~~ **Done:** R1–R9 and the phase-4 settings in a64e437 and 79df830; R10, the choice procedure, in **b6ba4f5**, all before any navdev score. Still to read and commit before phase 4: Flow-GRPO's SDE noise level for C.
+5. ~~Commit the rules.~~ **Done:** R1–R9 and the phase-4 settings in a64e437 and 79df830; R10, the choice procedure, in **b6ba4f5**, all before any navdev score. C's RL noise level (Flow-GRPO's SDE, a = 0.7, adapted to C's start noise) was read and committed in 0830a74 (Thu 22:51), before any RL score; this line said "still to do" until 11:02.
 6. ~~Script the phase-1 choices and the phase transitions.~~ **Done:** `pilot_sft/heads/driver.py` (85dcec1), running on the desktop since 21:55. Every 5 min it:
    - scores navdev in the R10 order and writes each run's choices;
    - makes each method's layer choice;
