@@ -135,3 +135,19 @@ def test_cli(tree, tmp_path):
                           str(exp), "--cache-dir", str(cache)], capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
     assert json.loads((tmp_path / "agg.json").read_text())["rl"]
+
+
+def test_rl_settings_include_r13s_options(tree):
+    """R12's runs predate R13's options, so they read as the registered recipe; an R13 run carries its own and the
+    BC weight it measured."""
+    exp, cache = tree
+    r = cr.Results(str(exp), str(cache)).collect()["rl"]["a1-l12-18-24-rlrecipe0"]
+    assert r["settings"]["adv"] == "grpo" and r["settings"]["bc_balance"] == 0.0 and r["settings"]["lp_sd_floor"] == 0.0
+    assert "bc_weight" not in r
+    rj = Path(exp) / "heads" / "a1-l12-18-24-rlrecipe0" / "run.json"
+    j = json.loads(rj.read_text())
+    j["args"].update(adv="dr", bc_balance=1.0, lp_sd_floor=0.1)
+    j["bc"] = {"weight": 0.37, "balance": 1.0}
+    rj.write_text(json.dumps(j))
+    r = cr.Results(str(exp), str(cache)).collect()["rl"]["a1-l12-18-24-rlrecipe0"]
+    assert r["settings"]["adv"] == "dr" and r["settings"]["lp_sd_floor"] == 0.1 and r["bc_weight"] == 0.37

@@ -79,7 +79,8 @@ def page_data(agg: dict) -> dict:
         cps = [{"u": int(u), "single": iv(c.get("single")), "b6": iv(c.get("best_of_6"))}
                for u, c in sorted(r.get("checkpoints", {}).items(), key=lambda kv: int(kv[0]))]
         rl.append({"run": run, "method": method_of(run), "recipe": recipe_of(run), "settings": r.get("settings", {}),
-                   "rl_scenes": r.get("rl_scenes"), "done": r.get("updates_done"), "checkpoints": cps,
+                   "bc_weight": r.get("bc_weight"), "rl_scenes": r.get("rl_scenes"), "done": r.get("updates_done"),
+                   "checkpoints": cps,
                    "curve": r.get("curve", []), "choice": (r.get("choice") or {}).get("checkpoint")})
     rl.sort(key=lambda r: (r["recipe"] or "", ORDER.index(r["method"]) if r["method"] in ORDER else 9))
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "methods": agg.get("methods", {}),
@@ -250,7 +251,11 @@ function drawRL() {
   Object.keys(groups).sort().forEach(g => {
     const wrap = document.createElement('div'); box.appendChild(wrap);
     const s0 = groups[g][0].settings || {};
-    wrap.innerHTML = `<h3>${g === 'trial' ? 'Trial (200 updates, 2,662 scenes)' : g}</h3><p class="small">lr ${s0.lr}, KL β ${s0.kl_beta ?? 0}, ${s0.g} candidates × ${s0.scenes_per_update} scenes</p>`;
+    const floor = Math.max(...groups[g].map(r => (r.settings || {}).lp_sd_floor || 0));
+    const opts = [s0.adv === 'dr' ? 'advantage: reward − group mean (Dr. GRPO)' : 'advantage: (reward − mean) / SD',
+      s0.bc_balance ? 'BC term at the RL term\'s gradient norm' : '', floor ? `SD floor ${floor} in the log-probability (D)` : ''].filter(Boolean).join('; ');
+    wrap.innerHTML = `<h3>${g === 'trial' ? 'Trial (200 updates, 2,662 scenes)' : g}</h3><p class="small">lr ${s0.lr != null ? Number(s0.lr).toExponential().replace('e-', 'e−') : '?'}, KL β ${s0.kl_beta ?? 0}, ${s0.g} candidates × ${s0.scenes_per_update} scenes; ${opts}</p>` +
+      (g === 'RL7' ? '<p class="small">For A, RL7 is RL0: A has no Gaussian steps, so RL0\'s run stands in (R13).</p>' : '');
     const c = document.createElement('div'); c.className = 'chart'; wrap.appendChild(c);
     const rows = [];
     groups[g].forEach(r => r.checkpoints.forEach(cp => {
@@ -272,8 +277,8 @@ function drawRL() {
   }));
   table(document.getElementById('tb-rl'), ['RL run', 'Recipe', 'Update', 'Single path', 'Change', 'Best-of-6', 'Change', 'No collision', 'Drivable area', 'TTC', 'Progress', 'Diversity (m)'], body);
   const cb = [];
-  D.rl.forEach(r => (r.curve || []).forEach(w => cb.push([esc(r.run), `${w.updates[0]}–${w.updates[1]}`, w.reward?.toFixed(3) ?? '–', w.best_of_g?.toFixed(3) ?? '–', w.equal_reward_groups != null ? (100 * w.equal_reward_groups).toFixed(0) + '%' : '–', w.kl?.toFixed(4) ?? '–', w.paths_per_s?.toFixed(0) ?? '–'])));
-  table(document.getElementById('tb-curve'), ['RL run', 'Updates', 'Reward', 'Best of the group', 'Equal-reward groups', 'KL', 'Paths/s'], cb);
+  D.rl.forEach(r => (r.curve || []).forEach(w => cb.push([esc(r.run), `${w.updates[0]}–${w.updates[1]}`, w.reward?.toFixed(3) ?? '–', w.best_of_g?.toFixed(3) ?? '–', w.equal_reward_groups != null ? (100 * w.equal_reward_groups).toFixed(0) + '%' : '–', w.kl?.toFixed(4) ?? '–', w.grad_norm?.toFixed(1) ?? '–', w.bc?.toFixed(4) ?? '–', w.paths_per_s?.toFixed(0) ?? '–'])));
+  table(document.getElementById('tb-curve'), ['RL run', 'Updates', 'Reward', 'Best of the group', 'Equal-reward groups', 'KL', 'Gradient norm', 'BC loss', 'Paths/s'], cb);
 }
 function tiles() {
   const t = document.getElementById('tiles'), out = [];
@@ -284,7 +289,11 @@ function tiles() {
   if (bs) out.push(['Best single path', f1(bs.navtest_single.x), `${esc(bs.run)}, navtest; vs H1 ${dvs(bs.navtest_single.vsH1)}`]);
   if (bb) out.push(['Best best-of-6', f1(bb.navtest_best_of_6.x), `${esc(bb.run)}, navtest (oracle pick)`]);
   const rr = D.methods.rl_recipe;
-  out.push(['RL recipe (R12)', rr ? 'RL' + rr.recipe : 'pending', rr ? `mean navdev gain ${sgn(100 * rr.mean_gain_navdev_single[rr.recipe])}` : `${D.rl.filter(r => r.recipe && r.recipe.startsWith('RL')).length} of 8 recipe runs started`]);
+  const nRec = D.rl.filter(r => r.recipe && r.recipe.startsWith('RL')).length;
+  if (rr && rr.every_recipe_lowers_both_methods)
+    out.push(['RL recipe (R12, R13)', 'none helps', `best: RL${rr.recipe}, mean navdev change ${sgn(100 * rr.mean_gain_navdev_single[rr.recipe])}; phase 4 waits for the researcher`]);
+  else
+    out.push(['RL recipe (R12, R13)', rr ? 'RL' + rr.recipe : 'pending', rr ? `mean navdev gain ${sgn(100 * rr.mean_gain_navdev_single[rr.recipe])}` : `${nRec} of 15 recipe runs started`]);
   t.innerHTML = out.map(([l, v, n]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join('');
 }
 function notes() {
@@ -330,7 +339,8 @@ BODY = """
 <section>
   <h2>RL: change from the starting point on navdev</h2>
   <p class="sub">Each RL run starts from its method's R11 starting epoch. The marks show the paired change in navdev PDMS from that start,
-  after the given number of updates. R12 picks the recipe with the best mean single-path gain over A and D.</p>
+  after the given number of updates. R12 and R13 pick the recipe with the best mean single-path gain over A and D; if every
+  recipe lowers both methods, phase 4 waits for the researcher.</p>
   <div class="legend"><span><i class="key solid"></i>Single path</span><span><i class="key hollow"></i>Best-of-6</span><span><i class="key" style="background:var(--mA)"></i>A</span><span><i class="key" style="background:var(--mD)"></i>D</span></div>
   <div class="mult" id="ch-rl"></div>
   <details><summary>Table: every RL checkpoint on navdev, with sub-scores</summary><div id="tb-rl"></div></details>

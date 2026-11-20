@@ -46,7 +46,7 @@ CV = {"navdev": "cv_navdev_v1", "navtest": "cv_navtest_v1"}
 SUBS = ("no_at_fault_collisions", "drivable_area_compliance", "driving_direction_compliance", "ego_progress",
         "time_to_collision_within_bound", "comfort")
 CURVE = ("reward", "best_of_g", "equal_reward_groups", "kl", "grad_norm", "no_at_fault_collisions",
-         "drivable_area_compliance", "time_to_collision_within_bound", "ego_progress", "paths_per_s")
+         "drivable_area_compliance", "time_to_collision_within_bound", "ego_progress", "paths_per_s", "bc")
 
 
 def drive_ci(x: np.ndarray, groups: np.ndarray, n: int = 10000) -> List[float]:
@@ -245,9 +245,13 @@ class Results:
             steps, scale = a["steps"], a.get("scale")
             ups = sorted(int(os.path.basename(f)[3:-3]) for f in glob.glob(os.path.join(rd, "rl_*.pt")))
             rec = {"start": {"run": start_run, "weights": start_w},
-                   "settings": {k: a.get(k) for k in ("lr", "kl_beta", "g", "scenes_per_update", "updates", "steps",
-                                                      "scale", "seed")},
+                   "settings": {**{k: a.get(k) for k in ("lr", "kl_beta", "g", "scenes_per_update", "updates", "steps",
+                                                         "scale", "seed")},
+                                "adv": a.get("adv", "grpo"), "bc_balance": a.get("bc_balance", 0.0),
+                                "lp_sd_floor": a.get("lp_sd_floor", 0.0)},  # R13's options; R12's runs predate them
                    "rl_scenes": j.get("rl_scenes"), "checkpoints": {}}
+            if j.get("bc"):
+                rec["bc_weight"] = j["bc"].get("weight")
             base = self.config(start_run, "navdev", start_w, steps, scale)
             for u in [0] + ups:
                 r = base if u == 0 else self.config(run, "navdev", f"rl_{u}", steps, scale, base=base)
