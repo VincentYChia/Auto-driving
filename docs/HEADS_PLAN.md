@@ -183,6 +183,17 @@ Every run's navtest scores are reported.
 
 **Compute:** 384,000 scored paths per run, about 2 h at the measured 55 paths/s; 8 runs ≈ 16 h.
 
+**R11. Phase-4 procedure, fixed before any RL comparison result** (committed 2026-11-19 ~22:15; the 200-update trial on a1-l24 is in no comparison).
+- **Starting checkpoint:** per method, the epoch with the highest navdev best-of-6, at the chosen steps and sampling setting, on seed 0's run, among epochs 5, 10, 15 and 20. A tie goes to the earlier epoch. Seeds 1 and 2 start from the same epoch of their own runs.
+- **RL runs:**
+  - A and D: RL seed s from supervised seed s, for s = 0, 1, 2.
+  - B and C: s = 0, once their policies exist: B, stochastic DDPM steps with the noise SD floored at 0.01 as for D; C, Flow-GRPO's SDE, its noise level read from the Flow-GRPO paper and code first.
+  - R: no RL, since it has no stochastic policy. It stays a supervised control.
+- **Evaluation:** each RL run saves checkpoints at 250, 500, …, 1,500 updates, and each is scored on navdev: the single path (temperature 0) and best-of-6 at the chosen setting.
+- **The RL checkpoint** is the one with the highest navdev single-path PDMS; a tie goes to the earlier checkpoint.
+- **The decision** (R5) uses each method's seed-averaged navdev single-path PDMS at its RL checkpoint. navtest scores are reported for every checkpoint used.
+- **Measured:** the RL scoring service equals NAVSIM's official per-scene scores, with a maximum difference of 0.0 on 200 navtest scenes. It scores 71.8 paths/s with 4 workers at 8 candidates per scene, so a 1,500-update run needs about 1 h of scoring.
+
 ## Phase 5 — choice of method (Thu 26)
 
 R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a tie, the researcher decides.
