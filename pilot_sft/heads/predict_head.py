@@ -57,7 +57,11 @@ def main() -> None:
     p.add_argument("--run", required=True)
     p.add_argument("--weights", default="final", help="final or epoch_<k>")
     p.add_argument("--cache", required=True, help="the stored-feature split to predict (navtest, dev, ...)")
-    p.add_argument("--split", default="navtest", choices=("navtest", "navdev"), help="names the output folder")
+    p.add_argument("--split", default="navtest", choices=("navtest", "navdev", "navtrain"),
+                   help="names the output folder")
+    p.add_argument("--only-tokens", default=None,
+                   help="a file with one NAVSIM token per line: predict only those scenes (phase 6's out-of-fold "
+                        "candidates, from drive_map.py halves)")
     p.add_argument("--steps", default=None, help="comma-separated step counts (default: the generator's own)")
     p.add_argument("--k", type=int, default=6, help="sampled paths per scene; 0 = single paths only")
     p.add_argument("--scales", default="1", help="comma-separated sampling settings for the K paths (R7)")
@@ -71,6 +75,12 @@ def main() -> None:
     steps_list = [int(s) for s in args.steps.split(",")] if args.steps else [head.cfg.steps]
     scales = [float(s) for s in args.scales.split(",")] if args.k > 0 else []
     tokens = [bare(t) for t in store.ids]
+    rows = list(range(store.rows))
+    if args.only_tokens:
+        with open(args.only_tokens, encoding="utf-8") as f:
+            keep = set(f.read().split())
+        rows = [r for r in rows if tokens[r] in keep]
+        print(f"{len(rows)} of {store.rows} rows are in {args.only_tokens} ({len(keep)} tokens)", flush=True)
     timing = {}
     for steps in steps_list:
         names = ["single"] + [sample_dir(x, j) for x in scales for j in range(args.k)]
@@ -81,11 +91,11 @@ def main() -> None:
             files[name] = open(os.path.join(d, "shard_000_of_001.jsonl"), "w", encoding="utf-8")
         g = torch.Generator(device=device).manual_seed(0)
         t_single, t_k = 0.0, {x: 0.0 for x in scales}
-        row = 0
-        for b in batches(store, list(range(store.rows)), args.batch, 2):
+        pos = 0
+        for b in batches(store, rows, args.batch, 2):
             t = to_torch(b, device)
-            ids = tokens[row : row + len(t["ego"])]
-            row += len(ids)
+            ids = [tokens[r] for r in rows[pos : pos + len(t["ego"])]]
+            pos += len(ids)
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device == "cuda"):
                 sync(device)
                 t0 = time.time()
@@ -109,10 +119,11 @@ def main() -> None:
                             json.dumps({"token": tok, "waypoints": many[x][i, j].round(decimals=3).tolist()}) + "\n")
         for f in files.values():
             f.close()
-        timing[f"steps{steps}"] = {"single_ms_per_scene": round(1000 * t_single / store.rows, 3),
-                                   **{f"k{args.k}_scale{x:g}_ms_per_scene": round(1000 * v / store.rows, 3)
+        n = max(len(rows), 1)
+        timing[f"steps{steps}"] = {"single_ms_per_scene": round(1000 * t_single / n, 3),
+                                   **{f"k{args.k}_scale{x:g}_ms_per_scene": round(1000 * v / n, 3)
                                       for x, v in t_k.items()},
-                                   "batch": args.batch, "scenes": store.rows}
+                                   "batch": args.batch, "scenes": len(rows)}
         print(json.dumps({f"steps{steps}": timing[f"steps{steps}"]}), flush=True)
     with open(os.path.join(out_root, "timing.json"), "w", encoding="utf-8") as f:
         json.dump({"weights": args.weights, "split": args.split, "cache": os.path.abspath(args.cache),

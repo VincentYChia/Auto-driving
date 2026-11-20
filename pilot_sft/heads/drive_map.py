@@ -6,6 +6,11 @@ correlated, so intervals resample drives, not scenes.
 
     python pilot_sft/heads/drive_map.py navtest --inputs <navtest_inputs.json> --out <cache root>/drives_navtest.json
     python pilot_sft/heads/drive_map.py navdev --cache <cache>/dev --out <cache root>/drives_navdev.json
+    python pilot_sft/heads/drive_map.py halves --train-meta <cache>/train/meta.jsonl --rl-view <v1-nt view> \\
+        --out <exp>/heads/halves
+
+``halves`` is phase 6's cross-fitting split: the training drives in two halves (``drive_halves``), and each half's
+RL-scene tokens, which the generator trained on the other half turns into out-of-fold candidates.
 """
 
 from __future__ import annotations
@@ -72,13 +77,41 @@ def navdev_map(cache: str) -> Dict[str, str]:
     return out
 
 
+def read_ids(path: str) -> list:
+    """Row ids from a stored-feature ``meta.jsonl`` or a view's ``train.jsonl``."""
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line)["id"] for line in f if line.strip()]
+
+
+def write_halves(train_meta: str, rl_view: str, out: str, seed: int = 0) -> dict:
+    """Phase 6: the training drives' two halves (``drive_halves``), and for each half h the NAVSIM tokens of the RL
+    scenes on its drives, ``rl_tokens_half<h>.txt``: the generator trained on the other half predicts those."""
+    halves = drive_halves(read_ids(train_meta), seed)
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "halves.json"), "w", encoding="utf-8") as f:
+        json.dump({"seed": seed, "train_meta": train_meta, "halves": halves}, f, indent=1)
+    rl = read_ids(os.path.join(rl_view, "train.jsonl"))
+    summary = {"drives": [sum(1 for v in halves.values() if v == h) for h in (0, 1)], "rl_scenes": []}
+    for h in (0, 1):
+        toks = [i.rsplit("/", 1)[-1] for i in rl if halves[drive_of_id(i)] == h]  # every RL drive is a train drive
+        with open(os.path.join(out, f"rl_tokens_half{h}.txt"), "w", encoding="utf-8") as f:
+            f.writelines(t + "\n" for t in toks)
+        summary["rl_scenes"].append(len(toks))
+    return summary
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("split", choices=("navtest", "navdev"))
+    p.add_argument("split", choices=("navtest", "navdev", "halves"))
     p.add_argument("--inputs", help="navtest_inputs.json (navtest)")
     p.add_argument("--cache", help="the dev split of the stored features (navdev)")
-    p.add_argument("--out", required=True)
+    p.add_argument("--train-meta", help="halves: meta.jsonl of the stored features' train split")
+    p.add_argument("--rl-view", help="halves: the RL scenes' view folder (with train.jsonl)")
+    p.add_argument("--out", required=True, help="a JSON file; for halves, a folder")
     args = p.parse_args()
+    if args.split == "halves":
+        print(json.dumps(write_halves(args.train_meta, args.rl_view, args.out)))
+        return
     m = navtest_map(args.inputs) if args.split == "navtest" else navdev_map(args.cache)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(m, f)

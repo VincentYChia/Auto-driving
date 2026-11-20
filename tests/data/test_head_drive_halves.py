@@ -43,6 +43,44 @@ def test_drive_of_id_takes_the_log_part():
         drive_map.drive_of_id("openscene/not-a-log/abc")
 
 
+def test_halves_files_give_each_half_its_rl_tokens(tmp_path):
+    ids = ids_for([5, 3, 4, 2])
+    meta = tmp_path / "meta.jsonl"
+    meta.write_text("".join(json.dumps({"id": i}) + "\n" for i in ids))
+    view = tmp_path / "rlview"
+    view.mkdir()
+    rl = ids[::2]  # the RL scenes are a subset of the training scenes
+    (view / "train.jsonl").write_text("".join(json.dumps({"id": i}) + "\n" for i in rl))
+    s = drive_map.write_halves(str(meta), str(view), str(tmp_path / "halves"))
+    h = drive_map.drive_halves(ids)
+    for half in (0, 1):
+        got = (tmp_path / "halves" / f"rl_tokens_half{half}.txt").read_text().split()
+        assert got == [i.rsplit("/", 1)[-1] for i in rl if h[drive_map.drive_of_id(i)] == half]
+    assert sum(s["rl_scenes"]) == len(rl) and sum(s["drives"]) == 4
+    assert json.loads((tmp_path / "halves" / "halves.json").read_text())["halves"] == h
+
+
+def test_prediction_on_listed_tokens_only(tmp_path):
+    pytest.importorskip("torch")
+    from test_head_train import make_split, run
+
+    cache = tmp_path / "cache"
+    make_split(cache / "train", 12, seed=0)
+    make_split(cache / "dev", 4, seed=1)
+    out = tmp_path / "run"
+    run("train_head.py", "--cache", str(cache), "--out", str(out), "--kind", "flow", "--width", "32", "--depth", "2",
+        "--heads", "4", "--batch", "4", "--warmup", "2", "--workers", "1", "--epochs", "1")
+    keep = ["t1", "t4", "t5", "t11"]
+    (tmp_path / "keep.txt").write_text("\n".join(keep + ["not-a-row"]) + "\n")
+    run("predict_head.py", "--run", str(out), "--cache", str(cache / "train"), "--split", "navtrain", "--k", "2",
+        "--only-tokens", str(tmp_path / "keep.txt"))
+    for name in ("single", "sample_0", "sample_1"):
+        rows = (out / "navtrain_final" / "steps2" / name / "shard_000_of_001.jsonl").read_text().splitlines()
+        assert [json.loads(r)["token"] for r in rows] == keep
+    timing = json.loads((out / "navtrain_final" / "timing.json").read_text())
+    assert timing["steps2"]["scenes"] == 4 and timing["split"] == "navtrain"
+
+
 def test_training_on_one_drive_half(tmp_path):
     pytest.importorskip("torch")
     import torch
