@@ -236,6 +236,8 @@ def test_train_and_apply_end_to_end(tmp_path):
     sel = [json.loads(l) for l in (tmp_path / "applied" / "selection.jsonl").read_text().splitlines()]
     for r, s in zip(rows, sel):
         assert s["chosen_name"] in names[:7] and len(s["score"]) == 7
+        res = json.loads(dlines[dev_tokens.index(s["token"])])["results"]
+        assert s["true_chosen"] == pytest.approx(res[s["chosen"]]["score"]) and s["true_own"] == pytest.approx(res[0]["score"])
         assert np.allclose(r["waypoints"], np.asarray(paths[r["token"]][names.index(s["chosen_name"])]).round(3))
     rep = json.loads((tmp_path / "applied" / "report.json").read_text())
     assert rep["report"]["scenes"] == 9 and rep["report"]["candidates"] == 7 and rep["intervals_by"] == "drive"

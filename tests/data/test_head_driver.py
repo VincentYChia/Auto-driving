@@ -232,6 +232,10 @@ def test_phase_4_runs_the_recipe_that_helps(tree, monkeypatch):
     assert status["rl_recipe"] == 6
     jobs = set(os.listdir(driver.P["queue"]))
     assert {"45a0_rl-a1-l12-18-24.sh", "45a1_rl-a1-l12-18-24-s1.sh", "45a2_rl-a1-l12-18-24-s2.sh"} <= jobs
+    # R16: the other phase-4 recipe runs too, with the same seeds and updates, under its own name
+    assert {"45a0r4_rl4-a1-l12-18-24.sh", "45a1r4_rl4-a1-l12-18-24-s1.sh", "45d2r4_rl4-d-l24-s2.sh"} <= jobs
+    rl4 = (Path(driver.P["queue"]) / "45a1r4_rl4-a1-l12-18-24-s1.sh").read_text()
+    assert "OUT=$H/a1-l12-18-24-s1-rl4" in rl4 and "--adv dr --bc-balance 0 " in rl4 and "--updates 1500" in rl4
     # phase 4 runs after every phase-2 and phase-3 job (the plan's order), never before
     driver.seed_runs("A", la)
     driver.series(la)

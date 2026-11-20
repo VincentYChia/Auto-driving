@@ -493,15 +493,31 @@ done
 """
 
 
-def queue_rl(method: str, lc: dict, start: dict, recipe: int) -> None:
-    """Phase 4 proper (R11, with R12's chosen recipe): every RL seed of the method, once its supervised seed exists."""
+PHASE4_RECIPES = (4, 6)  # R16: phase 4 runs RL4 (as registered) and RL6 on every method, same seeds and updates
+
+
+def phase4_recipes(base: int) -> tuple:
+    """The recipes phase 4 runs: R12/R13's chosen one first, then R16's others."""
+    return (base,) + tuple(r for r in PHASE4_RECIPES if r != base)
+
+
+def rl_name(sft: str, recipe: int, base: int) -> str:
+    """Phase 4's RL run of ``sft``: the registered recipe's run keeps the plain name, R16's other recipe a suffix."""
+    return f"{sft}-rl" if recipe == base else f"{sft}-rl{recipe}"
+
+
+def queue_rl(method: str, lc: dict, start: dict, recipe: int, base: Optional[int] = None) -> None:
+    """Phase 4 proper (R11; R16: each recipe of ``phase4_recipes``): every RL seed of the method, once its supervised
+    seed exists."""
+    base = recipe if base is None else base
     for s in RL_SEEDS[method]:
         sft = lc["run"] if s == 0 else f"{lc['run']}-s{s}"
         if not os.path.exists(os.path.join(P["heads"], sft, "final.pt")):
             continue
-        queue_job(f"45{method.lower()}{s}_rl-{sft}",
-                  f"phase 4, RL{recipe} (seed {s}) of {sft} from epoch {start['epoch']}",
-                  rl_body(lc, sft, f"{sft}-rl", start["epoch"], s, recipe, RL_CHECKPOINTS))
+        job = (f"45{method.lower()}{s}_rl-{sft}" if recipe == base
+               else f"45{method.lower()}{s}r{recipe}_rl{recipe}-{sft}")
+        queue_job(job, f"phase 4, RL{recipe} (seed {s}) of {sft} from epoch {start['epoch']}",
+                  rl_body(lc, sft, rl_name(sft, recipe, base), start["epoch"], s, recipe, RL_CHECKPOINTS))
 
 
 def rl_choose(rl: str, lc: dict, sft: str, epoch: int, checkpoints, navtest: bool = True) -> Optional[dict]:
@@ -676,24 +692,30 @@ def phase4(status: dict) -> None:
             continue
         seeds_done = all(os.path.exists(os.path.join(P["heads"], f"{lc['run']}-s{s}", "final.pt"))
                          for s in RL_SEEDS[method] if s > 0)
-        if seeds_done and navtrain_ready():  # a job waiting for the cache would hold the GPU queue
-            queue_rl(method, lc, start, recipe)
-        runs = []
-        for s in RL_SEEDS[method]:
-            sft = lc["run"] if s == 0 else f"{lc['run']}-s{s}"
-            ch = rl_choose(f"{sft}-rl", lc, sft, start["epoch"], RL_CHECKPOINTS)
-            if ch:
-                runs.append(ch)
-                rl_navtest(f"{sft}-rl", ch, lc)
-        status["phase4"][method]["rl_runs_chosen"] = [(ch["run"], ch["checkpoint"]) for ch in runs]
-        if len(runs) == len(RL_SEEDS[method]):
-            rl_methods[method] = [score(os.path.join(chosen_paths(ch, "navdev"), "single"), "navdev") for ch in runs]
-    out = os.path.join(P["heads"], "choices", "decision_phase5.json")
-    if set(rl_methods) >= {"A", "D", "B", "C"} and not os.path.exists(out):
-        drives = read_json(os.path.join(os.path.dirname(P["cache"]), "drives_navdev.json"))
-        res = decide(rl_methods, drives)
-        write_json(out, {**res, "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"})
-        log(f"phase 5 decision: {json.dumps(res)}")
+        for r in phase4_recipes(recipe):
+            if seeds_done and navtrain_ready():  # a job waiting for the cache would hold the GPU queue
+                queue_rl(method, lc, start, r, recipe)
+            runs = []
+            for s in RL_SEEDS[method]:
+                sft = lc["run"] if s == 0 else f"{lc['run']}-s{s}"
+                rl = rl_name(sft, r, recipe)
+                ch = rl_choose(rl, lc, sft, start["epoch"], RL_CHECKPOINTS)
+                if ch:
+                    runs.append(ch)
+                    rl_navtest(rl, ch, lc)
+            key = "rl_runs_chosen" if r == recipe else f"rl{r}_runs_chosen"
+            status["phase4"][method][key] = [(ch["run"], ch["checkpoint"]) for ch in runs]
+            if len(runs) == len(RL_SEEDS[method]):
+                rl_methods.setdefault(r, {})[method] = [score(os.path.join(chosen_paths(ch, "navdev"), "single"), "navdev")
+                                                        for ch in runs]
+    for r, per in rl_methods.items():  # R5 per recipe: reported, no longer deciding (R16)
+        out = os.path.join(P["heads"], "choices", "decision_phase5.json" if r == recipe else f"decision_phase5_rl{r}.json")
+        if set(per) >= {"A", "D", "B", "C"} and not os.path.exists(out):
+            drives = read_json(os.path.join(os.path.dirname(P["cache"]), "drives_navdev.json"))
+            res = decide(per, drives)
+            write_json(out, {**res, "recipe": r, "role": "reported only; the final system is chosen by R16",
+                             "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"})
+            log(f"phase 5 (R5, RL{r}, reported only): {json.dumps(res)}")
 
 
 # ---- phase 6: the selector (R14), one chain per spec file -----------------------------------------------------
@@ -839,27 +861,8 @@ def selector_chain(x: str, spec: dict) -> dict:
                "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
         write_json(out, res)
         log(f"selector {x}: adoption on navdev {json.dumps(res)}")
-    if os.path.exists(out):
-        ad = read_json(out)
-        st["adopted"] = ad["adopted"]
-        sel_dir = os.path.join(H, f"selector-{x}-xfit-s0", "navtest")
-        if ad["adopted"]:
-            test = os.path.join(H, spec["deployed_run"], f"navtest_{spec['deployed_weights']}", S)
-            queue_job(f"350_navtest-selector-{x}", f"phase 6 (R14): selector {x} on navtest, once",
-                      f"taskset -c 16-31 $PY pilot_sft/heads/apply_selector.py --selector "
-                      f"$HOME/navsim_workspace/exp/heads/selector-{x}-xfit-s0 --cache $C/navtest --paths {test} "
-                      f"--scale {spec['scale']:g} --k {spec['k']} --out {sel_dir} --exp {P['exp']} --split navtest "
-                      f"--drives {drives}/drives_navtest.json\n")
-            fin = os.path.join(H, "choices", f"selector_{x}_navtest.json")
-            if os.path.exists(os.path.join(sel_dir, "report.json")) and not os.path.exists(fin):
-                s = score(os.path.join(sel_dir, "selected"), "navtest")
-                if s is not None:
-                    write_json(fin, {"selector": f"selector-{x}-xfit-s0", "navtest_pdms": round(float(s.mean()), 4),
-                                     "scenes": int(len(s)), "scorer": "NAVSIM v1.1 run_pdm_score.py",
-                                     "rule": "docs/HEADS_PLAN.md R14: one navtest evaluation"})
-                    log(f"selector {x}: navtest {float(s.mean()):.4f}")
-            if os.path.exists(fin):
-                st["navtest"] = read_json(fin)["navtest_pdms"]
+    if os.path.exists(out):  # navtest only after the final system is chosen on navdev (R16, final_system)
+        st["adopted"] = read_json(out)["adopted"]
     return st
 
 
@@ -871,16 +874,75 @@ R15_TUNING = {  # R15: 4 runs over each method's own main settings (A: its phase
     "C": [["--flow-sigma", "0.3"], ["--flow-sigma", "1.0"], ["--time-sampling", "beta"], ["--time-sampling", "logit-normal"]],
     "D": [["--anchors", "10"], ["--anchors", "40"], ["--anchor-trunc", "0.02"], ["--anchor-trunc", "0.1"]],
 }
-R15_READY: set = set()  # methods whose R15 training flags exist in train_head.py (written only for a winner)
+R15_READY: set = {"D"}  # methods whose R15 training flags exist in train_head.py (D: --anchors, --anchor-trunc)
 
 
-def phase6_method() -> Optional[str]:
-    """Phase 5's clear winner, or the researcher's choice on a tie (``choices/phase6_method.json``)."""
-    dec = os.path.join(P["heads"], "choices", "decision_phase5.json")
-    if os.path.exists(dec) and read_json(dec).get("clear_winner"):
-        return read_json(dec)["leader"]
-    own = os.path.join(P["heads"], "choices", "phase6_method.json")
-    return read_json(own)["method"] if os.path.exists(own) else None
+R16_CONTENDERS = (("A", 4), ("A", 6), ("D", 4), ("D", 6))  # R16: at least A and D, each under RL4 and RL6
+
+
+def drive_interval(x: np.ndarray, groups, n: int = 10000) -> List[float]:
+    """95% interval of the mean of per-scene values ``x`` by the drive-level bootstrap (R3)."""
+    u, inv = np.unique(np.asarray(groups), return_inverse=True)
+    sm, c = np.bincount(inv, weights=x), np.bincount(inv)
+    i = np.random.default_rng(0).integers(0, len(u), size=(n, len(u)))
+    m = sm[i].sum(1) / c[i].sum(1)
+    return [round(float(np.percentile(m, 2.5)), 4), round(float(np.percentile(m, 97.5)), 4)]
+
+
+def bc_gate() -> Optional[dict]:
+    """R16: B and C join phase 6 (both recipes) if, after phase 4, either measure (navdev single path or best-of-6, seed
+    0, at each run's chosen checkpoint) under its better recipe is not clearly below the best of A and D: the paired
+    drive interval of the difference reaches 0 or above. None until every phase-4 seed-0 run is chosen."""
+    out = os.path.join(P["heads"], "choices", "phase6_gate_bc.json")
+    if os.path.exists(out):
+        return read_json(out)
+    rf = os.path.join(P["heads"], "choices", "rl_recipe.json")
+    if not os.path.exists(rf):
+        return None
+    base = read_json(rf)["recipe"]
+    vals = {}
+    for m in ("A", "D", "B", "C"):
+        lc = choose_layers(m)
+        start = rl_start(m, lc) if lc else None
+        if not start:
+            return None
+        for r in phase4_recipes(base):
+            ch = rl_choose(rl_name(lc["run"], r, base), lc, lc["run"], start["epoch"], RL_CHECKPOINTS, navtest=False)
+            if not ch:
+                return None
+            paths = chosen_paths(ch, "navdev")
+            single = score(os.path.join(paths, "single"), "navdev")
+            if ch["scale"] is not None:
+                b6 = pd.concat([score(f, "navdev") for f in sample_folders(paths, ch["scale"], GRID[lc["kind"]]["k"])],
+                               axis=1).max(axis=1)
+            else:
+                b6 = single
+            vals[(m, r)] = {"single": single, "best_of_6": b6}
+    drives = read_json(os.path.join(os.path.dirname(P["cache"]), "drives_navdev.json"))
+    res = {"rule": "docs/HEADS_PLAN.md R16", "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
+    for m in ("B", "C"):
+        res[m] = {"joins": False, "tests": {}}
+        for meas in ("single", "best_of_6"):
+            best = max(((x, r) for x in ("A", "D") for r in phase4_recipes(base)), key=lambda k: float(vals[k][meas].mean()))
+            mine = max(phase4_recipes(base), key=lambda r: float(vals[(m, r)][meas].mean()))
+            d = (vals[(m, mine)][meas] - vals[best][meas]).dropna()
+            ci = drive_interval(d.values, [drives[t] for t in d.index])
+            res[m]["tests"][meas] = {"recipe": mine, "against": f"{best[0]} RL{best[1]}",
+                                     "difference": round(float(d.mean()), 4), "ci_drives": ci}
+            res[m]["joins"] = res[m]["joins"] or ci[1] >= 0
+    write_json(out, res)
+    log(f"phase 6 gate for B and C (R16): {json.dumps(res)}")
+    return res
+
+
+def contenders() -> List[tuple]:
+    """R16's phase-6 contenders: (method, recipe) pairs. B and C follow A and D once the gate admits them."""
+    out = list(R16_CONTENDERS)
+    g = bc_gate()
+    for m in ("B", "C"):
+        if g and g[m]["joins"]:
+            out += [(m, 4), (m, 6)]
+    return out
 
 
 def tuned_config(method: str, lc: dict) -> Optional[dict]:
@@ -915,55 +977,155 @@ def tuned_config(method: str, lc: dict) -> Optional[dict]:
 
 
 def phase6(status: dict) -> None:
-    """R15 then R14: the winner's tuned configuration, its full RL stage, the chosen checkpoint, and the selector
-    spec that starts ``selector_chain``."""
-    method = phase6_method()
-    if method is None:
-        return
-    st = status.setdefault("phase6_full", {"method": method})
-    lc = choose_layers(method)
-    tuned = tuned_config(method, lc) if lc else None
-    if not tuned:
-        return
-    st["tuned"] = tuned["run"]
-    tlc = {"kind": tuned["kind"], "choice": tuned["choice"], "run": tuned["run"]}
-    out = os.path.join(P["heads"], "choices", f"{method}_tuned_rl_start.json")
-    if not os.path.exists(out):  # R11 on the tuned run: the epoch with the highest navdev best-of-6
-        c, g = tuned["choice"], GRID[tuned["kind"]]
-        b6 = {}
-        for e in EPOCHS:
-            base = os.path.join(P["heads"], tuned["run"], f"navdev_epoch_{e}", f"steps{c['steps']}")
-            b = best_of(sample_folders(base, c["scale"], g["k"]), "navdev") if c["scale"] is not None else \
-                (lambda s: None if s is None else float(s.mean()))(score(os.path.join(base, "single"), "navdev"))
-            if b is None:
-                return
-            b6[e] = round(b, 4)
-        write_json(out, {"run": tuned["run"], "epoch": max(EPOCHS, key=lambda e: (b6[e], -e)),
-                         "navdev_best_of_6_by_epoch": b6, "rule": "docs/HEADS_PLAN.md R11 via R15"})
-    start = read_json(out)["epoch"]
-    recipe = read_json(os.path.join(P["heads"], "choices", "rl_recipe.json"))["recipe"]
-    rl = f"{tuned['run']}-rlfull"
-    queue_job(f"47{method.lower()}_rlfull-{tuned['run']}", f"phase 6 (R15): full RL stage, RL{recipe}, of {tuned['run']} "
-              f"from epoch {start}, 5,000 updates", rl_body(tlc, tuned["run"], rl, start, 0, recipe, FULL_RL_CHECKPOINTS))
-    ch = rl_choose(rl, tlc, tuned["run"], start, FULL_RL_CHECKPOINTS)
-    if not ch:
-        return
-    st["checkpoint"] = ch["checkpoint"]
-    spec = os.path.join(P["heads"], "choices", f"selector_spec_{method}.json")
-    if not os.path.exists(spec):
-        dep_run, dep_w = (tuned["run"], f"epoch_{start}") if ch["checkpoint"] == "start" else (rl, ch["checkpoint"])
-        write_json(spec, {"kind": tuned["kind"], "layers": tuned["layers"], "flags": tuned["flags"],
-                          "rl_start_epoch": start, "recipe": recipe, "updates": ch["updates"],
-                          "save_every": FULL_RL_EVERY, "deployed_run": dep_run, "deployed_weights": dep_w,
-                          "steps": tuned["choice"]["steps"], "scale": tuned["choice"]["scale"], "k": GRID[tuned["kind"]]["k"],
-                          "rule": "docs/HEADS_PLAN.md R14, R15", "written": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"})
-        log(f"phase 6: selector spec for {method}: deployed {dep_run} {dep_w}")
+    """R16 with R15 and R14, for every contender: its method's tuned configuration, the full RL stage with its own
+    recipe, the chosen checkpoint, and the selector spec that starts ``selector_chain``. No navtest yet (R16)."""
+    for method, recipe in contenders():
+        x = f"{method}{recipe}"
+        st = status.setdefault("phase6_full", {}).setdefault(x, {})
+        lc = choose_layers(method)
+        tuned = tuned_config(method, lc) if lc else None
+        if not tuned:
+            continue
+        st["tuned"] = tuned["run"]
+        tlc = {"kind": tuned["kind"], "choice": tuned["choice"], "run": tuned["run"]}
+        out = os.path.join(P["heads"], "choices", f"{method}_tuned_rl_start.json")
+        if not os.path.exists(out):  # R11 on the tuned run: the epoch with the highest navdev best-of-6
+            c, g = tuned["choice"], GRID[tuned["kind"]]
+            b6 = {}
+            for e in EPOCHS:
+                base = os.path.join(P["heads"], tuned["run"], f"navdev_epoch_{e}", f"steps{c['steps']}")
+                if c["scale"] is not None:
+                    b = best_of(sample_folders(base, c["scale"], g["k"]), "navdev")
+                else:
+                    v = score(os.path.join(base, "single"), "navdev")
+                    b = None if v is None else float(v.mean())
+                if b is None:
+                    break
+                b6[e] = round(b, 4)
+            if len(b6) < len(EPOCHS):
+                continue
+            write_json(out, {"run": tuned["run"], "epoch": max(EPOCHS, key=lambda e: (b6[e], -e)),
+                             "navdev_best_of_6_by_epoch": b6, "rule": "docs/HEADS_PLAN.md R11 via R15"})
+        start = read_json(out)["epoch"]
+        rl = f"{tuned['run']}-rlfull{recipe}"
+        queue_job(f"47{method.lower()}{recipe}_rlfull{recipe}-{tuned['run']}",
+                  f"phase 6 (R16, R15): full RL stage, RL{recipe}, of {tuned['run']} from epoch {start}, 5,000 updates",
+                  rl_body(tlc, tuned["run"], rl, start, 0, recipe, FULL_RL_CHECKPOINTS))
+        ch = rl_choose(rl, tlc, tuned["run"], start, FULL_RL_CHECKPOINTS, navtest=False)
+        if not ch:
+            continue
+        st["checkpoint"] = ch["checkpoint"]
+        spec = os.path.join(P["heads"], "choices", f"selector_spec_{x}.json")
+        if not os.path.exists(spec):
+            dep_run, dep_w = (tuned["run"], f"epoch_{start}") if ch["checkpoint"] == "start" else (rl, ch["checkpoint"])
+            write_json(spec, {"method": method, "kind": tuned["kind"], "layers": tuned["layers"], "flags": tuned["flags"],
+                              "rl_start_epoch": start, "recipe": recipe, "updates": ch["updates"],
+                              "save_every": FULL_RL_EVERY, "deployed_run": dep_run, "deployed_weights": dep_w,
+                              "steps": tuned["choice"]["steps"], "scale": tuned["choice"]["scale"],
+                              "k": GRID[tuned["kind"]]["k"], "rule": "docs/HEADS_PLAN.md R14, R15, R16",
+                              "written": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"})
+            log(f"phase 6: selector spec for {x}: deployed {dep_run} {dep_w}")
 
 
 def selectors(status: dict) -> None:
     for f in sorted(glob.glob(os.path.join(P["heads"], "choices", "selector_spec_*.json"))):
         x = os.path.basename(f)[len("selector_spec_"):-len(".json")].lower()
         status.setdefault("phase6", {})[x] = selector_chain(x, read_json(f))
+
+
+def system_scores(x: str, spec: dict, adopted: bool) -> Optional[pd.Series]:
+    """A contender's per-scene navdev PDMS of its system path: the selected path if its selector is adopted (from the
+    selector's navdev selection), otherwise the deployed generator's own pick."""
+    nav = os.path.join(P["heads"], spec["deployed_run"], f"navdev_{spec['deployed_weights']}", f"steps{spec['steps']}")
+    own = score(os.path.join(nav, "single"), "navdev")
+    if not adopted or own is None:
+        return own
+    f = os.path.join(P["heads"], f"selector-{x}-xfit-s0", "navdev", "selection.jsonl")
+    if not os.path.exists(f):
+        return None
+    rows = [json.loads(line) for line in open(f, encoding="utf-8") if line.strip()]
+    return pd.Series({r["token"]: r["true_chosen"] for r in rows}, dtype=float)
+
+
+def final_system(status: dict) -> None:
+    """R16: once every contender's selector is adopted or not on navdev, the final system is the contender with the
+    highest navdev PDMS of its system path (point estimate; intervals against it reported; an exact tie goes to the
+    researcher, ``choices/final_system_researcher.json``). Only then is each contender's system path scored once on
+    navtest, the final system's being the headline."""
+    H, C = P["heads"], os.path.join(P["heads"], "choices")
+    out = os.path.join(C, "final_system.json")
+    specs = {f"{m}{r}": os.path.join(C, f"selector_spec_{m}{r}.json") for m, r in contenders()}
+    if not os.path.exists(out):
+        if not all(os.path.exists(f) for f in specs.values()):
+            return
+        ad = {x: os.path.join(C, f"selector_{x.lower()}_adoption.json") for x in specs}
+        if not all(os.path.exists(f) for f in ad.values()):
+            return
+        sys_s = {x: system_scores(x.lower(), read_json(specs[x]), read_json(ad[x])["adopted"]) for x in specs}
+        if any(v is None for v in sys_s.values()):
+            return
+        means = {x: round(float(v.mean()), 4) for x, v in sys_s.items()}
+        top = sorted(means, key=means.get, reverse=True)
+        tie = len(top) > 1 and means[top[0]] == means[top[1]]
+        own = os.path.join(C, "final_system_researcher.json")
+        final = read_json(own)["final"] if (tie and os.path.exists(own)) else (None if tie else top[0])
+        if final is None:
+            status["final_system"] = {"waiting": "an exact tie goes to the researcher", **means}
+            log(f"final system (R16): a tie at the top, waiting for the researcher: {means}")
+            return
+        drives = read_json(os.path.join(os.path.dirname(P["cache"]), "drives_navdev.json"))
+        vs = {}
+        for x, v in sys_s.items():
+            if x != final:
+                d = (sys_s[final] - v).dropna()
+                vs[x] = {"difference": round(float(d.mean()), 4),
+                         "ci_drives": drive_interval(d.values, [drives[t] for t in d.index])}
+        res = {"final": final, "tie": tie, "navdev_system_pdms": means,
+               "adopted": {x: read_json(ad[x])["adopted"] for x in specs}, "final_minus_other": vs,
+               "rule": "docs/HEADS_PLAN.md R16: navdev generator-plus-selector score; R5 reported only",
+               "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
+        write_json(out, res)
+        log(f"final system (R16): {final} ({means})")
+    fs = read_json(out)
+    status["final_system"] = {"final": fs["final"]}
+    drives_t = f"{os.path.dirname(P['cache'])}/drives_navtest.json"
+    results = {}
+    for x, f in specs.items():
+        if x not in fs["adopted"]:
+            continue  # a contender admitted after the choice is not part of it
+        spec, adopted = read_json(f), fs["adopted"][x]
+        test = os.path.join(H, spec["deployed_run"], f"navtest_{spec['deployed_weights']}")
+        k = spec["k"] if (adopted and spec["scale"] is not None) else 0
+        sc = f"--scales {spec['scale']:g}" if k else ""
+        queue_job(f"350_navtest-{spec['deployed_run']}-{spec['deployed_weights']}",
+                  f"phase 6 (R16): navtest paths of contender {x}'s deployed path generator, after the final choice",
+                  f"taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $HOME/navsim_workspace/exp/heads/"
+                  f"{spec['deployed_run']} --weights {spec['deployed_weights']} --split navtest --cache $C/navtest "
+                  f"--steps {spec['steps']} --k {k} {sc}\n")
+        if not os.path.exists(os.path.join(test, "timing.json")):
+            continue
+        paths = os.path.join(test, f"steps{spec['steps']}")
+        if adopted:
+            sel = os.path.join(H, f"selector-{x.lower()}-xfit-s0", "navtest")
+            queue_job(f"350_navtest-selector-{x.lower()}", f"phase 6 (R16): contender {x}'s selector on navtest, once",
+                      f"taskset -c 16-31 $PY pilot_sft/heads/apply_selector.py --selector "
+                      f"$HOME/navsim_workspace/exp/heads/selector-{x.lower()}-xfit-s0 --cache $C/navtest --paths {paths} "
+                      f"--scale {spec['scale']:g} --k {spec['k']} --out {sel} --exp {P['exp']} --split navtest "
+                      f"--drives {drives_t}\n")
+            if not os.path.exists(os.path.join(sel, "report.json")):
+                continue
+            v = score(os.path.join(sel, "selected"), "navtest")
+        else:
+            v = score(os.path.join(paths, "single"), "navtest")
+        if v is not None:
+            results[x] = round(float(v.mean()), 4)
+    fin = os.path.join(C, "final_navtest.json")
+    if len(results) == len(fs["adopted"]) and not os.path.exists(fin):
+        write_json(fin, {"final": fs["final"], "headline_navtest_pdms": results[fs["final"]], "navtest_system_pdms": results,
+                         "scorer": "NAVSIM v1.1 run_pdm_score.py, full navtest", "rule": "docs/HEADS_PLAN.md R16"})
+        log(f"final system on navtest (R16): {fs['final']} {results[fs['final']]} ({results})")
+    if os.path.exists(fin):
+        status["final_system"]["navtest"] = read_json(fin)["headline_navtest_pdms"]
 
 
 def references() -> dict:
@@ -1018,6 +1180,7 @@ def one_pass() -> dict:
     if status["navdev_ready"] and navtrain_ready():
         phase6(status)
         selectors(status)
+        final_system(status)
     write_json(os.path.join(P["heads"], "driver_status.json"), status)
     return status
 

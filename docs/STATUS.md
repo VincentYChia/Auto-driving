@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 13:36 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 14:01 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -141,33 +141,23 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - the selector spec, which starts the selector's chain.
       - B's, C's and D's tuning runs wait for their training flags. Those are written only if that method wins.
       - 3 new tests; all 105 heads tests pass.
-    - **Next:** nothing more in code before phase 5. The B, C or D tuning flags come only for a winner.
+    - **R16 in the driver** (registered 13:51, code at 14:01):
+      - phase 4 queues RL6 beside RL4 for every method and seed (jobs `45{{m}}{{s}}r6_`);
+      - R5 is computed per recipe and marked as reported only;
+      - phase 6 runs every contender (A and D under RL4 and RL6, B and C if admitted): tuning, the full RL stage per recipe (jobs `47{{m}}{{r}}_`) and the selector chain;
+      - the final system is chosen on navdev, then every contender is scored once on navtest.
+      - D's tuning runs (R15) need `--anchor-trunc`, which `train_head.py` now has. They are queued now and run after phase 4.
+      - 4 new tests; all 106 heads tests pass.
+    - **Next:** B's and C's tuning flags, only if they join phase 6.
 
 ## Waiting on the researcher
-- **A question for your 12:00 check; it blocks nothing.**
-  - **The issue:** R5 chooses the method by its own single path after RL, and the selector (phase 6) is built only for the winner. D has clearly the best candidates and clearly the weakest own pick (navtest, all four methods at their layer choices; R has no candidates).
-    - D − A, best-of-6: **+1.9** (drive interval +1.6 to +2.2).
-    - D − A, single path: **−1.75** (−2.6 to −0.9).
-  - **Why it matters:** the final system always has a selector, so R5 could choose a method that is not the best one for the final system.
-  - **Options:**
-    1. Keep R5 as it is. It answers "which method gives the best path on its own". This is the default.
-    2. Also build phase 6's cross-fitted selector for the runner-up, when its best-of-6 is clearly higher. The final system then uses whichever generator-plus-selector scores higher on navdev.
-  - **My recommendation is option 2.** It costs one more selector, and R5's answer stays as it is.
-  - Nothing changes unless you say so.
-- **For your information: phase 4 runs RL4, chosen over RL6 by 0.08.**
-  - The rule takes the point estimate of the mean navdev change: +2.31 against +2.23.
-  - RL6 is the only recipe that raised D (+1.14, -0.41 to +2.46). It also keeps A's candidates 2.2 m apart (RL4: 0.8 m), with the highest best-of-6 (90.93).
-  - Phase 4's jobs reach the GPU only after about 26 h of diffusion work, so there is time to switch to RL6 if you prefer.
-  - **My recommendation is to keep RL4, as registered.** It gives the best single path, and phase 6 will measure whether its closer candidates limit the selector. Nothing changes unless you say so.
-- **For your information: R15 (13:25) fixes phase 6's post-decision tuning before any phase-4 result.** Each method gets 4 runs over its own main settings, matching A's 4 continuity-series runs:
-  - B: noise and v targets, and the linear schedule;
-  - C: start-noise SD 0.3 and 1.0, and two time samplings;
-  - D: 10 and 40 anchors, and truncation 0.02 and 0.1.
-  - The tuned configuration is the best of the five on navdev, and is reported as tuning, never as part of the comparison. Tell me if you want different settings.
-- **For your information: R14, the selector's design (11:38).** One part adds GPU time.
-  - **The addition:** the two half-data path generators also get the deployed generator's RL stage, about 2 × 4 h of GPU. RL changes the candidates (A's end points went from 6.4 m apart to 0.8 m under RL4), so without it the selector would learn on candidates unlike the ones it ranks.
-  - **The closest published design** is Versatile Samples (arXiv 2609.01799, WACV 2027): a scorer trained alone on a frozen planner's features, plus designed boundary samples. R14 tests its boundary paths as an ablation.
-  - Nothing runs before phase 6. Tell me if you want R14 changed.
+- **Nothing is waiting on you.** Your 13:45 answers, now R16 in `docs/HEADS_PLAN.md`, registered 13:51 before any phase-4 run had started:
+  - Phase 4 runs RL4 (as registered) and RL6 on every method, with the same seeds and 1,500 updates. Neither recipe is dropped on single-path score alone.
+  - R5's single-path ranking after RL is reported, no longer deciding.
+  - A and D, each under both recipes, go into phase 6. B and C join if phase 4 shows they are not clearly below. Each contender gets its tuning (R15), the full RL stage with its own recipe, and the cross-fitted selector (R14).
+  - The final system is the contender with the highest navdev generator-plus-selector score. Then every contender is scored once on navtest.
+  - Compute: "we have excess in the week". The queue is reordered or cut when a result is pertinent.
+- **Your three questions at 13:27:** answered in the session (last push, `docs/CHAT.md`, the report's private link at the top of this page).
 - **For your information: R13, a second RL recipe round, added under your "improve RL round after round" clarification.** R12's recipes all lowered the navdev single path so far, and the sub-scores point to the advantage normalisation, the missing imitation term and D's step size. R13 tests the published remedies, on A and D, before phase 4. It took about 2.3 h of GPU time (7 runs of 17-20 min; I first wrote 3.5 h). Two of its recipes helped (RL4, RL6), so phase 4 started by rule.
 - **The plan (`docs/HEADS_PLAN.md`, revision 2) was approved 2026-11-19 ~21:00, and the HOLD is lifted.** Two clarifications are in the plan's header:
   - equal tuning until a clear winner: contenders proceed together;

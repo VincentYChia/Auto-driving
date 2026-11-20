@@ -125,26 +125,30 @@ def main() -> None:
     with open(os.path.join(args.out, "selected", "shard_000_of_001.jsonl"), "w", encoding="utf-8") as f:
         for i, t in enumerate(tokens):
             f.write(json.dumps({"token": t, "waypoints": np.round(xy[i, chosen[i]], 3).tolist()}) + "\n")
-    with open(os.path.join(args.out, "selection.jsonl"), "w", encoding="utf-8") as f:
-        for i, t in enumerate(tokens):
-            rec = {"token": t, "chosen": int(chosen[i]), "chosen_name": names[chosen[i]],
-                   "score": np.round(score[i], 5).tolist(), "pdms": np.round(pdms[i], 5).tolist()}
-            if sub is not None:
-                rec["sub"] = np.round(sub[i], 4).tolist()
-            f.write(json.dumps(rec) + "\n")
-    summary = {"selector": os.path.abspath(args.selector), "weights": weights, "delta": delta, "names": names,
-               "paths": os.path.abspath(args.paths), "scenes": len(tokens), "switch_rate": float((chosen != 0).mean())}
     truth: Optional[Dict] = None
     if args.scores:
         truth = scores_from_jsonl(args.scores, names)
     elif args.exp:
         truth = scores_from_exp(args.exp, args.paths, names, args.split)
+    true = true_sub = None
     if truth is not None:
         unscored = sum(1 for t in tokens if t not in truth)
         if unscored:
             raise SystemExit(f"{unscored} scenes have no true scores")
         true = np.stack([truth[t][1] for t in tokens])
         true_sub = np.stack([truth[t][0] for t in tokens])
+    with open(os.path.join(args.out, "selection.jsonl"), "w", encoding="utf-8") as f:
+        for i, t in enumerate(tokens):
+            rec = {"token": t, "chosen": int(chosen[i]), "chosen_name": names[chosen[i]],
+                   "score": np.round(score[i], 5).tolist(), "pdms": np.round(pdms[i], 5).tolist()}
+            if sub is not None:
+                rec["sub"] = np.round(sub[i], 4).tolist()
+            if true is not None:  # the system path's true PDMS, and the own pick's (R16's final choice reads these)
+                rec["true_chosen"], rec["true_own"] = float(true[i, chosen[i]]), float(true[i, 0])
+            f.write(json.dumps(rec) + "\n")
+    summary = {"selector": os.path.abspath(args.selector), "weights": weights, "delta": delta, "names": names,
+               "paths": os.path.abspath(args.paths), "scenes": len(tokens), "switch_rate": float((chosen != 0).mean())}
+    if truth is not None:
         drives = list(tokens)  # without a drive map, each scene is its own group
         if args.drives:
             with open(args.drives, encoding="utf-8") as f:
