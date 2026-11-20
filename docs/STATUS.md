@@ -15,7 +15,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **4090 desktop, GPU queue** (one job at a time):
   - **Done since 05:30:** R12's 8 recipe runs (RL0-RL3 on A and D, 500 updates each, about 20 min per run); navtest paths of B at layers 12/18/24.
   - **Running:** C reading layer 24, phase-1 training (since 07:06).
-  - **Next: R13's 7 recipe runs** (registered 07:40, see below), about 20-25 min each, so done by about 10:30.
+  - **Next: R13's 7 recipe runs** (registered 07:02, see below), about 20-25 min each, so done by about 10:30.
   - **Then, about 22 h:**
     - C at layers 12/18/24;
     - R at both layer settings;

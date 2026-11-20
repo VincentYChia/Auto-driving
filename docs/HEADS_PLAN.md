@@ -229,7 +229,7 @@ Every run's navtest scores are reported.
 
 **Change to R11:** the RL checkpoints considered are 0 (the starting point, no RL), 250, 500, …, 1,500. A method that RL only hurts keeps its supervised path generator, and how often that happens is reported.
 
-**R13. A second recipe round, from the published RL methods** (committed 2026-11-20 ~07:40: after R12's RL0 and RL1 navdev scores, before R12's RL2 and RL3 navdev scores, and before any R13 run).
+**R13. A second recipe round, from the published RL methods** (committed 2026-11-20 07:02: after reading R12's RL0 and RL1 navdev scores, before reading any RL2 or RL3 navdev score, and before any R13 run).
 
 **What R12 had shown when this was written** (navdev single-path PDMS, start → 250 → 500 updates):
 - **A** (start: epoch 20, 81.43):
