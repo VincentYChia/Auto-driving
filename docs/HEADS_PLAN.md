@@ -1,117 +1,189 @@
 # Path-generator study: plan to Mon 2026-11-30, with the reasoning behind each step
 
-Proposed 2026-11-19, for the researcher's review. **No new training runs start until it is approved**; the two running layer-test jobs finish either way, because they are part of phase 1. Terms are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
+Revision 2 (2026-11-19 21:10), after the researcher's review. Revision 1 is in git history. **For approval; no new training runs start until it is approved.** The two running layer-test runs (jobs 362, 363) finish either way: they match the phase-1 rules exactly (seed 0, 20 epochs, every epoch's weights saved, the shared optimiser settings below). Terms are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal:** the best single-path NAVSIM score we can reach, without breaking scientific integrity. Integrity means:
 - every choice is made on data the final number is not measured on;
-- every method gets the same budget and the same chance to be tuned;
-- every result is reported, including the losing and negative ones;
-- every claim is larger than the measured noise.
+- every method gets the same tuning budget;
+- the statistics are fixed before the results;
+- every result is reported, including R or H1's text output being good enough.
 
-## Rules that hold for every phase
+## Rules (committed at the end of phase 0, before any result they decide)
 
-1. **Choices on a validation split, results on navtest.**
-   - Every choice below is a selection, and making it on navtest would bias the final navtest number upward and make the comparison with published papers unfair. The choices: stored layers, configuration, epoch, generation steps, sampling temperature, method, RL checkpoint, and whether to use the selector.
-   - So choices are made on **navdev**: the 2,000 dev-v2 scenes from 11 nuPlan drives that appear in no training set (checked 2026-11-19: 0 of the 158 training drives).
-   - navtest is used only to report, and it is reported for **every** configuration, not only the winners.
-2. **The same budget for every method:** the same 236,133 training scenes, network body, epochs, batch size, learning rate and checkpoint-selection rule. Any extra tuning given to one method is given to all, or reported as unequal.
-3. **Noise is measured, not assumed.**
-   - Within one run, paired bootstrap confidence intervals over scenes.
-   - Across runs, the spread over 3 seeds.
-   - A difference counts only if its paired interval excludes 0 and it is larger than the seed spread. Otherwise it is reported as "not resolved".
-4. **Decision rules are committed before the results they decide.** The commit time is the proof.
-5. **Leakage audit before any score counts:** no navdev or navtest drive in the training data or in the RL scenes, and no NAVSIM warm-up scene in training.
-6. **Every model is kept** (`pilot_sft/MODELS.md`), and every reported number comes from a committed aggregate file.
-6b. **The same definitions for every method.**
-   - **Single path** is each method's deterministic best guess: A, the most confident tokens (no sampling); D, the top-scored refined anchor; B and C, generation from the zero-noise start, which needs a small code change before phase 1. A single random sample is also reported for B and C.
-   - **Best-of-6** uses each method's natural way of sampling 6 different paths. The one sampling setting that matters, A's temperature for its end-point draw, is chosen on navdev from the same small grid for every method that has one. Diversity is always reported next to best-of-6.
-7. **Known biases, stated rather than hidden:**
-   - H1 itself was chosen on navtest among about 15 supervised runs, so the starting point is mildly optimistic.
-   - navdev is small (see phase 0), so it can resolve only differences of about a point or more.
+**R1. Choices on navdev, results on navtest.**
+- navdev is the 2,000 dev-v2 scenes from 11 nuPlan drives. Checked 2026-11-19: none of the 158 drives of v1-hard appear in it, and v1-hard is H1's own fine-tuning data and every path generator's training data.
+- navdev gets the same metric as navtest: NAVSIM v1.1 PDMS, the same scorer code and default config.
+- It also gets navtest's difficulty filter, taken from NAVSIM's paper and code. The filter is checked by applying it to navtest, where it must keep at least 99% of scenes.
+- navtest is used only to report and for the pre-specified confirmatory tests (R4). It is reported for every configuration.
+- Choosing on navdev never biases the navtest number; navdev's noise only makes a choice less reliable.
 
-## Phase 0 — integrity groundwork (Fri Nov 20, CPU only)
+**R2. The same tuning budget for every method.**
+- The method decision uses each method's **phase-1 configuration** only: two layer settings each, an epoch chosen from 4, steps chosen from that method's grid, and one sampling setting chosen from a 3-point grid.
+- Phase 2 (A's continuity series) is **analysis only** and does not change A's entry in the decision.
+- After the decision, the winning method gets a bounded tuning budget for the final system (phase 6), labelled as post-decision tuning.
 
-- **What:**
-  - Build the NAVSIM metric cache for navdev on Anvil's CPUs. It needs the trainval logs that the navtrain-cache job unpacks.
-  - Apply navtest's difficulty filter to navdev: the NAVSIM paper drops scenes where constant velocity already scores high (to be checked in NAVSIM's code before use). That makes navdev measure the same kind of scenes; expected size 1,000–1,500.
-  - Score H1's text output and constant velocity on navdev as references.
-  - Script the leakage audit.
-  - Commit the decision rules below.
-- **Why:** without a validation split, every later choice leaks into the reported number.
-- **What it might reveal:** if H1 ranks differently on navdev than on navtest, our earlier navtest-based choices carry more bias than assumed. That gets reported.
-- **Limit:** with about 1,200 scenes, paired differences under about 1 PDMS point cannot be resolved on navdev. Such choices fall to a pre-set tie-break (the simpler or cheaper option) and are marked "within noise".
+**R3. Statistics.**
+- The unit is the per-scene PDMS.
+- Intervals are paired, and **cluster-bootstrapped by drive**: resample drives with replacement, keeping all their scenes; 10,000 resamples, seed 0, 95% percentile interval.
+  - navdev has 11 drives. navtest's scenes are grouped by drive, the date-and-vehicle part of the log name.
+  - Scene-level intervals are also given, to compare with earlier results.
+- Across seeds, a hierarchical bootstrap: each resample also redraws every method's seeds with replacement.
+  - A method with one seed (B and C after RL) gets an added normal draw whose SD is the larger of A's and D's measured between-seed SDs. That is a conservative stand-in for the seed noise it lacks.
+- **Choices** (layers, epoch, steps, sampling setting, RL checkpoint) take the navdev point estimate. **Claims** need the interval to exclude 0.
+- navdev's resolution is measured in phase 0, as the drive-bootstrap interval width of a paired comparison, and reported before any choice. With 11 drives it will be wider than the "about 1 point" first guessed.
 
-## Phase 1 — each method at each layer setting, plus a regression control (Fri 20 – Sat 21, 10 training runs)
+**R4. Confirmatory comparisons, named in advance and Holm-corrected at family-wise α = 0.05 on navtest.** Everything else (layer × method, the continuity series, bin sizes, B against C, steps, sampling settings) is exploratory: intervals reported, no significance claimed.
+- C1 (primary): A against D, single-path PDMS after the RL stage.
+- C2: the navdev-chosen method after RL against H1's text output.
+- C3: the navdev-chosen generating method before RL against regression R: does generation help?
+- C4: the chosen method before against after RL: does RL help?
 
-- **What:**
-  - The base configuration of each method, A1, B, C and D, trained twice: reading stored layer 24 only, and reading layers 12, 18 and 24 (8 runs; A1's two are the jobs running now).
-  - A **regression control R**: the same body, outputting the 8 waypoints directly with an L1 loss, one path, no generation (2 runs, one per layer setting).
-  - Every run: seed 0, 20 epochs.
-  - Each run's epoch is chosen on navdev by one rule for all: the best single-path PDMS among epochs 5, 10, 15 and 20.
-- **Why:**
-  - The best layers may depend on the method. Fixing them from A alone would hand A an advantage the others don't get, so each method keeps its own best layer setting.
-  - R answers the question under everything else: does generation help at all, or do H1's features and the body do the work? DriveVLA-W0 found plain regression ahead of flow matching (88.4 against 87.2).
-- **What it might reveal:**
-  - whether method and layer interact;
-  - whether H1's last layer, already fine-tuned for writing paths, carries all the needed information;
-  - whether any method beats H1's text output before RL. Published work expects it to be close (+0.1 to +2.4).
+**R5. Method decision** (navdev, single-path PDMS after the RL stage, seed-averaged).
+- The method with the highest point estimate continues automatically only if its interval against every other generating method excludes 0.
+- Otherwise it is a tie: **no automatic preference for A**. I report, and the researcher decides.
+- My recommendation then uses, in this order: best-of-6 after RL on navdev, then generation time per scene.
 
-## Phase 2 — how continuous (Sun 22, about 9 training runs, method A at its phase-1 layers)
+**R6. Leakage audit, scripted, before any score counts.** Drives in each split:
+- navdev and navtest against H1's fine-tuning data (v1-hard) and against every path generator's training data;
+- navdev and navtest against the RL scenes;
+- NAVSIM warm-up scenes against training.
 
-- **What:**
-  - The cumulative series A0, A1, A2, A3, A4, each adding one feature.
-  - Then **leave-one-out** from the best A: that configuration with each of its features removed in turn.
-  - Then bin size 0.25 m and 0.05 m on the best A configuration.
-- **Why:**
-  - A cumulative series measures each feature only on top of the ones added before it, so the order confounds the effects; leaving one out of the full system measures each feature's own contribution.
-  - Bin size matters most when no other continuity feature compensates, so it is tested where it decides something: on the best configuration.
-- **What it might reveal:** how much of a continuous method's advantage, if any, a discrete method recovers with metric features. That is the "how continuous" answer.
-- **Limit:** one seed per configuration. Effects smaller than the phase-3 seed spread are reported as not resolved.
+The pre-training data of the Qwen3.5 base model cannot be audited; that is stated.
 
-## Phase 3 — seed spread (Mon 23, 8–10 training runs)
+**R7. The same definitions for every method.**
+- Single path is the deterministic best guess: A, most-confident tokens without sampling; D, the top-scored refined anchor; B and C, generation from the zero-noise start. B and C's random-sample path is also reported.
+- Best-of-6 uses each method's sampling, with its one sampling setting chosen on navdev by best-of-6 from a 3-point grid:
+  - A: temperature 0.5 / 1.0 / 1.5;
+  - B: start-noise scale 0.5 / 1.0 / 1.5;
+  - C: start-noise scale 0.5 / 1 / 2 times its training value;
+  - D: starting noise of the anchors 0.5 / 1 / 2 times its training value.
+- Diversity is reported with every best-of-6.
 
-- **What:** seeds 1 and 2 for each method's best configuration (A, B, C, D, and R).
-- **Why:** it gives a measured tie threshold for the method decision and for every claim in phases 1–2.
-- **What it might reveal:** how reproducible supervised path generators are on navtest. No such number is published for a masked-diffusion planner.
+**R8.** Every model is kept (`pilot_sft/MODELS.md`), and every number comes from a committed aggregate file.
+
+**R9. Known biases, stated:**
+- H1 was chosen on navtest among about 15 supervised runs.
+- navdev has only 11 drives.
+- The selector's training candidates come from scenes the generator saw. Phase 6 measures this.
+
+## Phase 0 — groundwork (Fri Nov 20, CPU only)
+
+- **navdev scoring:**
+  - Extract only navdev's 40 log files from the OpenScene trainval archive already on Anvil. No need to wait for the navtrain-cache job's full unpack.
+  - Build navdev's metric cache with NAVSIM v1.1 (Anvil CPU, `cis220051`) and copy it to the desktop.
+  - Apply the difficulty filter, checked on navtest as in R1.
+- **References on navdev:** constant velocity, H1's text output, and A1 from the layer test.
+- **Statistics:** measure navdev's resolution (R3), and run the leakage audit (R6).
+- **Code before phase 1's B, C, D and R runs:** regression R; B and C's zero-noise start; scoring and the drive bootstrap for navdev.
+- **Commit R1–R9 and the phase-4 settings.** The commit hash goes in `docs/STATUS.md`.
+
+## Phase 1 — each method at its own best layers, plus regression (Fri 20 – Sat 21, 10 training runs)
+
+**Runs:** A1, B, C, D and R, each reading stored layer 24 only and layers 12, 18 and 24.
+- **Shared settings:** seed 0; 236,133 training scenes; 20 epochs; batch 256; AdamW, learning rate 1e-4, betas (0.9, 0.95), weight decay 0.01, 1,000 warm-up steps then cosine to 0; gradient clip 1.0; bf16; every epoch saved; 12 blocks × 384 wide.
+- **A1:** masked diffusion; 0.1 m bins (x 951, y 901 values); distance-aware bin embeddings; hard labels.
+- **B:** Gaussian diffusion predicting the clean path, cosine schedule, DDIM.
+- **C:** rectified flow from a start of standard deviation 0.1 (in normalised units), Euler steps.
+- **D:** 20 anchors (k-means of 50,000 training paths), truncated diffusion up to t = 0.05, scored per anchor.
+- **R:** 8 query tokens, L1 loss on normalised coordinates, one path.
+
+**Choices on navdev**, by point estimate (R3):
+- the epoch, from 5, 10, 15 and 20;
+- the steps: A {1, 2, 4, 8}, B {1, 2, 5, 10}, C {1, 2, 5}, D {1, 2};
+- the sampling setting (R7);
+- the layer setting.
+
+Every run's navtest scores are reported.
+
+**Why:**
+- The best layers may depend on the method, so each method keeps its own.
+- R tests whether generation is needed at all. One paper found plain regression ahead of flow (88.4 against 87.2).
+
+**What it might reveal:**
+- an interaction between method and layer;
+- whether H1's text-tuned last layer already holds what's needed;
+- whether any path generator matches H1's text output before RL.
+
+## Phase 2 — how continuous: analysis only (Sun 22, about 9 training runs, A at its phase-1 layers)
+
+- **Runs:**
+  - the cumulative series A0, A2, A3, A4 (A1 exists);
+  - leave-one-out from the series' best (each added feature removed once);
+  - 0.25 m and 0.05 m bins on the series' best.
+- **Why:** the cumulative order confounds the effects; leave-one-out measures each feature's own contribution.
+- **Not used** in the method decision (R2). If A wins in phase 5, the series' best becomes A's candidate for post-decision tuning in phase 6.
+
+## Phase 3 — seed spread (Mon 23, 10 training runs)
+
+- **Runs:** seeds 1 and 2 of each method's phase-1 configuration (A1, B, C, D, R at their chosen layers, epochs and settings).
+- **Gives:** the seed SDs used in R3 and R5, and the first published seed spread for a masked-diffusion planner.
 
 ## Phase 4 — matched short RL stage (Tue 24 – Wed 25)
 
-- **What:**
-  - Each generating method's best configuration (A, B, C, D) starts from its phase-1/2 checkpoint, chosen on navdev by best-of-6.
-  - One-paper evidence (MD-Drive) says an over-fitted checkpoint gains much less from RL; that is why the starting checkpoint is chosen by best-of-6.
-  - Everything is matched: the same navtrain scenes (none from navdev or navtest drives), scene order, number of updates, 8 candidates per scene, learning rate and regularisation, and the same reward, NAVSIM's PDM score.
-  - A and D, the deciding pair, get 3 seeds each; B and C get 1.
-- **Measured:** single-path PDMS and best-of-6 on navdev (for the choice) and navtest (for the report), plus every sub-score.
-  - A rise in the total with a fall in collisions or drivable area is reward hacking, and gets reported.
-  - RL trains on sampled paths, so the deterministic single path is checked separately.
-- **Why:** before RL the published methods land within about a point of each other, and RL adds 2–4 points, so the comparison that matters is after RL.
-- **What it might reveal:**
-  - whether some methods take RL better than others: no paper compares masked and continuous generators under one RL recipe;
-  - what RL costs in GPU-hours and scorer calls.
+**Settings, identical for every method:**
+
+| Setting | Value |
+|---|---|
+| Algorithm | group-relative policy gradient (GRPO-style); on-policy, one gradient step per batch, so no ratio clipping; no value network; no KL or imitation term |
+| Starting point | each method's phase-1 configuration, seed s, at its navdev best-of-6 epoch (MD-Drive: an over-fitted start gains much less from RL) |
+| Scenes | the 80,626 navtrain scenes in our training data (v1-nt, part of v1-hard by construction; NAVSIM's navtrain lists 103,288; all on training drives, audited), shuffled once with seed 0, the same order for every method |
+| Budget | 1,500 updates × 32 scenes = 48,000 scenes, about 0.6 of a pass over the 80,626 |
+| Candidates | 8 per scene, sampled at the method's R7 setting |
+| Reward | NAVSIM v1.1 PDMS of each candidate, the same code and config as evaluation, from the navtrain metric cache |
+| Advantage | (reward − group mean) / (group SD + 1e-4); scenes whose 8 rewards are equal give no gradient, and are counted |
+| Optimiser | AdamW, learning rate 1e-5, betas (0.9, 0.95), weight decay 0, 50 warm-up steps then constant, gradient clip 1.0, bf16 |
+| Checkpoints | every 250 updates; the navdev-best of the 6 is chosen by the same rule for every method |
+
+**Seeds:** A and D, 3 runs each (RL seed s starts from supervised seed s, so the spread covers both); B and C, 1 run each.
+
+**Log-probability of a candidate** (method-specific by nature):
+- A: the exact sum of log-probabilities of each token at the step it was committed.
+- D: log-probability of the anchor choice, plus the Gaussian log-density of each stochastic refinement step (DDPM, η = 1).
+- B: the Gaussian log-density of each stochastic DDPM step (η = 1), as in DiffGRPO/DDPO.
+- C: the Gaussian log-density of each step of Flow-GRPO's SDE sampler. Its noise level is to be read from Flow-GRPO's code and committed in phase 0.
+
+**Before any comparison run:** a 200-update trial on A1 seed 0 measures scorer speed and checks that the reward rises. The settings may change once, before phase 4, and the change is committed. The trial is in no comparison.
+
+**Measured:**
+- single-path PDMS and best-of-6 on navdev (choice) and navtest (report);
+- every sub-score: a higher total with more collisions or more off-road driving is reward hacking, and is reported;
+- the deterministic single path, checked separately, since RL trains sampled paths.
+
+**Compute:** 384,000 scored paths per run, about 2 h at the measured 55 paths/s; 8 runs ≈ 16 h.
 
 ## Phase 5 — choice of method (Thu 26)
 
-- **Rule:**
-  - Primary: post-RL single-path PDMS on navdev, as the mean over seeds. Secondary: post-RL best-of-6.
-  - D, B or C replaces A only if it is ahead by more than the measured seed spread with a paired interval excluding 0. Otherwise A stays, the pre-set preference for the simpler method.
-- **Then:** report every method's navtest numbers. With a clear winner, go on to phase 6; on a tie, wait for the researcher.
+R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a tie, the researcher decides.
 
-## Phase 6 — full RL and the selector (Fri 27 – Sun 29, only with a clear winner)
+## Phase 6 — final system (Fri 27 – Sun 29, only with a clear winner)
 
-- **What:**
-  - Train the chosen configuration with a longer RL stage (1–2 passes over navtrain).
-  - Train the selector on candidate paths from navtrain scenes. It is adopted only if it beats the path generator's own top choice on navdev.
-  - Caveat: the generator was trained on those same scenes, so its candidates there are better than on new scenes. The selector's navdev result shows whether that matters.
-- **Final number:** one navtest evaluation of the final system, reported with the full list of choices that led to it.
+- **Post-decision tuning** of the winning method, labelled as such:
+  - if A, the phase-2 best;
+  - if D, B or C, the same number of runs over its own main settings.
+- **Full RL stage:** the phase-4 settings with 5,000 updates (160,000 scenes, about 2 passes over the 80,626).
+- **Selector, cross-fitted:**
+  - Split the training drives into 2 halves (by drive, seed 0) and train the chosen configuration on each half. Each half's generator makes candidates for the other half's navtrain scenes.
+  - The selector is trained on these out-of-fold candidates. A second selector trained on in-fold candidates measures the caveat in R9, both on navdev.
+  - The selector is adopted only if it beats the generator's own top choice on navdev.
+- **Final number:** one navtest evaluation of the final system, reported with the list of every choice behind it.
 
 ## Mon 30 — report
 
 - An HTML report on the home PC.
-- In the repository: every number in `pilot_sft/README.md`, `docs/STATUS.md` and `docs/GAPS.md`.
+- Every number in `pilot_sft/README.md`, `docs/STATUS.md` and `docs/GAPS.md`.
+
+## Schedule risks, and what goes first
+
+- **Phase 4** is the tightest: 8 RL runs share the desktop's 16 CPU cores. If behind, drop C's RL run first, then B's; they are reported without RL.
+- **Further cuts, in order:** phase 2's bin-size runs; then phase 6 moves to the next week. It is not shortened.
+- **Dependencies:**
+  - navdev's cache: phase 0, extract only its 40 logs.
+  - The navtrain cache for phase 4: Anvil wide job 22320518, estimated start Nov 20 18:13.
+  - Code for R and for B and C's zero-noise start: before Friday's B, C and R runs. D's code exists.
 
 ## Compute
 
-- **Phases 1–3:** about 27 training runs at 40 min to 2 h each, 20–50 GPU-hours on the 4090. Scoring: navdev about 30 s per path set; navtest 220 s.
-- **Phase 4:** about 8 RL stages of 3–5 h each, limited by scoring on the desktop's 16 CPU cores.
-- **Phase 6:** 1–1.5 days.
-- **Priority if time runs short:** phases 0–5 (the comparison, the contribution) come before phase 6 (the headline number). Phase 6 moves into the next week rather than being cut short.
+- **Phases 1–3:** about 29 training runs: 41 min each reading one stored layer, about 2.3 h reading three (measured). That is 28–59 GPU-hours on the 4090.
+- **Phase 4:** about 16 h, limited by scoring.
+- **Phase 6:** about 1.5 days.
+- **Scoring:** navtest takes 220 s per path set; navdev about 40 s.
