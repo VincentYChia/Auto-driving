@@ -141,7 +141,7 @@ def recipe_setup():
     status = {"navdev_ready": True}
     driver.phase4(status)
     # no navtrain cache: no recipe run and no phase-4 run is queued
-    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith(("351", "396"))]
+    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith(("351", "45"))]
     (Path(driver.P["exp"]) / "metric_cache_navtrain_v1").mkdir(parents=True)
     (Path(driver.P["exp"]) / "metric_cache_navtrain_v1" / ".ready").write_text("")
     driver.phase4(status)
@@ -173,7 +173,7 @@ def test_rl_recipes_come_first_and_phase_4_is_held_when_every_recipe_hurts(tree)
     jobs = sorted(os.listdir(driver.P["queue"]))
     recipe_jobs = [j for j in jobs if j.startswith("351")]
     # R12's RL0-RL3 and R13's RL4-RL7 on A and D, except A's RL7: without Gaussian steps it is RL0
-    assert len(recipe_jobs) == 15 and not [j for j in jobs if j.startswith("396")]  # recipes first, no phase 4 yet
+    assert len(recipe_jobs) == 15 and not [j for j in jobs if j.startswith("45")]  # recipes first, no phase 4 yet
     assert "3517a_rlrecipe-a1-l12-18-24.sh" not in jobs and "3517d_rlrecipe-d-l24.sh" in jobs
     # the runner starts jobs in name order: the recipe runs go after the 350_ path jobs, before phase-1 training
     assert all("350_~" < j < "360" for j in recipe_jobs)
@@ -201,7 +201,7 @@ def test_rl_recipes_come_first_and_phase_4_is_held_when_every_recipe_hurts(tree)
     assert rec["every_recipe_lowers_both_methods"] and rec["phase4"].startswith("held")  # the fake scores RL below
     assert rec["runs_standing_in"] == {"RL7 on A": "RL0 (the same settings for masked)"}
     assert rec["gain_by_method"]["7"]["A"] == rec["gain_by_method"]["0"]["A"]
-    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("396")]  # R13: phase 4 waits for the researcher
+    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("45")]  # R13: phase 4 waits for the researcher
     assert status["rl_recipe"] is None
     ch = json.loads((Path(driver.P["heads"]) / "a1-l12-18-24-rlrecipe0" / "choices_navdev.json").read_text())
     assert ch["checkpoint"] == "start"  # RL only lowered the score here, so update 0 is kept
@@ -231,11 +231,18 @@ def test_phase_4_runs_the_recipe_that_helps(tree, monkeypatch):
     assert rec["recipe"] == 6 and not rec["every_recipe_lowers_both_methods"] and rec["phase4"] == "started with RL6"
     assert status["rl_recipe"] == 6
     jobs = set(os.listdir(driver.P["queue"]))
-    assert {"396a0_rl-a1-l12-18-24.sh", "396a1_rl-a1-l12-18-24-s1.sh", "396a2_rl-a1-l12-18-24-s2.sh"} <= jobs
-    body = (Path(driver.P["queue"]) / "396a1_rl-a1-l12-18-24-s1.sh").read_text()
+    assert {"45a0_rl-a1-l12-18-24.sh", "45a1_rl-a1-l12-18-24-s1.sh", "45a2_rl-a1-l12-18-24-s2.sh"} <= jobs
+    # phase 4 runs after every phase-2 and phase-3 job (the plan's order), never before
+    driver.seed_runs("A", la)
+    driver.series(la)
+    names = os.listdir(driver.P["queue"])
+    diffusion = [j for j in names if j.startswith(("39", "40"))]
+    rl = [j for j in names if j.startswith("45")]
+    assert len(diffusion) >= 6 and max(diffusion + ["41s_train-x.sh", "4205_train-x.sh"]) < min(rl)
+    body = (Path(driver.P["queue"]) / "45a1_rl-a1-l12-18-24-s1.sh").read_text()
     assert "--weights epoch_15" in body and "--seed 1" in body and "--lr 1e-05" in body and "--updates 1500" in body
     assert "--adv dr --bc-balance 1 --lp-sd-floor 0 " in body  # A has no Gaussian steps
-    assert "--adv dr --bc-balance 1 --lp-sd-floor 0.1" in (Path(driver.P["queue"]) / "396d1_rl-d-l24-s1.sh").read_text()
+    assert "--adv dr --bc-balance 1 --lp-sd-floor 0.1" in (Path(driver.P["queue"]) / "45d1_rl-d-l24-s1.sh").read_text()
 
 
 def test_decision_needs_a_gap_beyond_drive_and_seed_noise():

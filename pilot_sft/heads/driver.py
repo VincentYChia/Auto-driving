@@ -9,10 +9,11 @@ It keeps the study moving when no Claude session is watching:
 - scores navtest for the report.
 
 The GPU runner starts pending jobs in name order, so the name prefix sets the priority:
-``350_`` navtest/navdev paths, ``351{recipe}{method}_`` R12 recipe runs (they gate all of phase 4, so they go
-before the remaining phase-1 training), ``36x``/``38x`` phase-1 training, ``396{method}{seed}_`` phase-4 RL,
-``39{method}{seed}_`` phase-3 seeds, ``40x``-``42x`` phase 2. The order changes when results arrive, never what
-they are.
+``350_`` navtest/navdev paths, ``351{recipe}{method}_`` R12/R13 recipe runs (they gate all of phase 4, so they go
+before the remaining phase-1 training), ``36x``/``38x`` phase-1 training, ``39{method}{seed}_`` phase-3 seeds,
+``40x``-``42x`` phase 2, then ``45{method}{seed}_`` phase-4 RL. Phase 4 sorts after every phase-2 and phase-3 job,
+as in the plan's order (phases 2-3, then 4), so the diffusion comparison finishes before the RL stage starts
+(2026-11-20). The order changes when results arrive, never what they are.
 
 Every result is a file, so a restart repeats nothing that is done. It never trains, deletes or overwrites a job
 file, and never touches Anvil. Phase 6 (the full RL stage and the selector) is not automated.
@@ -489,7 +490,7 @@ def queue_rl(method: str, lc: dict, start: dict, recipe: int) -> None:
         sft = lc["run"] if s == 0 else f"{lc['run']}-s{s}"
         if not os.path.exists(os.path.join(P["heads"], sft, "final.pt")):
             continue
-        queue_job(f"396{method.lower()}{s}_rl-{sft}",
+        queue_job(f"45{method.lower()}{s}_rl-{sft}",
                   f"phase 4, RL{recipe} (seed {s}) of {sft} from epoch {start['epoch']}",
                   rl_body(lc, sft, f"{sft}-rl", start["epoch"], s, recipe, RL_CHECKPOINTS))
 
