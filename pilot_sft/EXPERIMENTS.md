@@ -161,11 +161,37 @@ v1-full (676k) holds the same moving rows plus 186k more standstill frames. Stan
 
 The test plan is `docs/research/heads/head_test_plan.html`, with the research behind it in `docs/research/heads/`. The code is in `pilot_sft/heads/`. Every model is kept (`MODELS.md`), and results go into `docs/GAPS.md` under its strict rule. The current state is always in `docs/STATUS.md`, and notes from other computers go in `docs/INBOX.md`.
 
+### Definitions (used in this file, `docs/STATUS.md` and all reports)
+
+| Term | Meaning |
+|---|---|
+| **H1 (the backbone)** | Qwen3.5-0.8B vision-language model, LoRA-fine-tuned (its vision encoder too) on the 236,133 v1-hard training samples to write the future path as text. Input: one front-camera image (640 px wide), speed, acceleration, yaw rate, 4 past poses (x, y, heading) and the route command. Output: 8 waypoints (x, y), 0.5 s apart, 4 s ahead. NAVSIM PDMS 85.6. Its weights are frozen (not changed) throughout this work. |
+| **Path generator** (the "action head" of the papers) | A separate neural network, 41M parameters (12 transformer blocks, width 384), that replaces H1's text output. It reads H1's stored features and outputs the 8 waypoints directly as numbers, and can output several candidate paths per scene. |
+| **Stored features** | H1's internal vectors after decoder layers 12, 18 and 24 (of 24): 1,024 numbers per token, 416–420 tokens per scene (220 image tokens, plus the vision-start and vision-end markers, the prompt text and the start of the answer). Computed once for every training, dev and navtest scene and saved on the desktop (about 650 GB), so path generators train without re-running H1. |
+| **Generation method** | How a path generator turns "no path yet" into a path. **A**: masked discrete diffusion over 16 path tokens. **B**: continuous Gaussian diffusion (DDIM) on the coordinates. **C**: flow matching from a narrow random start. **D**: anchored diffusion, which refines 20 typical paths and scores each. |
+| **Path token, bin** (method A) | Each of the 16 numbers of a path (x and y of 8 waypoints) is rounded to a grid. With 0.1 m bins, x has 951 possible values (−5 to 90 m) and y has 901 (−45 to 45 m). |
+| **Generation steps** | How many times the path generator is applied to refine a path, from blank tokens (A), noise (B, C) or noised typical paths (D). Fewer steps is faster. |
+| **Configuration** | A generation method plus all its settings: the stored layers read, bin size, label type, losses, steps. Named A0–A4, A-0.25m, A-0.05m, B, C, D. |
+| **Training run** | One complete supervised (imitation) training of one configuration from a random start. The model learns to reproduce the human driver's recorded path: 20 epochs over the 236,133 training scenes, one saved weight file per epoch. About 40 min (one stored layer read) to an estimated 2 h (three) on the RTX 4090. |
+| **Epoch** | One pass through all 236,133 training scenes. |
+| **Seed** | The random starting point of a training run. A second seed means the same configuration retrained from a different start, which measures run-to-run variation. |
+| **Layer test** (the "layer probe") | Two training runs of configuration A1 that differ only in the stored layers read: layer 24 alone, against layers 12, 18 and 24. The result fixes which layers every later configuration reads. |
+| **Continuity series** (A's "ladder") | Configurations of method A that each add exactly one feature making the discrete tokens behave more like continuous numbers. **A0**: plain bins, with no notion of distance. **A1**: bin embeddings that encode each bin's position in metres. **A2**: adds soft labels (neighbouring bins get partial credit). **A3**: adds a position-error loss, and reads each coordinate as the probability-weighted average of the bins around the chosen one. **A4**: adds a continuous offset within the chosen bin. **A-0.25m and A-0.05m**: A1 with 0.25 m or 0.05 m bins. |
+| **Single-path PDMS** | The headline metric: NAVSIM v1.1 PDM score (0–100) of one path per scene, averaged over all 12,146 navtest scenes with NAVSIM's own scorer, as in published papers. The path is the generator's own top choice (A, D), or one path from a fixed random seed (B, C). |
+| **Best-of-6 (oracle)** | Generate 6 candidate paths per scene, score every one with NAVSIM, keep each scene's best, and average. It cannot be used while driving, since scoring needs the recorded future; it measures how much a learned selector could gain. |
+| **Diversity** | Mean distance in metres between the endpoints of the 6 candidates, and their mean pairwise average displacement. |
+| **Dev ADE** | Average distance (m) between the predicted and the recorded path on 2,000 held-out dev scenes. A quick training check, never used for decisions, because it ranked S3's epochs wrongly. |
+| **Sanity check** | Before more training runs are queued, the first configuration must score clearly above constant velocity (20.7 PDMS) and reach a dev ADE near H1's text output (0.77 m). Otherwise there is a bug. |
+| **Metric cache** | NAVSIM's precomputed data per scene (other road users' future boxes, the map's drivable area, the reference route), needed to score any path on that scene. navtest's exists; navtrain's (103,288 training scenes) is being built on Anvil for RL. |
+| **RL stage** (reinforcement learning, GRPO) | After imitation training, the path generator is trained to raise NAVSIM's score directly. For each training scene it samples 8 candidate paths, NAVSIM scores each, and the update makes the higher-scoring candidates more likely. **Matched**: the same number of updates, scenes, candidates per scene and learning rate for every method. **Short**: about half a pass over navtrain per method, for the comparison. **Full**: 1–2 passes, only for the chosen method. |
+| **Selector** | A third small network that, given a scene's stored features and K candidate paths from the chosen generator, predicts each candidate's PDM score and picks one. It is the usable version of best-of-K. |
+| **Decision rule** | Fixed in advance. After the short RL stage, keep A if its single-path PDMS is within run-to-run noise of D's and its best-of-6 is equal or higher at 4 steps or fewer; switch to D if D is ahead by more than the noise. Noise is the measured seed-to-seed difference. |
+
 The researcher's choices (2026-11-19):
 - Explore all four head types, whatever the gain.
 - File no GitHub issues.
 - Run only what a comprehensive comparison needs; don't fill spare GPU time with extra runs ("don't just flood the computer with more work").
-- Continue past the head choice when the rule gives a clear winner.
+- Continue past the choice of method when the decision rule gives a clear winner.
 - Keep the feature cache all week, and ask before deleting it.
 - Commit everything allowed, and keep the repo text current and descriptive.
 
@@ -175,34 +201,34 @@ Order. The 4090 runs one job at a time, scoring uses the CPUs, and the RL code i
    - Install the same unmodified v1.1 devkit and copy navtest's metric cache.
    - Re-score H1's predictions. Use the desktop only if all 12,146 per-scene scores equal Anvil's.
    - Otherwise, batch the scores into Anvil CPU jobs.
-3. **Layer probe** (jobs 361, 362): A rung 1, reading the last layer against layers 12/18/24.
-   - **Sanity gate before anything else is queued:** the head must clearly beat constant velocity, and its dev ADE must be within reach of the text pilot's 0.77 m. Otherwise debug first.
+3. **Layer test** (jobs 361, 362): two training runs of configuration A1, reading layer 24 alone against layers 12, 18 and 24.
+   - **Sanity gate before anything else is queued:** the first configuration must clearly beat constant velocity, and its dev ADE must be within reach of the text pilot's 0.77 m. Otherwise debug first.
    - **Choice:** higher single-path PDMS. Under 0.5 apart, the higher best-of-6. Still tied, the last layer alone (a third of the reading).
-4. **A's continuity ladder** on the chosen layers:
-   - rung 0, plain bin embeddings that don't know distances: the pure-discrete end of the scale, so the metric embeddings' share is measured too;
-   - rung 2, soft labels;
-   - rung 3, adds the L1 and expectation readout;
-   - rung 4, adds the deterministic offset;
+4. **A's continuity series** on the chosen layers, one training run per configuration:
+   - A0: plain bins, with no notion of distance. This is the pure-discrete end of the scale, so A1's distance-aware embeddings are measured too;
+   - A2: A1 plus soft labels;
+   - A3: A2 plus the position-error loss and the averaged readout;
+   - A4: A3 plus the continuous offset within the bin;
    - side arms at 0.25 m and 0.05 m bins.
 5. **D (anchored, 20 anchors, 2 steps), B (DiT, predicting the path), C (flow, start σ 0.1)**, on the same body and layers.
-6. **A second seed** of the best A rung and of D: our own run-to-run noise for the tie rule.
+6. **A second seed** of the best A configuration and of D: our own run-to-run noise for the decision rule.
 7. **RL, a short matched stage** (same group size, updates and scorer budget):
    - A and D first; B and C if cheap.
    - Needs the navtrain metric cache (Anvil wide job 22320518), copied to the desktop.
-8. **The head choice** (plan step 7), by the pre-set rule:
+8. **The choice of generation method** (plan step 7), by the decision rule:
    - keep A if it matches D within noise after RL and holds an equal or better best-of-6 at 4 steps or fewer;
    - switch to D if D wins by more than noise.
 
    Report it in `docs/STATUS.md`, the README and an HTML report. With a clear winner, continue to the selector and full RL (researcher, 2026-11-19: "Continue if clear"). Plan those first, in this file, with the reason for each run. On a tie, stop and wait for the researcher.
 
-Measured for every head:
+Measured for every configuration:
 - single-path PDMS at 1, 2, 4 and 8 steps, from the same weights;
 - best-of-6 and a diversity measure;
 - epoch 10 against final;
 - dev ADE;
 - generation time on the 4090.
 
-A head that beats 85.6 gets the 20 s replay demo.
+A path generator that beats 85.6 gets the 20 s replay demo.
 
 ### Compute plan to Monday 2026-11-30 [proposed 2026-11-19]
 
@@ -212,20 +238,20 @@ A head that beats 85.6 gets the 20 s replay demo.
 
 **Speeds measured 2026-11-19:**
 - Feature cache: 53 rows/s.
-- A head run reading one layer: about 2 min per pass, 45 min for 20 passes.
-- A NAVSIM score on the desktop: 220 s on 12 threads, so about 1 h of CPU per head run (17 scores).
+- A training run reading one stored layer: about 2 min per epoch, 41 min for 20 epochs (job 361).
+- One NAVSIM score of all 12,146 navtest scenes on the desktop: 220 s on 12 threads, so about 1 h of CPU per training run (17 scores).
 
 | Days | 4090 (one GPU job at a time) | Desktop CPU | Anvil CPU (cis220051) | Why |
 |---|---|---|---|---|
-| Thu 19 – Fri 20 morning | Layer probe (361 done; 362 training; 363 predictions) | Score both | navtrain metric cache (wide, est. Fri 19:05) | Settle the layers once, before the four heads are compared |
-| Fri 20 | A's ladder: rungs 0, 2, 3, 4 and the 0.25 m and 0.05 m bins (6 runs, about 5–12 h) | Score each | | "How continuous", one piece at a time |
-| Fri 20 – Sat 21 (code) | RL code, tested on CPU, then a smoke test on the probe's head | Scorer throughput test | | RL is the riskiest and least-measured step; start it early, in parallel |
-| Sat 21 | D, B and C (3 runs); a second seed of the best A rung and of D (2 runs) | Score each; copy the navtrain cache (~55 GB) | | Complete the four types; measure our own run-to-run noise for the tie rule |
+| Thu 19 – Fri 20 morning | Layer test: A1 reading layer 24 (job 361, trained; predictions in job 363) and A1 reading layers 12/18/24 (job 362, training) | Score both | navtrain metric cache (wide, est. Fri 19:05) | Settle the layers once, before the four heads are compared |
+| Fri 20 | Continuity series A0, A2, A3, A4, A-0.25m and A-0.05m (6 training runs, about 5–12 h) | Score each | | "How continuous", one piece at a time |
+| Fri 20 – Sat 21 (code) | RL code, tested on CPU, then a short trial on the layer test's A1 | Scorer throughput test | | RL is the riskiest and least-measured step; start it early, in parallel |
+| Sat 21 | Configurations D, B and C (3 training runs); a second seed of the best A configuration and of D (2 training runs) | Score each; copy the navtrain cache (~55 GB) | | Complete the four types; measure our own run-to-run noise for the tie rule |
 | Sun 22 – Mon 23 | Matched short RL: A and D, then B and C if the code carries over | RL rewards (PDM score per sampled path) | | The scores after RL decide; one recipe, budget and group size for all |
-| Tue 24 | Predictions of the RL heads | Score them | | The head choice by the pre-set rule; report |
-| Wed 25 – Thu 26 | If clear: the chosen head's K = 16 paths on navtrain; train the selector (about 1–2 h) | Score candidates | Bulk-score candidates on `wide` | The selector learns to pick the best of K (published gain about +1) |
-| Fri 27 – Sat 28 | Full RL of the chosen head (about 1–2 navtrain passes, 10–20 h, limited by scoring) | RL rewards | | The larger published gains come from RL |
-| Sun 29 | Final navtest: head + RL + selector; the 20 s replay if it is a new best | Score | | The week's headline number |
+| Tue 24 | navtest paths from the RL-trained path generators | Score them | | The choice of method by the decision rule; report |
+| Wed 25 – Thu 26 | If clear: 16 candidate paths per navtrain scene from the chosen path generator; train the selector (about 1–2 h) | Score candidates | Bulk-score candidates on `wide` | The selector learns to pick the best of K (published gain about +1) |
+| Fri 27 – Sat 28 | Full RL stage of the chosen path generator (1–2 passes over navtrain, 10–20 h, limited by scoring speed) | RL rewards | | The larger published gains come from RL |
+| Sun 29 | Final navtest score: path generator after full RL, plus the selector; the 20 s replay if it is a new best | Score | | The week's headline number |
 | Mon 30 | Report: HTML on the home PC; numbers in `docs/STATUS.md`, the README and `docs/GAPS.md` | | | |
 
 **Budget:**
@@ -233,4 +259,4 @@ A head that beats 85.6 gets the 20 s replay demo.
 - **Desktop CPU:** the real limit (scoring and RL rewards on 16 E-cores), about 60–80 core-hours.
 - **Anvil:** CPU only. The navtrain cache needs about 2 h on 128 cores; selector candidates about 2–4 h on 128 cores if the desktop's CPUs are busy.
 
-**Not this week** (for the researcher to decide afterwards): unfreezing the backbone together with the head, RL on the backbone itself, and a 2B backbone. Each takes 1–2 days of GPU. They matter only if the frozen H1 features turn out to cap the heads.
+**Not this week** (for the researcher to decide afterwards): unfreezing H1 and training it together with the path generator, RL on the backbone itself, and a 2B backbone. Each takes 1–2 days of GPU. They matter only if H1's frozen features turn out to cap every path generator.
