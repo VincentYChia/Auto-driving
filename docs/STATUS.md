@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 11:45 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 12:51 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -13,14 +13,14 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
-  - **Done since 05:30:** R12's 8 recipe runs and R13's 7 (500 updates each, 17-20 min per run; the last ended 10:06); navtest paths of B at layers 12/18/24; C reading layer 24 (07:10-07:51) and its navtest paths.
-  - **Running:** C reading layers 12/18/24, phase-1 training (since 10:06). At 11:43 it was at epoch 18.7 of 20, so training ends about 11:50; its navdev grid follows.
-  - **Queued, about 26 h (estimate):**
-    - R at both layer settings (jobs 380, 381);
-    - seeds 1-2 of A1, B and D at layers 12/18/24 (39a1-39d2);
+  - **Done since 11:45:** C reading layers 12/18/24 (10:06-11:50) with its navdev grid; R reading layer 24 (11:50-12:29) with its navdev grid; C's navtest paths at its choices (12:29-12:30).
+  - **Running:** R reading layers 12/18/24, the last phase-1 training run (since 12:30; epoch 2.4 of 20 at 12:47, so it ends about 14:50, an estimate from its speed).
+  - **Queued, about 28 h (estimate):**
+    - seeds 1-2 of A1, B, C and D at layers 12/18/24 (39a1-39d2; C's two were queued 12:04);
     - A's continuity series A0, A2, A3, A4 (400-403);
-    - then phase 4. So far B's RL4 run, seed 0, is queued (45b0). A's and D's three RL seeds each are queued when their supervised seeds 1-2 finish, and C's when its layer choice exists. All phase-4 jobs sort after phases 2-3.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, 39e7c7a): chose the RL recipe at 10:17 (below) and started phase 4. It scores each new navdev grid as it lands. Its last pass (10:43) was OK, with no failed passes (`driver_health.json`).
+    - then phase 4: B's and C's RL4 runs, seed 0 (45b0; 45c0 queued 12:13). A's and D's three RL seeds each are queued when their supervised seeds 1-2 finish. All phase-4 jobs sort after phases 2-3.
+    - R's navtest paths and seeds 1-2 are queued by the driver once R's choices exist.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, 39e7c7a): made C's choices at 12:04 and its RL start at 12:13, and is scoring C's navtest paths (12:33 to about 13:05), then R's navdev grid. Its last completed pass (12:28) was OK, with no failed passes (`driver_health.json`).
 - **Anvil:** nothing running.
 
 ## Latest results
@@ -54,7 +54,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   | A1 (masked) | 81.5 / 89.5 | 81.9 / 89.7 | 12/18/24 | 84.7 / 91.8 (-0.9, -1.4 to -0.5) |
   | B (DDIM) | 81.0 / 88.2 | 81.4 / 89.3 | 12/18/24 | 84.6 / 91.9 (-1.05, -1.5 to -0.6) |
   | D (anchored) | 76.8 / 89.6 | 78.4 / 92.2 | 12/18/24 | 82.9 / **93.7** (-2.7, -3.5 to -1.8) |
-  | C (flow) | 78.4 / 89.5 | training | - | layer 24: 83.5 / 91.6 (-2.1) |
+  | C (flow) | 78.4 / 89.5 | 80.8 / 89.7 | 12/18/24 (12:04) | being scored; layer 24: 83.5 / 91.6 (-2.1) |
+  | R (regression) | being scored | training | - | - |
 
   - **Layer test on navtest** (layers 12/18/24 minus 24 alone; single path; best-of-6):
     - A: -0.01 (-0.43 to +0.41); -0.03.
@@ -66,7 +67,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - A - D: +1.75 (+0.93 to +2.60); -1.89 (-2.21 to -1.57).
     - B - D: +1.64 (+0.96 to +2.35); -1.79 (-2.18 to -1.36).
   - References: H1's text output scores 82.4 on navdev and 85.6 on navtest; constant velocity scores 19.8 on navdev.
-  - Choices: A1 epoch 15, 8 steps, setting 1.5. B epoch 20, 10 steps, setting 1.5 (earlier written here as "B epoch 10"; epoch 10 is B's RL start). D epoch 10, 2 steps, setting 0.5. C (layer 24) epoch 10, 2 steps, setting 2.0. RL starts (R11): A epoch 20, B epoch 10, D epoch 5.
+  - Choices: A1 epoch 15, 8 steps, setting 1.5. B epoch 20, 10 steps, setting 1.5 (earlier written here as "B epoch 10"; epoch 10 is B's RL start). D epoch 10, 2 steps, setting 0.5. C epoch 10, 2 steps, setting 2.0, at both layer settings. RL starts (R11): A epoch 20, B epoch 10, C epoch 10, D epoch 5.
+  - **C's layer choice (12:04): layers 12/18/24.** navdev single path 80.77 against 78.41 for layer 24 alone; best-of-6 89.74 against 89.45. C's navdev single path by epoch: 76.2, 80.8, 79.2, 80.6 (epochs 5-20); by steps at epoch 10: 79.6, 80.8, 80.0 (1, 2, 5 steps). Its candidates were best at the widest sampling setting tried (2.0: 89.7, against 87.3 at 1.0 and 84.0 at 0.5), as at layer 24.
 - **The RL trial** (200 updates on a1-l24 over 3 training drives, recipe as registered) lowered A1's navdev single path from 81.18 to 73.97 (-7.2, -13.3 to -2.6). That led to R12 (eca6ee6).
 - **RL scoring service:** equals NAVSIM's official scores on 200 navtest scenes, with a maximum difference of 0.0 in every sub-score.
 - **Text pilot H1: 85.6 PDMS on navtest**, still the best single path. H2 (8 passes) ties it.
@@ -95,10 +97,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - scores navtest for the report.
    - Its status is `~/navsim_workspace/exp/heads/driver_status.json`; its log is `driver.log`.
    - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
-7. Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice. A, B and D are done; C and R are training.
+7. Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice. A, B, D and C have their layer choices (C at 12:04; its navtest scores land about 13:05). R: layer 24 trained (12:29) and being scored; layers 12/18/24 training until about 14:50.
 8. **RL recipe rounds: done.** R12 and R13 are complete, and the driver chose RL4 at 10:17 (`choices/rl_recipe.json` on the desktop). Phase 4 runs RL4 on every method, after phases 2-3: B's seed-0 job is queued (45b0); A's and D's 3 seeds each follow their supervised seeds 1-2; C's follows its layer choice.
 9. ~~Report at 12:00 Fri Nov 20.~~ **Done 11:18, refreshed 11:45** (the work set out phase by phase; R14 added): `navsim_demo_renders/heads_report_2026-11-20.html` on the home PC (charts with drive intervals, R12 and R13, problems and fixes, next steps, the two questions below). Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`, and the headline numbers are on this page.
-10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). C at layers 12/18/24 follows when it finishes.
+10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). `c-l12-18-24` and `r-l24` are being copied (started 12:51).
 
 11. **Phase 6 code, written while the GPU trains** (needed after phase 5):
     - **Done:** training on one half of the training drives (`train_head.py --drive-half`, 9531c27); each half's RL-scene tokens and out-of-fold predictions (`drive_map.py halves`, `predict_head.py --only-tokens`, 5de57e2); scoring every candidate with the PDM scoring service (`score_candidates.py`, 332d20c). 85 heads tests pass.
