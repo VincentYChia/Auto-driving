@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 18:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 18:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -16,8 +16,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
   - **Done since 12:30:** R reading layers 12/18/24, the last phase-1 training run (12:30-14:40), with its navdev grid and navtest paths; seed 1 of A1 at layers 12/18/24 (14:40-16:36), whose navdev and navtest paths are being scored.
-  - **Running:** seed 2 of A1 at layers 12/18/24 (39a2, since 16:36; epoch 2.3 of 20 at 16:51, so it ends about 18:35, an estimate).
-  - **Queued: 20 jobs, about 42 h before phase 6 (an estimate):**
+  - **Running:** seed 1 of B at layers 12/18/24 (39b1, since 18:39), the first training run with 8 feature readers. A1's seed 2 finished at 18:39; the driver is scoring its paths (about 19:10).
+  - **Queued: 18 jobs, about 36 h before phase 6 (an estimate, with the faster reads):**
     - phase 3: seeds 1-2 of A1, B, C, D and R at layers 12/18/24 (39a2-39r2; R's two queued 14:47);
     - phase 2: A's continuity series A0, A2, A3, A4 (400-403);
     - phase 4 (R16): RL4 and RL6 for B and C (45b0, 45b0r6, 45c0, 45c0r6). A's and D's RL4 and RL6 seeds 0-2 are queued when their supervised seeds finish;
@@ -199,7 +199,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - **Done 17:17: training reads were the bottleneck, so the default is now 8 feature readers instead of 4.**
       - Measured on A1's seed 2: the 4 readers ran at 420% CPU, the 4090 was about 40% busy (8 one-second samples: 0-100%), and disk wait was 2-3%.
       - Data order is fixed by the seed and the readers only prefetch, so results do not change.
-      - It takes effect from the next training job (39b1, about 18:35). The speed-up is measured there, against 39a1's 682 rows/s.
+      - **Measured on B's seed 1 (18:42):** 773 rows/s against 632-638 for B's phase-1 run with 4 readers, about 21% faster. The 4090 is now 67-100% busy, so the GPU sets the pace. Over the roughly 15 training runs left, that saves about 6 GPU hours [D].
     - **Next:**
       - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`);
       - phase 4's RL4 and RL6 runs for B and C, which decide the phase-6 gate;
