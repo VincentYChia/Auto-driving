@@ -81,6 +81,7 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `d-l12-18-24` | D | 12, 18, 24 | 0 | 20 | 41.1M | 2 h 18 min | 3.9 | `3ec3fea646824f78` | yes | yes |
 | `b-l24` | B (DDIM, predicts the clean path) | 24 | 0 | 20 | 40.2M | 47 min | 4.0 | `36268012f4f5179f` | yes | yes |
 | `b-l12-18-24` | B | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 3 min | 3.9 | `afa0797e37e1d862` | yes | yes |
+| `c-l24` | C (flow matching, start noise SD 0.1) | 24 | 0 | 20 | 40.2M | 40 min | 3.9 | `d55bcfc919735b40` | yes | yes |
 
 ### RL runs
 
@@ -97,5 +98,7 @@ An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update
 | `d-l12-18-24-rlrecipe1` | `d-l12-18-24` epoch 5 | R12 RL1 | 80,626 | 250, 500 | 0.81 | rl_250 `a6981d1dc8c37fc6`, rl_500 `3dc03640e2c86393` | yes | yes |
 | `d-l12-18-24-rlrecipe2` | `d-l12-18-24` epoch 5 | R12 RL2 | 80,626 | 250, 500 | 0.81 | rl_250 `a11aec0e814bc9a5`, rl_500 `0b3b86d5b99c84cf` | yes | yes |
 | `d-l12-18-24-rlrecipe3` | `d-l12-18-24` epoch 5 | R12 RL3 | 80,626 | 250, 500 | 0.78 | rl_250 `784fb59d4c021807`, rl_500 `1ae831b1d42ef387` | yes | yes |
+| `a1-l12-18-24-rlrecipe4` | `a1-l12-18-24` epoch 20 | R13 RL4: advantage = reward − group mean (Dr. GRPO), lr 1e-5, no KL, 8 × 32 | 80,626 | 250, 500 | 0.81 | rl_250 `bf752057bfe54a96`, rl_500 `6003a877907cad50` | yes | yes |
+| `d-l12-18-24-rlrecipe4` | `d-l12-18-24` epoch 5 | R13 RL4, with the 0.1 SD floor inside the log-probability | 80,626 | 250, 500 | 0.80 | rl_250 `b3e972c5e0bc37e6`, rl_500 `4da1a8feaccea0a6` | yes | yes |
 
 The RL trial lowered navdev's single-path PDMS (81.18 → 73.97 after 200 updates), which led to R12 in `docs/HEADS_PLAN.md`. It is kept as the evidence for that rule, not used further.
