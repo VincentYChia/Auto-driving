@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 09:22 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 10:56 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -13,46 +13,40 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
-  - **Done since 05:30:** R12's 8 recipe runs (RL0-RL3 on A and D, 500 updates each, about 20 min per run); navtest paths of B at layers 12/18/24; C reading layer 24 (07:10-07:51) and its navtest paths; R13's RL4 on A and on D.
-  - **Running:** R13's RL6 on A (since 09:11). RL4 and RL5 are done on A and D.
-  - **Next:** R13's RL6 and RL7 on D, about 20 min each, so done by about 10:15.
-  - **Then, about 26 h:**
-    - C at layers 12/18/24;
-    - R at both layer settings;
-    - seeds 1-2 of A1, B and D at layers 12/18/24;
-    - A's continuity series A0, A2, A3, A4.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, now 007c58d): scoring each R13 run on navdev as it lands. It now writes `driver_health.json` after every pass, failed or not; `driver_status.json` is written only by a completed pass, so it had hidden the 06:24-06:52 failures.
-  - **A bug stopped it from 06:24 to 06:52.** A saved RL checkpoint choice, read back from JSON, had string keys, so every pass failed with `KeyError: 250`. It is fixed (d46ae30), with a test that fails on the old code.
+  - **Done since 05:30:** R12's 8 recipe runs and R13's 7 (500 updates each, 17-20 min per run; the last ended 10:06); navtest paths of B at layers 12/18/24; C reading layer 24 (07:10-07:51) and its navtest paths.
+  - **Running:** C reading layers 12/18/24, phase-1 training (since 10:06). At 10:52 it was at epoch 8.7 of 20, about 5.3 min per epoch, so training ends about 11:50; its navdev grid follows.
+  - **Queued, about 26 h (estimate):**
+    - R at both layer settings (jobs 380, 381);
+    - seeds 1-2 of A1, B and D at layers 12/18/24 (39a1-39d2);
+    - A's continuity series A0, A2, A3, A4 (400-403);
+    - then phase 4. So far B's RL4 run, seed 0, is queued (45b0). A's and D's three RL seeds each are queued when their supervised seeds 1-2 finish, and C's when its layer choice exists. All phase-4 jobs sort after phases 2-3.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, 39e7c7a): chose the RL recipe at 10:17 (below) and started phase 4. It scores each new navdev grid as it lands. Its last pass (10:43) was OK, with no failed passes (`driver_health.json`).
 - **Anvil:** nothing running.
 
 ## Latest results
-- **R12 is complete: every recipe lowered both methods' navdev single path** (743 scenes, 11 drives; start, then 250 and 500 updates; the change at the better checkpoint, with its drive interval where computed). R12 alone would have chosen RL3 (mean change -0.95); R13 now decides.
+- **R13 is complete. The driver chose RL4 (Dr. GRPO) at 10:17 by the registered rule, and phase 4 has started with it.** The rule (R12, R13) takes the recipe with the highest navdev single-path change from the start at its better checkpoint (250 or 500 updates), averaged over A and D. Numbers are on navdev (743 scenes, 11 drives), seed 0, with the change and its drive interval in brackets:
 
-  | Recipe | A (start 81.43, epoch 20) | D (start 77.10, epoch 5) |
-  |---|---|---|
-  | RL0: as registered (lr 1e-5, no KL) | 75.72, 77.19 (-4.2, -10.4 to -0.5) | 60.93, 64.23 (-12.9, -16.4 to -8.4) |
-  | RL1: KL beta 0.04 | 77.58, 78.76 (-2.7, -8.1 to +0.6) | 75.27, 75.28 (-1.8, -2.9 to 0.0) |
-  | RL2: KL, lr 3e-6 | 79.64, 79.01 (-1.8) | 75.55, 75.80 (-1.3) |
-  | RL3: KL, lr 3e-6, 16 x 16 | 80.68, 78.61 (-0.75) | 75.95, 74.90 (-1.15) |
+  | Recipe | A (start 81.43, epoch 20): 250, 500 updates | D (start 77.10, epoch 5): 250, 500 updates | Mean change |
+  |---|---|---|---|
+  | RL0: as registered (lr 1e-5, no KL, 8 x 32) | 75.72, 77.19 (-4.24, -10.43 to -0.53) | 60.93, 64.23 (-12.88, -16.44 to -8.39) | -8.56 |
+  | RL1: KL beta 0.04 | 77.58, 78.76 (-2.67, -8.09 to +0.55) | 75.27, 75.28 (-1.82, -2.93 to 0.00) | -2.25 |
+  | RL2: KL, lr 3e-6 | 79.64 (-1.79, -7.20 to +1.03), 79.01 | 75.55, 75.80 (-1.30, -2.86 to +0.47) | -1.54 |
+  | RL3: KL, lr 3e-6, 16 x 16 | 80.68 (-0.75, -6.17 to +2.17), 78.61 | 75.95 (-1.16, -3.24 to +0.35), 74.90 | -0.95 |
+  | **RL4: Dr. GRPO** | 85.08, **86.30 (+4.87, +3.42 to +7.74)** | 76.84 (-0.27, -2.11 to +3.26), 70.39 | **+2.31** |
+  | RL5: BC | 81.99 (+0.56, -3.10 to +2.55), 78.11 | 67.55 (-9.55, -11.08 to -5.62), 66.25 | -4.50 |
+  | RL6: Dr. GRPO + BC | 83.61, 84.75 (+3.32, +2.12 to +5.89) | 78.24 (+1.14, -0.41 to +2.46), 76.89 | +2.23 |
+  | RL7: neither (SD floor only) | the RL0 run | 62.39, 62.53 (-14.57, -17.64 to -12.10) | -9.40 |
 
-  - **A trades safety for progress.** Under RL0: progress 73.5 to 78.3, time-to-collision 93.9 to 84.4, no-collision 97.5 to 92.3, drivable area 91.8 to 88.7. The best-of-6 candidates' end points went from 6.4 m apart to 2.0 m.
-  - **D is damaged everywhere.** Under RL0 at 250 updates: drivable area -13.2, time-to-collision -13.1, progress -7.3.
-  - **On the training scenes,** A's sampled reward rose with the gentler recipes (RL3: 0.79 to 0.85), while best-of-8 fell and equal-reward groups rose. The policy sharpens, which raises the sampled reward without improving the temperature-0 path that navdev scores.
-- **R13, registered before any of its runs** (`docs/HEADS_PLAN.md`, 4fed42c; code 714cd6f, 73 tests pass). Three likely causes, each with a published remedy:
-  1. The group SD inflates tiny progress gaps between safe candidates. Remedy: subtract the group mean only (Dr. GRPO). NoRD on navtest: GRPO +0.5, Dr. GRPO +9.0.
-  2. Nothing ties the policy to the logged driving. Every published RL stage on a separate NAVSIM path generator adds a behaviour-cloning (BC) term.
-  3. D's last refinement step sits at the 0.01 SD floor, so its gradient is about 100 times the anchor choice's (gradient norm 300-550, against 21-33 for A). Remedy: a 0.1 SD floor inside the log-probability only, as in DiffusionDriveV2.
-  - **The recipes,** each from RL0 and all with the SD floor: RL4 Dr. GRPO; RL5 BC; RL6 Dr. GRPO + BC; RL7 neither. For A, the floor does nothing, so A's RL7 is RL0 and is not run again.
-  - The BC weight is set so its gradient norm equals the RL term's at the start.
-  - **The choice:** R12's rule over RL0-RL7. If every recipe still lowers both methods, phase 4 does not start, and the next step goes to you.
-  - **First R13 results on navdev (these decide):**
-    - **A, RL4 (Dr. GRPO): 81.43, then 85.08 at 250 updates and 86.30 at 500 (+4.9).** That is the first RL run to raise a navdev single path, and it is above H1's text output on navdev (82.4). Seed 0, recipe stage only; navtest comes with phase 4.
-    - A, RL5 (BC, SD division kept): 81.99 at 250 (+0.6), 78.11 at 500.
-    - D, RL4: 76.84 at 250 (-0.3), 70.39 at 500. No recipe has helped D yet.
-  - **The same runs on the training scenes** (block of the first 50 updates, then the last 50; navdev scores are being computed):
-    - **A, RL4 (Dr. GRPO):** reward 0.82 to 0.92, with time-to-collision 0.90 to 0.96 and progress 0.78 to 0.88 both rising; best-of-8 held (0.953 to 0.958). Under R12, safety fell whenever progress rose.
-    - **A, RL5 (BC, SD division kept):** R12's pattern again, progress 0.77 to 0.87 with time-to-collision 0.87 to 0.83. Its measured BC weight is 2.50.
-    - **D, RL4:** the SD floor brought the gradient norm from 300-550 down to 2.6, but D's reward still slips (0.853 to 0.815).
+  - RL4-RL7 keep RL0's settings. For D they add a 0.1 SD floor inside the log-probability; A's steps are not Gaussian, so A's RL7 is its RL0 run. The BC weight is set so the BC gradient norm equals the RL term's at the start: 2.50 and 0.73 on A, 2.65 and 0.40 on D, for RL5 and RL6.
+  - **A after RL4 is above H1's text output on navdev:** 86.30 against 82.4, +3.89 (+2.51 to +5.14). This is seed 0, from the recipe stage; navtest comes with phase 4 (3 seeds, 1,500 updates).
+  - **RL4 pulls A's 6 candidates together.** Their end points go from 6.4 m apart to 0.8 m, and best-of-6 stays where it was (90.27 to 90.13). With BC (RL6) they stay 2.2 m apart, and best-of-6 is the highest of any run (90.93). Every R12 recipe lowered A's best-of-6 (to 84.0-87.7).
+  - **D:** only RL6 raised it, and its interval includes 0. Dividing by the group SD does D the most harm: RL7 (the SD floor alone) -14.6 and RL5 (BC with the division) -9.6, against -0.3 for RL4.
+  - **RL4 and RL6 are within 0.1 on the mean (+2.31 against +2.23).** The rule takes the point estimate, so phase 4 runs RL4 (see "Waiting on the researcher").
+  - **On the training scenes** (mean of the first 50 updates, then the last 50): A under RL6, reward 0.81 to 0.89, with time-to-collision 0.89 to 0.95 and progress 0.77 to 0.84 both rising. D under RL6, reward 0.85 to 0.87. D under RL7, reward 0.77 to 0.67, with every sub-score falling. Under R12, A's safety fell whenever its progress rose.
+  - **Why R13 was added** (registered 07:02, before any of its runs: `docs/HEADS_PLAN.md`, 4fed42c; code 714cd6f). R12's recipes all lowered both methods: A traded safety for progress (under RL0, progress 73.5 to 78.3, time-to-collision 93.9 to 84.4), and D was damaged everywhere. Each of the three likely causes has a published remedy:
+    - the group-SD division: Dr. GRPO (NoRD on navtest: GRPO +0.5, Dr. GRPO +9.0);
+    - no tie to the logged driving: a BC term, used in every published RL stage on a separate NAVSIM path generator;
+    - D's tiny last-step SD: a 0.1 floor inside the log-probability, as in DiffusionDriveV2.
 - **Phase 1 so far** (single path / best-of-6 at each training run's navdev choices; navtest reports only):
 
   | Method | navdev, layer 24 | navdev, layers 12/18/24 | Layer choice | navtest at the choice (vs H1's 85.6) |
@@ -72,7 +66,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - A - D: +1.75 (+0.93 to +2.60); -1.89 (-2.21 to -1.57).
     - B - D: +1.64 (+0.96 to +2.35); -1.79 (-2.18 to -1.36).
   - References: H1's text output scores 82.4 on navdev and 85.6 on navtest; constant velocity scores 19.8 on navdev.
-  - Choices: A1 epoch 15, 8 steps, setting 1.5. B epoch 10. D epoch 10, 2 steps, setting 0.5. C (layer 24) epoch 10, 2 steps, setting 2.0. RL starts (R11): A epoch 20, B epoch 10, D epoch 5.
+  - Choices: A1 epoch 15, 8 steps, setting 1.5. B epoch 20, 10 steps, setting 1.5 (earlier written here as "B epoch 10"; epoch 10 is B's RL start). D epoch 10, 2 steps, setting 0.5. C (layer 24) epoch 10, 2 steps, setting 2.0. RL starts (R11): A epoch 20, B epoch 10, D epoch 5.
 - **The RL trial** (200 updates on a1-l24 over 3 training drives, recipe as registered) lowered A1's navdev single path from 81.18 to 73.97 (-7.2, -13.3 to -2.6). That led to R12 (eca6ee6).
 - **RL scoring service:** equals NAVSIM's official scores on 200 navtest scenes, with a maximum difference of 0.0 in every sub-score.
 - **Text pilot H1: 85.6 PDMS on navtest**, still the best single path. H2 (8 passes) ties it.
@@ -102,10 +96,9 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - Its status is `~/navsim_workspace/exp/heads/driver_status.json`; its log is `driver.log`.
    - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
 7. Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice. A, B and D are done; C and R are training.
-8. **RL recipe rounds:** R12 is complete (every recipe lowered both methods). R13: RL4 and RL5 done on A and D (RL4 raised A by 4.9 on navdev), RL6 on A running, 2 runs to go.
-   - **Phase 4 now waits for the diffusion comparison** (39e7c7a): its jobs sort after every phase-2 and phase-3 job, the plan's order. Before, B's and C's RL would have run ahead of the seeds and A's continuity series. The driver chooses over RL0-RL7 by itself; if a recipe helps, phase 4 starts with it, and if every recipe lowers both methods, phase 4 waits for you.
-9. **Report at 12:00 Fri Nov 20:** an HTML overview on the home PC (results with drive intervals, R12 and as much of R13 as has landed, problems and fixes, next steps); the headline numbers go here.
-10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 8, then `c-l24` and R13's RL4 on A and D (08:55), all on both machines with matching checksums. The other R13 runs follow when they finish.
+8. **RL recipe rounds: done.** R12 and R13 are complete, and the driver chose RL4 at 10:17 (`choices/rl_recipe.json` on the desktop). Phase 4 runs RL4 on every method, after phases 2-3: B's seed-0 job is queued (45b0); A's and D's 3 seeds each follow their supervised seeds 1-2; C's follows its layer choice.
+9. **Report at 12:00 Fri Nov 20:** an HTML overview on the home PC (results with drive intervals, R12 and R13, problems and fixes, next steps); the headline numbers go here.
+10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). C at layers 12/18/24 follows when it finishes.
 
 ## Waiting on the researcher
 - **A question for your 12:00 check; it blocks nothing.**
@@ -118,7 +111,12 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     2. Also build phase 6's cross-fitted selector for the runner-up, when its best-of-6 is clearly higher. The final system then uses whichever generator-plus-selector scores higher on navdev.
   - **My recommendation is option 2.** It costs one more selector, and R5's answer stays as it is.
   - Nothing changes unless you say so.
-- **For your information: R13, a second RL recipe round, added under your "improve RL round after round" clarification.** R12's recipes all lowered the navdev single path so far, and the sub-scores point to the advantage normalisation, the missing imitation term and D's step size. R13 tests the published remedies, on A and D, before phase 4. It moves phase 4 back by about 2.5 h of GPU time (7 runs of about 20 min; I first wrote 3.5 h). If none helps, phase 4 waits for your call rather than running a recipe that only lowers scores.
+- **For your information: phase 4 runs RL4, chosen over RL6 by 0.08.**
+  - The rule takes the point estimate of the mean navdev change: +2.31 against +2.23.
+  - RL6 is the only recipe that raised D (+1.14, -0.41 to +2.46). It also keeps A's candidates 2.2 m apart (RL4: 0.8 m), with the highest best-of-6 (90.93).
+  - Phase 4's jobs reach the GPU only after about 26 h of diffusion work, so there is time to switch to RL6 if you prefer.
+  - **My recommendation is to keep RL4, as registered.** It gives the best single path, and phase 6 will measure whether its closer candidates limit the selector. Nothing changes unless you say so.
+- **For your information: R13, a second RL recipe round, added under your "improve RL round after round" clarification.** R12's recipes all lowered the navdev single path so far, and the sub-scores point to the advantage normalisation, the missing imitation term and D's step size. R13 tests the published remedies, on A and D, before phase 4. It took about 2.3 h of GPU time (7 runs of 17-20 min; I first wrote 3.5 h). Two of its recipes helped (RL4, RL6), so phase 4 started by rule.
 - **The plan (`docs/HEADS_PLAN.md`, revision 2) was approved 2026-11-19 ~21:00, and the HOLD is lifted.** Two clarifications are in the plan's header:
   - equal tuning until a clear winner: contenders proceed together;
   - quality over schedule: improve RL round after round, even past the dates.

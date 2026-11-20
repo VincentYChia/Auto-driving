@@ -100,5 +100,12 @@ An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update
 | `d-l12-18-24-rlrecipe3` | `d-l12-18-24` epoch 5 | R12 RL3 | 80,626 | 250, 500 | 0.78 | rl_250 `784fb59d4c021807`, rl_500 `1ae831b1d42ef387` | yes | yes |
 | `a1-l12-18-24-rlrecipe4` | `a1-l12-18-24` epoch 20 | R13 RL4: advantage = reward − group mean (Dr. GRPO), lr 1e-5, no KL, 8 × 32 | 80,626 | 250, 500 | 0.81 | rl_250 `bf752057bfe54a96`, rl_500 `6003a877907cad50` | yes | yes |
 | `d-l12-18-24-rlrecipe4` | `d-l12-18-24` epoch 5 | R13 RL4, with the 0.1 SD floor inside the log-probability | 80,626 | 250, 500 | 0.80 | rl_250 `b3e972c5e0bc37e6`, rl_500 `4da1a8feaccea0a6` | yes | yes |
+| `a1-l12-18-24-rlrecipe5` | `a1-l12-18-24` epoch 20 | R13 RL5: GRPO advantage (divided by the group SD) + BC term, measured BC weight 2.50 | 80,626 | 250, 500 | 0.81 | rl_250 `8948041715be4d5e`, rl_500 `2a5640f5f980cddb` | yes | yes |
+| `a1-l12-18-24-rlrecipe6` | `a1-l12-18-24` epoch 20 | R13 RL6: Dr. GRPO + BC term, BC weight 0.73 | 80,626 | 250, 500 | 0.81 | rl_250 `7fe787a0710c5fe3`, rl_500 `fdec139132a88809` | yes | yes |
+| `d-l12-18-24-rlrecipe5` | `d-l12-18-24` epoch 5 | R13 RL5: GRPO advantage + BC term (weight 2.65), 0.1 SD floor | 80,626 | 250, 500 | 0.80 | rl_250 `481a28237eef9ea4`, rl_500 `4bc232f0e86ff9de` | yes | yes |
+| `d-l12-18-24-rlrecipe6` | `d-l12-18-24` epoch 5 | R13 RL6: Dr. GRPO + BC term (weight 0.40), 0.1 SD floor | 80,626 | 250, 500 | 0.80 | rl_250 `1761e0354ad043d7`, rl_500 `ab9406c8ac13819c` | yes | yes |
+| `d-l12-18-24-rlrecipe7` | `d-l12-18-24` epoch 5 | R13 RL7: the 0.1 SD floor only (GRPO advantage, no BC) | 80,626 | 250, 500 | 0.80 | rl_250 `378bb7bf97407aa2`, rl_500 `b9ef42b11ea34470` | yes | yes |
+
+A's RL7 is the same run as its RL0 (A's steps are not Gaussian, so the SD floor does nothing). All R12 and R13 recipe runs are on both machines with matching checksums (2026-11-20 10:49).
 
 The RL trial lowered navdev's single-path PDMS (81.18 → 73.97 after 200 updates), which led to R12 in `docs/HEADS_PLAN.md`. It is kept as the evidence for that rule, not used further.
