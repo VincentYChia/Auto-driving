@@ -1,0 +1,5 @@
+# navtrain_pilot: 2,662 RL scenes (v1-nt, training drives) from the 3 logs that hold the most, for the RL throughput trial of docs/HEADS_PLAN.md phase 4 only (in no comparison)
+defaults:
+  - scene_filter: navtrain_pilot
+
+data_split: trainval
