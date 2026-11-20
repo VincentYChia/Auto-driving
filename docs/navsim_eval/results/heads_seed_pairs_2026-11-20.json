@@ -1,0 +1,40 @@
+{
+ "a1-l12-18-24-s1": {
+  "navdev_single": {
+   "seed0": 0.8186,
+   "seed1": 0.8105,
+   "difference": -0.0081,
+   "ci_drives": [
+    -0.0268,
+    0.0069
+   ]
+  },
+  "navdev_best_of_6": {
+   "seed0": 0.8965,
+   "seed1": 0.8949,
+   "difference": -0.0016,
+   "ci_drives": [
+    -0.0154,
+    0.0156
+   ]
+  },
+  "navtest_single": {
+   "seed0": 0.8467,
+   "seed1": 0.842,
+   "difference": -0.0047,
+   "ci_drives": [
+    -0.0072,
+    -0.0019
+   ]
+  },
+  "navtest_best_of_6": {
+   "seed0": 0.9177,
+   "seed1": 0.9155,
+   "difference": -0.0022,
+   "ci_drives": [
+    -0.005,
+    0.0004
+   ]
+  }
+ }
+}

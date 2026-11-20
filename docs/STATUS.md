@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 16:54 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 17:13 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -93,6 +93,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - R loses about 1.5 PDMS to H1 at turns, against 0.8 going straight.
       - A stays about 1 point behind H1 in every command.
     - Turns are where a selector that predicts DAC per candidate has the most room.
+  - **Seed spread, first measurement (17:13; phase 3; `docs/navsim_eval/results/heads_seed_pairs_2026-11-20.json`).** A1 at layers 12/18/24, seed 1 minus seed 0, at seed 0's choices:
+    - navtest single path: -0.47 (-0.72 to -0.19); best-of-6 -0.22 (-0.50 to +0.04).
+    - navdev single path: -0.81 (-2.68 to +0.69).
+    - So two seeds of one configuration differ on navtest by about half a point, as much as the A, B and C method differences (0.1-0.3). Single-seed method claims at that size are within seed noise. R5 and C1-C4 account for this with phase 3's three seeds per method.
   - **What RL fixes (16:50; navdev, seed 0, 743 scenes, point estimates only; `docs/navsim_eval/results/heads_rl_by_command_2026-11-20.json`):**
     - RL4's +4.9 on A comes mostly from staying in the drivable area. A's drivable-area failures fall below H1's in every command:
       - straight 6.7% to 2.7% (H1 5.8%);

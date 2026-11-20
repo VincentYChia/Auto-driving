@@ -52,7 +52,7 @@ These come from the head research. "No paper found" is as recorded in its notes.
 | H8 | Generation time against K paths for a driving head (on our 4090) | `predict_head.py` `timing.json`, every method | **Measured** (RTX 4090, batch 128, generation from stored features only, ms per scene, single path / 6 paths, layers 12/18/24). At the chosen step counts: A1 1.13 / 1.42 (8 steps), B 0.78 / 0.87 (10), C 0.24 / 0.28 (2), D 0.27 / 0.26 (2). At 2 steps all four take 0.24-0.35 / 0.26-0.48. These are throughput over a batch, not single-scene latency, and the first setting timed in each run includes warm-up. |
 | H9 | The same RL recipe on a masked and a continuous head, same backbone and reward | R12 and R13 recipe runs on A and D, then phase 4 | **R12 and R13 complete, navdev only (seed 0):** all 4 R12 recipes lowered both A and D. Dr. GRPO (RL4): A +4.87 (+3.42 to +7.74), D -0.27 (-2.11 to +3.26). Dr. GRPO + BC (RL6): A +3.32 (+2.12 to +5.89), D +1.14 (-0.41 to +2.46). Dividing by the group SD hurts D most (RL7 -14.6). The rule chose RL4; phase 4 (3 seeds for A and D, scored on navtest) is to come. |
 | H10 | RL GPU-hours and PDM-scorer throughput | Measured in every RL run | 500 updates (32 scenes x 8 candidates, 128,000 scored paths) take about 20 min on the 4090, about 110 scored paths/s. |
-| H11 | Multi-seed PDMS spread for a masked-diffusion planner on the full navtest | Phase 3: seeds 1 and 2 of every method | queued (phase 3) |
+| H11 | Multi-seed PDMS spread for a masked-diffusion planner on the full navtest | Phase 3: seeds 1 and 2 of every method | **First pair measured** (A1, layers 12/18/24, seed 1 - seed 0, navtest, paired, drive interval): single path -0.47 (-0.72 to -0.19), best-of-6 -0.22 (-0.50 to +0.04). Seed 2 and the other methods' seeds to come. |
 | H12 | AdaLN ego conditioning against ego as tokens | (none) | dropped: no filler runs (researcher, 2026-11-19) |
 
 ## Log
@@ -63,3 +63,4 @@ These come from the head research. "No paper found" is as recorded in its notes.
 - 2026-11-20 13:09: H1, H5 and H6 statuses from C at layers 12/18/24 on navtest (phase 1 now covers all four methods). Nothing moves to Filled: phase 1 is seed 0 only.
 - 2026-11-20 13:36: H7 (step sweeps) and H8 (generation time) summarised from every phase-1 run's navtest scores and timing files. Nothing moves to Filled: one seed, and step ablations exist in published NAVSIM heads.
 - 2026-11-20 14:50: H1 status adds the regression control R (phase 1 complete). Nothing moves to Filled: seed 0 only.
+- 2026-11-20 17:13: H11 gets its first seed pair (A1). Nothing moves to Filled: one pair of seeds, one method.
