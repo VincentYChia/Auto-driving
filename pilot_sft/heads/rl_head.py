@@ -11,9 +11,11 @@
 - Reward each candidate with NAVSIM v1.1 PDMS, from the server.
 - Compute group-relative advantages: (reward - group mean) / (group SD + 1e-4). A scene whose 8 rewards are equal
   gives no gradient, and is counted.
-- One gradient step on -mean(advantage x log p), with log p the exact log-probability of what was sampled
-  (``Head.rl_logprob``): AdamW, learning rate 1e-5, betas (0.9, 0.95), no weight decay, 50 warm-up steps then
-  constant, gradient clip 1.0, bf16. No KL or imitation term.
+- One gradient step on -mean(advantage x log p) + kl_beta x mean(KL), with log p the exact log-probability of
+  what was sampled (``Head.rl_logprob``) and KL its exact KL to the frozen starting policy along that path:
+  AdamW, betas (0.9, 0.95), no weight decay, 50 warm-up steps then constant, gradient clip 1.0, bf16.
+- The learning rate, kl_beta, and candidates x scenes per update are the R12 recipe's (RL0 = 1e-5, no KL,
+  8 x 32).
 
 **Outputs:**
 - Every ``--save-every`` updates, ``rl_<u>.pt`` in the format of the supervised epochs, so ``predict_head.py
@@ -75,6 +77,8 @@ def main() -> None:
     p.add_argument("--scenes-per-update", type=int, default=32)
     p.add_argument("--g", type=int, default=8)
     p.add_argument("--lr", type=float, default=1e-5)
+    p.add_argument("--kl-beta", type=float, default=0.0,
+                   help="weight of the exact KL to the frozen starting policy along each sampled path (R12); 0 = none")
     p.add_argument("--warmup", type=int, default=50)
     p.add_argument("--save-every", type=int, default=250)
     p.add_argument("--seed", type=int, default=0, help="the RL seed: sampling noise (the scene order is always seed 0)")
@@ -87,6 +91,11 @@ def main() -> None:
     src = torch.load(os.path.join(args.run, f"{args.weights}.pt"), map_location="cpu", weights_only=False)
     head = load_head(os.path.join(args.run, f"{args.weights}.pt"), device)
     head.train()
+    ref = None
+    if args.kl_beta > 0:  # the frozen starting policy, for the KL term
+        ref = load_head(os.path.join(args.run, f"{args.weights}.pt"), device)
+        for q in ref.parameters():
+            q.requires_grad_(False)
     store = features.Store(args.cache, head.cfg.layers)
     only = None
     if args.only_tokens:
@@ -137,8 +146,11 @@ def main() -> None:
         std = r.std(1, keepdim=True)
         adv = torch.where(std > 0, (r - r.mean(1, keepdim=True)) / (std + 1e-4), torch.zeros_like(r))
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device == "cuda"):
-            lp = head.rl_logprob(b["feats"], b["mask"], b["ego"], trace)
-        loss = -(adv * lp.float()).mean()
+            if ref is not None:
+                lp, kl = head.rl_logprob(b["feats"], b["mask"], b["ego"], trace, ref)
+            else:
+                lp, kl = head.rl_logprob(b["feats"], b["mask"], b["ego"], trace), torch.zeros(1, device=device)
+        loss = -(adv * lp.float()).mean() + args.kl_beta * kl.float().mean()
         opt.zero_grad(set_to_none=True)
         loss.backward()
         gn = torch.nn.utils.clip_grad_norm_(head.parameters(), 1.0)
@@ -147,7 +159,8 @@ def main() -> None:
         t3 = time.time()
         rec = {"update": u + 1, "reward": round(float(r.mean()), 4), "best_of_g": round(float(r.max(1).values.mean()), 4),
                "equal_reward_groups": round(float((std.squeeze(1) == 0).float().mean()), 3), "scorer_errors": errors,
-               "loss": round(float(loss), 5), "grad_norm": round(float(gn), 3), "lr": sched.get_last_lr()[0],
+               "loss": round(float(loss), 5), "kl": round(float(kl.float().mean()), 5), "grad_norm": round(float(gn), 3),
+               "lr": sched.get_last_lr()[0],
                **{k: round(float(np.mean([c.get(k, 0.0) for per in res for c in per])), 4) for k in SUBS},
                "s_sample": round(t1 - t0, 2), "s_score": round(t2 - t1, 2), "s_update": round(t3 - t2, 2),
                "paths_per_s": round(len(tokens) * args.g / max(t2 - t1, 1e-6), 1)}

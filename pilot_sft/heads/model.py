@@ -367,25 +367,38 @@ class Head(nn.Module):
             trace.update(kind="masked", tok=tok, step_of=step_of, steps=steps, temperature=temperature, k=k)
         return xy, logp.view(b, k, m).mean(-1)
 
-    def masked_logprob(self, kvs, mem_mask, ego, trace: dict) -> torch.Tensor:
+    def masked_logprob(self, kvs, mem_mask, ego, trace: dict, ref=None):
         """The exact log-probability [B, k] of the paths ``masked_generate`` sampled, with gradients: for each step,
         the tokens committed at that step under softmax(logits / temperature), given the tokens committed before
-        it. The commit order itself is deterministic given those tokens, so this is the paths' full probability."""
+        it. The commit order itself is deterministic given those tokens, so this is the paths' full probability.
+        With ``ref`` = (reference head, its kvs, its mask), also the exact KL to it along the path [B, k]: the full
+        categorical KL of each committed position's distribution at its commit step (R12)."""
         tok, step_of, steps, tau, k = (trace[x] for x in ("tok", "step_of", "steps", "temperature", "k"))
         b, dev, m = tok.shape[0], tok.device, 2 * N_WP
         smask = block_mask(k, m, dev)
-        total = torch.zeros(b, k, device=dev)
+        total, kl = torch.zeros(b, k, device=dev), torch.zeros(b, k, device=dev)
         for s in range(steps):
             known = (step_of >= 0) & (step_of < s)
             t = torch.full((b,), (m - known[:, :m].sum(1)[0].item()) / m, device=dev)
             h = self.trunk(self.embed_tokens(tok, known), kvs, mem_mask, self.trunk.condition(ego, t), smask)
             lx, ly = self.logits(h)
-            lpx = F.log_softmax(lx.float() / tau, -1).gather(-1, tok[:, 0::2, None]).squeeze(-1)
-            lpy = F.log_softmax(ly.float() / tau, -1).gather(-1, tok[:, 1::2, None]).squeeze(-1)
+            lsx, lsy = F.log_softmax(lx.float() / tau, -1), F.log_softmax(ly.float() / tau, -1)
             lp = torch.empty(b, k * m, device=dev)
-            lp[:, 0::2], lp[:, 1::2] = lpx, lpy
-            total = total + (lp * (step_of == s)).view(b, k, m).sum(-1)
-        return total
+            lp[:, 0::2] = lsx.gather(-1, tok[:, 0::2, None]).squeeze(-1)
+            lp[:, 1::2] = lsy.gather(-1, tok[:, 1::2, None]).squeeze(-1)
+            now = step_of == s
+            total = total + (lp * now).view(b, k, m).sum(-1)
+            if ref is not None:
+                rh, rkvs, rmask = ref
+                with torch.no_grad():
+                    hr = rh.trunk(rh.embed_tokens(tok, known), rkvs, rmask, rh.trunk.condition(ego, t), smask)
+                    rx, ry = rh.logits(hr)
+                    rsx, rsy = F.log_softmax(rx.float() / tau, -1), F.log_softmax(ry.float() / tau, -1)
+                kpos = torch.empty(b, k * m, device=dev)
+                kpos[:, 0::2] = (lsx.exp() * (lsx - rsx)).sum(-1)
+                kpos[:, 1::2] = (lsy.exp() * (lsy - rsy)).sum(-1)
+                kl = kl + (kpos * now).view(b, k, m).sum(-1)
+        return total, kl
 
     # ---- continuous (B, C) ------------------------------------------------------------------------------------
     def cont_forward(self, z, kvs, mem_mask, ego, t, k=1):
@@ -516,25 +529,37 @@ class Head(nn.Module):
         xy = self.denorm(torch.stack(paths, 1).reshape(b, g, N_WP, 2))
         return xy, {"kind": "anchor", "z": torch.stack(zs), "pick": torch.stack(picks), "steps": steps, "k": g}
 
-    def anchor_logprob(self, kvs, mem_mask, ego, trace: dict) -> torch.Tensor:
+    def anchor_logprob(self, kvs, mem_mask, ego, trace: dict, ref=None):
         """Log-probability [B, G] of each candidate, with gradients: the drawn anchor under softmax(score), plus the
-        Gaussian log-density of that anchor's refinement steps (docs/HEADS_PLAN.md phase 4)."""
+        Gaussian log-density of that anchor's refinement steps (docs/HEADS_PLAN.md phase 4). With ``ref``, also the
+        exact KL to the reference along the path: the anchor-choice categorical KL plus each step's Gaussian KL,
+        ||mu - mu_ref||^2 / (2 sigma^2) (R12)."""
         z, pick, steps = trace["z"], trace["pick"], trace["steps"]  # z [G, steps+1, B, A, 16], pick [G, B]
         g, b, dev = z.shape[0], z.shape[2], z.device
         ts = torch.linspace(self.cfg.anchor_trunc, 0.0, steps + 1, device=dev)
         rows = torch.arange(b, device=dev)
-        total = []
+        total, kls = [], []
         for gi in range(g):
-            a, lp = pick[gi], torch.zeros(b, device=dev)
+            a, lp, kl = pick[gi], torch.zeros(b, device=dev), torch.zeros(b, device=dev)
             for i in range(steps):
                 x0, score = self.anchor_forward(z[gi, i], kvs, mem_mask, ego, ts[i].expand(b))
                 mu, sig = self._anchor_step(z[gi, i], x0.float(), ts[i], ts[i + 1])
                 d = (z[gi, i + 1][rows, a] - mu[rows, a]) / sig
                 lp = lp + (-0.5 * d ** 2 - torch.log(sig) - 0.5 * math.log(2 * math.pi)).sum(-1)
+                if ref is not None:
+                    rh, rkvs, rmask = ref
+                    with torch.no_grad():
+                        x0r, score_r = rh.anchor_forward(z[gi, i], rkvs, rmask, ego, ts[i].expand(b))
+                        mur, _ = rh._anchor_step(z[gi, i], x0r.float(), ts[i], ts[i + 1])
+                    kl = kl + ((mu[rows, a] - mur[rows, a]) ** 2).sum(-1) / (2 * sig ** 2)
                 if i == steps - 1:
-                    lp = lp + F.log_softmax(score.float(), -1)[rows, a]
+                    ls = F.log_softmax(score.float(), -1)
+                    lp = lp + ls[rows, a]
+                    if ref is not None:
+                        kl = kl + (ls.exp() * (ls - F.log_softmax(score_r.float(), -1))).sum(-1)
             total.append(lp)
-        return torch.stack(total, 1)
+            kls.append(kl)
+        return torch.stack(total, 1), torch.stack(kls, 1)
 
     # ---- RL for the continuous methods (B, C) ---------------------------------------------------------------
     FLOW_GRPO_A = 0.7  # Flow-GRPO's noise level a (its code default, paper section 5.3)
@@ -579,24 +604,33 @@ class Head(nn.Module):
                 seq.append(z)
         return self.denorm(z), {"kind": self.cfg.kind, "z": torch.stack(seq), "steps": steps, "k": g}
 
-    def cont_logprob(self, kvs, mem_mask, ego, trace: dict) -> torch.Tensor:
+    def _cont_mean(self, head, z, kvs, mem_mask, ego, kind, i, steps, ts, g):
+        b, dev = z.shape[0], z.device
+        if kind == "ddim":
+            x0 = head.cont_forward(z, kvs, mem_mask, ego, ts[i].expand(b), g).float()
+            return head._anchor_step(z, x0, ts[i], ts[i + 1])
+        tau = i / steps
+        v = head.cont_forward(z, kvs, mem_mask, ego, torch.full((b,), tau, device=dev), g).float()
+        return head._flow_sde_step(z, v, tau, 1.0 / steps)
+
+    def cont_logprob(self, kvs, mem_mask, ego, trace: dict, ref=None):
         """Log-probability [B, G] of B's or C's sampled candidates, with gradients: the Gaussian log-density of every
-        stochastic step (the start noise does not depend on the network)."""
-        z, steps, g = trace["z"], trace["steps"], trace["k"]  # z [steps+1, B, G, 8, 2]
+        stochastic step (the start noise does not depend on the network). With ``ref``, also each step's exact
+        Gaussian KL to the reference, ||mu - mu_ref||^2 / (2 sd^2) (R12)."""
+        z, steps, g, kind = trace["z"], trace["steps"], trace["k"], trace["kind"]  # z [steps+1, B, G, 8, 2]
         b, dev = z.shape[1], z.device
         ts = torch.linspace(1.0, 0.0, steps + 1, device=dev)
-        lp = torch.zeros(b, g, device=dev)
+        lp, kl = torch.zeros(b, g, device=dev), torch.zeros(b, g, device=dev)
         for i in range(steps):
-            if trace["kind"] == "ddim":
-                x0 = self.cont_forward(z[i], kvs, mem_mask, ego, ts[i].expand(b), g).float()
-                mu, sd = self._anchor_step(z[i], x0, ts[i], ts[i + 1])
-            else:
-                tau = i / steps
-                v = self.cont_forward(z[i], kvs, mem_mask, ego, torch.full((b,), tau, device=dev), g).float()
-                mu, sd = self._flow_sde_step(z[i], v, tau, 1.0 / steps)
+            mu, sd = self._cont_mean(self, z[i], kvs, mem_mask, ego, kind, i, steps, ts, g)
             d = (z[i + 1] - mu) / sd
             lp = lp + (-0.5 * d ** 2 - torch.log(sd) - 0.5 * math.log(2 * math.pi)).sum((-1, -2))
-        return lp
+            if ref is not None:
+                rh, rkvs, rmask = ref
+                with torch.no_grad():
+                    mur, _ = self._cont_mean(rh, z[i], rkvs, rmask, ego, kind, i, steps, ts, g)
+                kl = kl + ((mu - mur) ** 2).sum((-1, -2)) / (2 * sd ** 2)
+        return lp, kl
 
     # ---- RL entry points ---------------------------------------------------------------------------------------
     @torch.no_grad()
@@ -613,16 +647,23 @@ class Head(nn.Module):
             return self.cont_rl_sample(kvs, mem_mask, ego, g, steps, scale, generator)
         raise NotImplementedError(f"no RL policy for '{self.cfg.kind}': R has no stochastic policy (docs/HEADS_PLAN.md R11)")
 
-    def rl_logprob(self, feats, mask, ego, trace: dict) -> torch.Tensor:
-        """The exact log-probability [B, G] of the candidates ``rl_sample`` drew, with gradients."""
+    def rl_logprob(self, feats, mask, ego, trace: dict, ref: Optional["Head"] = None):
+        """The exact log-probability [B, G] of the candidates ``rl_sample`` drew, with gradients. With a reference
+        head ``ref`` (the frozen starting policy), returns (log-probability, exact KL to ``ref`` along each path)."""
         kvs, mem_mask = self.trunk.memory(feats, mask)
+        r = None
+        if ref is not None:
+            with torch.no_grad():
+                r = (ref, *ref.trunk.memory(feats, mask))
         if trace["kind"] == "masked":
-            return self.masked_logprob(kvs, mem_mask, ego, trace)
-        if trace["kind"] == "anchor":
-            return self.anchor_logprob(kvs, mem_mask, ego, trace)
-        if trace["kind"] in ("ddim", "flow"):
-            return self.cont_logprob(kvs, mem_mask, ego, trace)
-        raise NotImplementedError(trace["kind"])
+            lp, kl = self.masked_logprob(kvs, mem_mask, ego, trace, r)
+        elif trace["kind"] == "anchor":
+            lp, kl = self.anchor_logprob(kvs, mem_mask, ego, trace, r)
+        elif trace["kind"] in ("ddim", "flow"):
+            lp, kl = self.cont_logprob(kvs, mem_mask, ego, trace, r)
+        else:
+            raise NotImplementedError(trace["kind"])
+        return (lp, kl) if ref is not None else lp
 
     # ---- regression (R) ---------------------------------------------------------------------------------------
     def regression_forward(self, kvs, mem_mask, ego):

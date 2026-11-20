@@ -120,3 +120,21 @@ def test_flow_sde_reduces_to_the_euler_ode_without_noise(monkeypatch):
     z, v = torch.randn(2, 1, 8, 2), torch.randn(2, 1, 8, 2)
     mu, sd = head._flow_sde_step(z, v, 0.5, 0.25)
     assert torch.allclose(mu, z + 0.25 * v) and float(sd) == 0.0
+
+
+@pytest.mark.parametrize("kind", ["masked", "anchor", "ddim", "flow"])
+def test_kl_to_the_reference_is_zero_for_itself_and_positive_after_a_change(kind):
+    import copy
+    head = tiny(kind)
+    feats, mask, ego, _ = batch()
+    _, trace = head.rl_sample(feats, mask, ego, g=3, steps=2, scale=1.0, generator=torch.Generator().manual_seed(6))
+    ref = copy.deepcopy(head).eval()
+    lp, kl = head.rl_logprob(feats, mask, ego, trace, ref)
+    assert kl.shape == (3, 3) and kl.abs().max() < 1e-5  # the same weights: no divergence
+    with torch.no_grad():
+        for q in head.parameters():
+            q.add_(torch.randn_like(q) * 0.05)
+    lp, kl = head.rl_logprob(feats, mask, ego, trace, ref)
+    assert (kl > 0).all()
+    kl.sum().backward()
+    assert any(q.grad is not None and q.grad.abs().sum() > 0 for q in head.parameters())

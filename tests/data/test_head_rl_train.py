@@ -37,8 +37,8 @@ def fake_server(port, stop):
         conn.close()
 
 
-@pytest.mark.parametrize("kind,extra", [("masked", []), ("anchor", ["--anchors", "4"])])
-def test_rl_updates_and_checkpoints(tmp_path, kind, extra):
+@pytest.mark.parametrize("kind,extra,rl_extra", [("masked", [], []), ("anchor", ["--anchors", "4"], ["--kl-beta", "0.04"])])
+def test_rl_updates_and_checkpoints(tmp_path, kind, extra, rl_extra):
     cache = tmp_path / "cache"
     make_split(cache / "train", 24, seed=0)
     make_split(cache / "dev", 8, seed=1)
@@ -57,11 +57,13 @@ def test_rl_updates_and_checkpoints(tmp_path, kind, extra):
     rl = tmp_path / "rl"
     run("rl_head.py", "--run", str(out), "--weights", "epoch_1", "--out", str(rl), "--cache", str(cache / "train"),
         "--rl-scenes", str(view), "--steps", "2", "--scale", "1.0", "--updates", "3", "--scenes-per-update", "4",
-        "--g", "3", "--save-every", "2", "--port", str(port))
+        "--g", "3", "--save-every", "2", "--port", str(port), *rl_extra)
     stop.set()
     log = [json.loads(l) for l in (rl / "log.jsonl").read_text().splitlines()]
     assert [r["update"] for r in log] == [1, 2, 3]
     assert all(0.0 <= r["reward"] <= 1.0 and r["scorer_errors"] == 0 for r in log)
+    if rl_extra:  # with the KL term the policy starts at the reference, then drifts a little
+        assert log[0]["kl"] < 1e-4 and all(r["kl"] >= 0 for r in log)
     for f in ("rl_2.pt", "rl_3.pt", "checkpoint.pt", "run.json"):
         assert (rl / f).exists(), f
     assert json.loads((rl / "run.json").read_text())["rl_scenes"] == 12
