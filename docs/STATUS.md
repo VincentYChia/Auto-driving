@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-19 21:15 EST
+**Updated:** 2026-11-19 21:40 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -31,13 +31,13 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **NAVSIM scoring now runs on the desktop.** H1 re-scored there matches Anvil on all 12,146 scenes: PDMS 0.856069 on both, with 53 ego-progress values off by at most 1.3e-11 from CPU rounding.
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
-1. Code: temperature 0 means the deterministic best guess for every method (B and C from the zero-noise start; D's anchors without starting noise); the generate argument is a per-method sampling scale for the R7 grids.
-2. Code: regression R as a configuration kind, with tests. Queue its two phase-1 training runs.
+1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
+2. ~~Code: regression R as a configuration kind, with tests; queue its two phase-1 training runs.~~ **Done** (bb05104; jobs 380, 381 queued).
 3. Phase 0, navdev:
-   - the scene filter for the 2,000 dev-v2 tokens;
-   - the metric cache on Anvil's CPUs from only the 40 needed trainval logs;
-   - a copy on the desktop;
-   - scoring and a drive-cluster bootstrap for navdev and navtest.
+   - **Done:** the scene filter navdev_all (2,000 tokens, 34 logs, 11 drives) in `navsim_eval/navsim_configs`; split-aware scoring and summary with a drive-cluster bootstrap; drive maps on the desktop.
+   - **Running:** the metric cache plus constant-velocity and human-path scores, Anvil job 22322227 on `wide` (est. start 22:07).
+   - **Then:** copy to the desktop and rewrite the metadata paths.
+   - **Finding:** navtest's 12,146 scenes come from only 44 drives (16–985 scenes each), so drive-level intervals on navtest will also be much wider than the scene-level ones reported so far.
 4. Phase 0: the difficulty filter as navtest's, checked on navtest; the leakage audit; navdev's resolution measured; references scored (constant velocity, H1's text output).
 5. Phase 0: commit rules R1–R9 and the phase-4 RL settings, and record the hash here.
 6. Script the phase-1 choices on navdev and the phase transitions on the desktop, so the GPU queue keeps moving without the session.
