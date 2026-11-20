@@ -4,11 +4,18 @@ It keeps the study moving when no Claude session is watching:
 - scores navdev path sets in the pre-registered order (R10) and writes each training run's choices;
 - makes each method's layer choice;
 - queues the next GPU jobs into ``~/queue/pending``: navtest paths at each run's choices, phase 3's seed runs,
-  and phase 2's continuity series;
+  phase 2's continuity series, R12's RL recipe runs and phase 4's RL runs;
+- chooses the RL recipe (R12) and each RL run's checkpoint (R11) on navdev, and makes phase 5's decision (R5);
 - scores navtest for the report.
 
+The GPU runner starts pending jobs in name order, so the name prefix sets the priority:
+``350_`` navtest/navdev paths, ``351{recipe}{method}_`` R12 recipe runs (they gate all of phase 4, so they go
+before the remaining phase-1 training), ``36x``/``38x`` phase-1 training, ``396{method}{seed}_`` phase-4 RL,
+``39{method}{seed}_`` phase-3 seeds, ``40x``-``42x`` phase 2. The order changes when results arrive, never what
+they are.
+
 Every result is a file, so a restart repeats nothing that is done. It never trains, deletes or overwrites a job
-file, and never touches Anvil. Queuing stops at the end of phases 2 and 3: phase 4 (RL) needs its own code.
+file, and never touches Anvil. Phase 6 (the full RL stage and the selector) is not automated.
 
     nohup ~/miniforge3/envs/pilot/bin/python pilot_sft/heads/driver.py --loop 300 \\
         >> ~/navsim_workspace/exp/heads/driver.log 2>&1 &
@@ -586,7 +593,7 @@ def recipe_stage() -> Optional[int]:
         for m in RECIPE_METHODS:
             lc, start = ready_methods[m]
             rl = f"{lc['run']}-rlrecipe{r}"
-            queue_job(f"395{r}{m.lower()}_rlrecipe-{lc['run']}",
+            queue_job(f"351{r}{m.lower()}_rlrecipe-{lc['run']}",
                       f"R12 recipe RL{r} on {lc['run']} (seed 0, from epoch {start['epoch']}, 500 updates)",
                       rl_body(lc, lc["run"], rl, start["epoch"], 0, r, RECIPE_CHECKPOINTS))
             ch = rl_choose(rl, lc, lc["run"], start["epoch"], RECIPE_CHECKPOINTS, navtest=False)

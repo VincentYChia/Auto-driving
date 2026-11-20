@@ -77,3 +77,14 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 |---|---|---|---|---|---|---|---|---|---|---|
 | `a1-l24` | A1 (masked diffusion, 0.1 m bins, distance-aware embeddings) | 24 | 0 | 20 | 41.1M | 40 min | 3.95 | `49f6607d62c9b157` | yes | yes |
 | `a1-l12-18-24` | A1 | 12, 18, 24 | 0 | 20 | 41.9M | 2 h 20 min | 4.33 | `9aeefcba1ab7fd86` | yes | yes |
+| `d-l24` | D (anchored diffusion, 20 k-means anchors) | 24 | 0 | 20 | 40.3M | 40 min | 3.8 | `ecd8c713d579e5b2` | yes | yes |
+
+### RL runs
+
+An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update `u` (the same format as a supervised `epoch_<k>.pt`, so `predict_head.py` loads either), `checkpoint.pt` (weights + optimizer at the last update), `run.json` (start weights, settings, RL scenes) and `log.jsonl` (one line per update). The SHA-256 is of each `rl_<u>.pt`.
+
+| Run | Starts from | Recipe | RL scenes | Updates saved | GB | SHA-256 (first 16) | Desktop | Anvil |
+|---|---|---|---|---|---|---|---|---|
+| `a1-l24-rl-trial` | `a1-l24` final (epoch 20) | as registered: lr 1e-5, no KL, 8 candidates × 32 scenes | 2,662 (3 training drives) | 100, 200 | 0.79 | rl_100 `797714288468da1a`, rl_200 `30025febf573336c` | yes | yes |
+
+The RL trial lowered navdev's single-path PDMS (81.18 → 73.97 after 200 updates), which led to R12 in `docs/HEADS_PLAN.md`. It is kept as the evidence for that rule, not used further.

@@ -138,16 +138,19 @@ def test_rl_recipes_come_first_then_phase_4_with_the_chosen_recipe(tree):
     assert driver.rl_start("A", la)["epoch"] == 15  # the fake makes epoch 15 best for samples too
     status = {"navdev_ready": True}
     driver.phase4(status)
-    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("39")]  # no navtrain cache: nothing queued
+    # no navtrain cache: no recipe run and no phase-4 run is queued
+    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith(("351", "396"))]
     (Path(driver.P["exp"]) / "metric_cache_navtrain_v1").mkdir(parents=True)
     (Path(driver.P["exp"]) / "metric_cache_navtrain_v1" / ".ready").write_text("")
     driver.phase4(status)
     jobs = sorted(os.listdir(driver.P["queue"]))
-    recipe_jobs = [j for j in jobs if j.startswith("395")]
+    recipe_jobs = [j for j in jobs if j.startswith("351")]
     assert len(recipe_jobs) == 8 and not [j for j in jobs if j.startswith("396")]  # recipes first, no phase 4 yet
-    rl2 = (Path(driver.P["queue"]) / "3952a_rlrecipe-a1-l12-18-24.sh").read_text()
+    # the runner starts jobs in name order: the recipe runs go after the 350_ path jobs, before phase-1 training
+    assert all("350_~" < j < "360" for j in recipe_jobs)
+    rl2 = (Path(driver.P["queue"]) / "3512a_rlrecipe-a1-l12-18-24.sh").read_text()
     assert "--lr 3e-06" in rl2 and "--kl-beta 0.04" in rl2 and "--g 8" in rl2 and "--updates 500" in rl2
-    rl3 = (Path(driver.P["queue"]) / "3953d_rlrecipe-d-l24.sh").read_text()
+    rl3 = (Path(driver.P["queue"]) / "3513d_rlrecipe-d-l24.sh").read_text()
     assert "--g 16 --scenes-per-update 16" in rl3
     # the recipe runs finish: navdev paths at 250 and 500 updates (the fake scores them below the start, epoch 15)
     for r in driver.RECIPES:
