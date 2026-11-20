@@ -64,7 +64,7 @@ def test_selector_chain_from_spec_to_navtest(chain, monkeypatch):
     assert (halves / "rl_tokens_all.txt").read_text().split() == \
         (halves / "rl_tokens_half0.txt").read_text().split() + (halves / "rl_tokens_half1.txt").read_text().split()
     assert gpu_jobs() == ["60ah0_selector-a-gen-half0.sh", "60ah1_selector-a-gen-half1.sh", "61a_selector-a-infold.sh"]
-    assert cpu_jobs() == ["57aboundary_score-selector-a-boundary.sh"]  # generator-independent: needs no candidates
+    assert cpu_jobs() == ["57boundary_score-selector-shared-boundary.sh"]  # generator-independent: one shared set
     h0 = (Path(driver.P["queue"]) / "60ah0_selector-a-gen-half0.sh").read_text()
     assert "--soft-sigma 1 --drive-half 0" in h0 and "--weights epoch_20" in h0 and "--updates 1500" in h0
     assert f"--only-tokens {halves}/rl_tokens_half0.txt" in h0.split("rl_head.py")[1].split("\n")[0]  # RL: own half
@@ -72,7 +72,7 @@ def test_selector_chain_from_spec_to_navtest(chain, monkeypatch):
     assert f"rl_tokens_half1.txt" in oof and "--weights rl_1500" in oof and "--k 6 --scales 1.5" in oof  # other half
     assert "--adv dr" in h0 and "--lp-sd-floor 0" in h0  # RL4 on a kind without Gaussian steps
     assert any("--split navdev" in l for l in h0.splitlines())  # half against deployed, on navdev
-    bnd = (Path(driver.P["queue2_root"]) / "pending" / "57aboundary_score-selector-a-boundary.sh").read_text()
+    bnd = (Path(driver.P["queue2_root"]) / "pending" / "57boundary_score-selector-shared-boundary.sh").read_text()
     assert "boundary_paths.py make" in bnd and "boundary_paths.py pick" in bnd and f"--port {driver.SCORE_PORT}" in bnd
     assert status["phase6"]["a"]["scored"] == {"half0": False, "half1": False, "infold": False, "boundary": False}
 
@@ -81,8 +81,8 @@ def test_selector_chain_from_spec_to_navtest(chain, monkeypatch):
     written(H / "selector-a-gen-half1-rl" / "navtrain_rl_1500")
     driver.selectors({})
     driver.selectors({})
-    assert cpu_jobs() == ["57aboundary_score-selector-a-boundary.sh", "57ahalf0_score-selector-a-half0.sh",
-                          "57ahalf1_score-selector-a-half1.sh"]
+    assert cpu_jobs() == ["57ahalf0_score-selector-a-half0.sh", "57ahalf1_score-selector-a-half1.sh",
+                          "57boundary_score-selector-shared-boundary.sh"]
     assert not [j for j in gpu_jobs() if j.startswith("62")]  # no selector before its candidates are scored
 
     # cross-fitted candidates scored: the cross-fitted selectors and the 3 plain ablations, not the in-fold control
@@ -102,7 +102,7 @@ def test_selector_chain_from_spec_to_navtest(chain, monkeypatch):
     driver.selectors({})
     assert "57ainfold_score-selector-a-infold.sh" in cpu_jobs()
     (H / "selector-a" / "candidates_infold.jsonl.done").write_text("")
-    (H / "selector-a" / "perturbed.jsonl.done").write_text("")
+    (H / "selector-shared" / "perturbed.jsonl.done").write_text("")
     driver.selectors({})
     inf = (Path(driver.P["queue"]) / "62a2_selector-a-infold-s0.sh").read_text()
     assert inf.count("--candidates") == 1 and "candidates_infold.jsonl" in inf

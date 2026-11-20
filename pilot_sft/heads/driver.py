@@ -819,15 +819,16 @@ def selector_chain(x: str, spec: dict) -> dict:
               f"{spec['deployed_run']} --weights {spec['deployed_weights']} --split navtrain --cache $C/train "
               f"--only-tokens {halves}/rl_tokens_all.txt --steps {spec['steps']} --k {spec['k']} --scales {spec['scale']:g}\n")
     sets["infold"] = (dep, os.path.join(H, f"selector-{x}", "candidates_infold.jsonl"))
-    sets["boundary"] = (os.path.join(H, f"selector-{x}", "perturbed"), os.path.join(H, f"selector-{x}", "perturbed.jsonl"))
+    shared = os.path.join(H, "selector-shared")  # the boundary paths depend on no generator: one set for every chain
+    sets["boundary"] = (os.path.join(shared, "perturbed"), os.path.join(shared, "perturbed.jsonl"))
     scored = {}
     for name, (paths, out) in sets.items():
         ready_paths = name == "boundary" or os.path.exists(os.path.join(os.path.dirname(paths), "timing.json"))
         if ready_paths:
             os.makedirs(os.path.dirname(out), exist_ok=True)
-            queue_job(f"57{x}{name}_score-selector-{x}-{name}", f"phase 6 (R14): selector {x}, PDM scores of every "
-                      f"{name} candidate", score_body(paths, out, f"{halves}/rl_tokens_all.txt" if name == "boundary" else None),
-                      queue="queue2")
+            job = "57boundary_score-selector-shared-boundary" if name == "boundary" else f"57{x}{name}_score-selector-{x}-{name}"
+            queue_job(job, f"phase 6 (R14): PDM scores of every {name} candidate" + ("" if name == "boundary" else f", selector {x}"),
+                      score_body(paths, out, f"{halves}/rl_tokens_all.txt" if name == "boundary" else None), queue="queue2")
         scored[name] = os.path.exists(out + ".done")
     st["scored"] = scored
     gen_w = os.path.join(H, spec["deployed_run"], f"{spec['deployed_weights']}.pt")
@@ -836,8 +837,8 @@ def selector_chain(x: str, spec: dict) -> dict:
     for v, (data, seed, extra) in SEL_VARIANTS.items():
         need = ["half0", "half1"] if data == "xfit" else ["infold"]
         if extra == ["boundary"]:
-            need, extra = need + ["boundary"], ["--extra-candidates", os.path.join(H, f"selector-{x}", "boundary"),
-                                                os.path.join(H, f"selector-{x}", "boundary", "scores.jsonl")]
+            need, extra = need + ["boundary"], ["--extra-candidates", os.path.join(shared, "boundary"),
+                                                os.path.join(shared, "boundary", "scores.jsonl")]
         if not all(scored[n] for n in need):
             continue
         cands = " ".join(f"--candidates {sets[n][0]} {sets[n][1]}" for n in need if n != "boundary")
