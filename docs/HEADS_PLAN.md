@@ -22,6 +22,9 @@ Proposed 2026-11-19, for the researcher's review. **No new training runs start u
 4. **Decision rules are committed before the results they decide.** The commit time is the proof.
 5. **Leakage audit before any score counts:** no navdev or navtest drive in the training data or in the RL scenes, and no NAVSIM warm-up scene in training.
 6. **Every model is kept** (`pilot_sft/MODELS.md`), and every reported number comes from a committed aggregate file.
+6b. **The same definitions for every method.**
+   - **Single path** is each method's deterministic best guess: A, the most confident tokens (no sampling); D, the top-scored refined anchor; B and C, generation from the zero-noise start, which needs a small code change before phase 1. A single random sample is also reported for B and C.
+   - **Best-of-6** uses each method's natural way of sampling 6 different paths. The one sampling setting that matters, A's temperature for its end-point draw, is chosen on navdev from the same small grid for every method that has one. Diversity is always reported next to best-of-6.
 7. **Known biases, stated rather than hidden:**
    - H1 itself was chosen on navtest among about 15 supervised runs, so the starting point is mildly optimistic.
    - navdev is small (see phase 0), so it can resolve only differences of about a point or more.
