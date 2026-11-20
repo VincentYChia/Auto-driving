@@ -21,8 +21,14 @@ ORDER = ["A", "B", "C", "D", "R"]
 
 
 def method_of(run: str) -> str:
-    m = re.match(r"([a-z])\d?-", run)
+    m = re.match(r"selector-([a-z])\d?-", run) or re.match(r"([a-z])\d?-", run)
     return m.group(1).upper() if m else "?"
+
+
+def seed_of(run: str) -> int:
+    """The supervised seed a run descends from: ``-s1`` / ``-s2`` in its name, else 0."""
+    m = re.search(r"-s(\d)(?:-|$)", run)
+    return int(m.group(1)) if m else 0
 
 
 def layers_of(run: str) -> str:
@@ -35,8 +41,16 @@ def recipe_of(run: str) -> Optional[str]:
         return f"RL{m.group(1)}"
     if run.endswith("-rl-trial"):
         return "trial"
-    if run.endswith("-rl"):
-        return "phase 4"
+    if "-gen-half" in run:  # phase 6's half-data path generators (R14), before the "-rl" suffix test
+        return "phase 6, half generators"
+    m = re.search(r"-rlfull(\d)$", run)
+    if m:
+        return f"phase 6, full RL (RL{m.group(1)})"
+    m = re.search(r"-rl(\d)$", run)
+    if m:
+        return f"phase 4, RL{m.group(1)}"
+    if run.endswith("-rl"):  # phase 4's registered recipe (R11, R13: RL4)
+        return "phase 4, RL4"
     return None
 
 
@@ -78,11 +92,12 @@ def page_data(agg: dict) -> dict:
     for run, r in agg.get("rl", {}).items():
         cps = [{"u": int(u), "single": iv(c.get("single")), "b6": iv(c.get("best_of_6"))}
                for u, c in sorted(r.get("checkpoints", {}).items(), key=lambda kv: int(kv[0]))]
-        rl.append({"run": run, "method": method_of(run), "recipe": recipe_of(run), "settings": r.get("settings", {}),
+        rl.append({"run": run, "method": method_of(run), "seed": seed_of(run), "recipe": recipe_of(run),
+                   "settings": r.get("settings", {}),
                    "bc_weight": r.get("bc_weight"), "rl_scenes": r.get("rl_scenes"), "done": r.get("updates_done"),
                    "checkpoints": cps,
                    "curve": r.get("curve", []), "choice": (r.get("choice") or {}).get("checkpoint")})
-    rl.sort(key=lambda r: (r["recipe"] or "", ORDER.index(r["method"]) if r["method"] in ORDER else 9))
+    rl.sort(key=lambda r: (r["recipe"] or "", ORDER.index(r["method"]) if r["method"] in ORDER else 9, r["seed"]))
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "methods": agg.get("methods", {}),
             "generated": agg.get("generated"), "names": METHOD_NAMES}
 
@@ -261,7 +276,7 @@ function drawRL() {
     groups[g].forEach(r => r.checkpoints.forEach(cp => {
       const s = cp.single && cp.single.vsStart, b = cp.b6 && cp.b6.vsStart;
       if (cp.u === 0 || (!s && !b)) return;
-      rows.push({label: `${r.method} · ${cp.u} updates`, color: C(r.method), marks: [
+      rows.push({label: `${r.method}${r.seed ? ' seed ' + r.seed : ''} · ${cp.u} updates`, color: C(r.method), marks: [
         {...(s || {}), kind: 'solid', tip: s ? `<b>${esc(r.run)}</b>, update ${cp.u}<br>single path ${f1(cp.single.x)}, change from start ${dvs(s)}` : ''},
         {...(b || {}), kind: 'hollow', tip: b ? `<b>${esc(r.run)}</b>, update ${cp.u}<br>best-of-6 ${f1(cp.b6.x)}, change from start ${dvs(b)}` : ''}]});
     }));
