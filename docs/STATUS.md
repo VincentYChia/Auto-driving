@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-20 05:30 EST
+**Updated:** 2026-11-20 07:20 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -13,73 +13,61 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
-  - **Done since 01:10:**
-    - D reading layers 12/18/24;
-    - B at both layer settings;
-    - navtest paths at the navdev choices of D (both runs) and B (layer 24);
-    - R12's RL0 on A.
-  - **Running: R12's recipe runs.** The navtrain cache was ready at 02:52, and the driver queued all 8 at 03:03.
-    - RL0 on A finished at 04:39 (19 min); RL0 on D started 04:39.
-    - The other 6 take about 20 min each, so all should be done by about 07:00.
-  - **Queued, about 22 h:**
-    - C and R at both layer settings;
-    - A1's seeds 1–2 and D's seeds 1–2, at layers 12/18/24;
+  - **Done since 05:30:** R12's 8 recipe runs (RL0-RL3 on A and D, 500 updates each, about 20 min per run); navtest paths of B at layers 12/18/24.
+  - **Running:** C reading layer 24, phase-1 training (since 07:06).
+  - **Next: R13's 7 recipe runs** (registered 07:40, see below), about 20-25 min each, so done by about 10:30.
+  - **Then, about 22 h:**
+    - C at layers 12/18/24;
+    - R at both layer settings;
+    - seeds 1-2 of A1, B and D at layers 12/18/24;
     - A's continuity series A0, A2, A3, A4.
-  - The driver queues the phase-4 RL runs once R12's recipe is chosen.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, 995c3ae): scoring B's navtest paths and navdev grids, then each recipe run's navdev paths as it lands. R12's choice goes to `heads/choices/rl_recipe.json`.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, now 00114c8): scoring R12's RL2 and RL3 on navdev, then each R13 run as it lands.
+  - **A bug stopped it from 06:24 to 06:52.** A saved RL checkpoint choice, read back from JSON, had string keys, so every pass failed with `KeyError: 250`. It is fixed (d46ae30), with a test that fails on the old code.
 - **Anvil:** nothing running.
-  - The navtrain cache job (22320518) ran 01:26–02:42. It cached all 103,288 navtrain scenes (61 GB).
-  - The watcher `~/xv/navtrain_to_desk.sh` copied the cache to the desktop in 510 s. NAVSIM's loader found every scene, and the watcher wrote `.ready` at 02:52. No manual step was needed.
 
 ## Latest results
-- **Phase 1 so far**: single path / best-of-6 at each training run's navdev choices. navdev has 743 scenes from 11 drives; intervals come in the 12:00 report.
+- **R12: no recipe has raised the navdev single path yet** (743 scenes, 11 drives; start, then 250 and 500 updates; the change at the better checkpoint, with its drive interval):
 
-  | Method | navdev, layer 24 | navdev, layers 12/18/24 | Layer choice | navtest at the choices (report only) |
+  | Recipe | A (start 81.43, epoch 20) | D (start 77.10, epoch 5) |
+  |---|---|---|
+  | RL0: as registered (lr 1e-5, no KL) | 75.72, 77.19 (-4.2, -10.4 to -0.5) | 60.93, 64.23 (-12.9, -16.4 to -8.4) |
+  | RL1: KL beta 0.04 | 77.58, 78.76 (-2.7, -8.1 to +0.6) | 75.27, 75.28 (-1.8, -2.9 to 0.0) |
+  | RL2: KL, lr 3e-6 | scoring | scoring |
+  | RL3: KL, lr 3e-6, 16 x 16 | scoring | scoring |
+
+  - **A trades safety for progress.** Under RL0: progress 73.5 to 78.3, time-to-collision 93.9 to 84.4, no-collision 97.5 to 92.3, drivable area 91.8 to 88.7. The best-of-6 candidates' end points went from 6.4 m apart to 2.0 m.
+  - **D is damaged everywhere.** Under RL0 at 250 updates: drivable area -13.2, time-to-collision -13.1, progress -7.3.
+  - **On the training scenes,** A's sampled reward rose with the gentler recipes (RL3: 0.79 to 0.85), while best-of-8 fell and equal-reward groups rose. The policy sharpens, which raises the sampled reward without improving the temperature-0 path that navdev scores.
+- **R13, registered before any of its runs** (`docs/HEADS_PLAN.md`, 4fed42c; code 714cd6f, 73 tests pass). Three likely causes, each with a published remedy:
+  1. The group SD inflates tiny progress gaps between safe candidates. Remedy: subtract the group mean only (Dr. GRPO). NoRD on navtest: GRPO +0.5, Dr. GRPO +9.0.
+  2. Nothing ties the policy to the logged driving. Every published RL stage on a separate NAVSIM path generator adds a behaviour-cloning (BC) term.
+  3. D's last refinement step sits at the 0.01 SD floor, so its gradient is about 100 times the anchor choice's (gradient norm 300-550, against 21-33 for A). Remedy: a 0.1 SD floor inside the log-probability only, as in DiffusionDriveV2.
+  - **The recipes,** each from RL0 and all with the SD floor: RL4 Dr. GRPO; RL5 BC; RL6 Dr. GRPO + BC; RL7 neither. For A, the floor does nothing, so A's RL7 is RL0 and is not run again.
+  - The BC weight is set so its gradient norm equals the RL term's at the start.
+  - **The choice:** R12's rule over RL0-RL7. If every recipe still lowers both methods, phase 4 does not start, and the next step goes to you.
+- **Phase 1 so far** (single path / best-of-6 at each training run's navdev choices; navtest reports only):
+
+  | Method | navdev, layer 24 | navdev, layers 12/18/24 | Layer choice | navtest at the choice (vs H1's 85.6) |
   |---|---|---|---|---|
-  | A1 (masked) | 81.5 / 89.5 | 81.9 / 89.7 | 12/18/24 | 84.7 / 91.8 (both settings) |
-  | D (anchored) | 76.8 / 89.6 | 78.4 / 92.2 | 12/18/24 | 81.6 / 91.5 (24); **82.9 / 93.7** (12/18/24) |
-  | B (DDIM) | 81.0 / 88.2 | scoring | — | scoring |
+  | A1 (masked) | 81.5 / 89.5 | 81.9 / 89.7 | 12/18/24 | 84.7 / 91.8 (-0.9, -1.4 to -0.5) |
+  | B (DDIM) | 81.0 / 88.2 | 81.4 / 89.3 | 12/18/24 | 84.6 / 91.9 (-1.05, -1.5 to -0.6) |
+  | D (anchored) | 76.8 / 89.6 | 78.4 / 92.2 | 12/18/24 | 82.9 / **93.7** (-2.7, -3.5 to -1.8) |
 
+  - **Layer test on navtest** (layers 12/18/24 minus 24 alone; single path; best-of-6):
+    - A: -0.01 (-0.43 to +0.41); -0.03.
+    - B: +0.13 (-0.25 to +0.51); +0.85 (+0.55 to +1.18).
+    - D: +1.28 (+0.77 to +1.78); +2.17 (+1.73 to +2.55).
+    - So the best layers depend on the method, the case the per-method layer test was there to catch.
+  - **Method pairs on navtest, at the layer choices** (single path; best-of-6):
+    - A - B: +0.11 (-0.34 to +0.54); -0.10 (-0.48 to +0.21). Indistinguishable, although B's candidates are much closer together (end points 1.4 m apart, against 6.6 m for A).
+    - A - D: +1.75 (+0.93 to +2.60); -1.89 (-2.21 to -1.57).
+    - B - D: +1.64 (+0.96 to +2.35); -1.79 (-2.18 to -1.36).
   - References: H1's text output scores 82.4 on navdev and 85.6 on navtest; constant velocity scores 19.8 on navdev.
-  - **D's candidates are the best so far, and its own pick is the weakest.** At its layer choice, D's best-of-6 is 2.5 points above A's on navdev and 1.9 on navtest. Its single path is 3.5 below A's on navdev and 1.8 on navtest. The single path is the top-scored refined anchor; R7 defines it.
-  - Choices:
-    - D at layers 12/18/24: epoch 10, 2 steps, setting 0.5;
-    - D at layer 24: epoch 15, 2 steps, setting 1.0;
-    - B at layer 24: epoch 20, 5 steps, setting 1.5.
-- **RL starting epochs (R11, by navdev best-of-6):**
-  - A: epoch 20 (86.8 / 87.7 / 89.7 / 90.3 at epochs 5 / 10 / 15 / 20);
-  - D: epoch 5 (92.3, against 92.2 / 89.5 / 88.9).
-- **R12, RL0 on A** (the registered recipe, 500 updates on the 80,626 navtrain scenes): navdev scores are pending.
-  - On the training scenes, the mean reward stayed flat: 0.79 in the first 50 updates, 0.80–0.83 after.
-  - Best-of-8 fell from 0.953 to 0.900, and equal-reward groups rose from 16% to 52%.
-  - This is the trial's pattern again.
-- **The RL trial changed the plan (R12, eca6ee6):** 200 updates on a1-l24 over 2,662 scenes from 3 training drives, with the recipe as registered (lr 1e-5, no KL, 8 × 32).
-  - It runs cleanly: about 2.2 s per update, 100–150 scored paths/s, 0 scorer errors.
-  - **It made A1 worse on navdev:** the single path went 81.18 → 75.58 → 73.97 at 100 and 200 updates (paired −7.2, drive interval −13.3 to −2.6). No-collision fell 0.976 → 0.914, drivable area 0.914 → 0.871, time-to-collision 0.943 → 0.847.
-  - On its own scenes the reward did not improve. Diversity collapsed: best-of-8 0.953 → 0.906, and equal-reward groups rose 26% → 52%.
-  - **R12, committed before any recipe run:** 4 recipes (as registered; KL β = 0.04; KL + lr 3e-6; KL + lr 3e-6 + 16 candidates × 16 scenes), each run on A and D for 500 updates on the full navtrain cache. The recipe with the best mean navdev gain over A and D is chosen, then phase 4 runs it afresh. Update 0 (no RL) is an allowed checkpoint.
-  - The KL is exact along each sampled path, for all four methods. The driver runs the whole R12 stage by itself once the navtrain cache is ready.
-- **A1's navdev choices (R10):**
-  - layer 24: epoch 15, 4 steps, setting 1.0; single path **81.48**, best-of-6 89.52.
-  - layers 12/18/24: epoch 15, 8 steps, setting 1.5; single path **81.86**, best-of-6 89.65.
-  - **A reads layers 12/18/24** by the point-estimate rule. The 0.4-point gap is within noise, and is reported as such.
-  - A best-of-6 about 8 points above the single path is the room a selector could use.
-- **First navdev results** (743 scenes, 11 drives; intervals resample drives; for choices only, R1):
-  - **H1's text output: 82.4** (80.6–86.0). Constant velocity: 19.8.
-  - **A1 reading layer 24:** epochs 5 / 10 / 15 / 20 at 4 steps score 77.9 / 79.0 / **81.5** / 81.2. At epoch 15, 1 / 2 / 4 / 8 steps score 80.8 / 81.3 / 81.5 / 80.2.
-  - **Paired, A1 (epoch 15) − H1: −0.9** (−2.4 to −0.4). So before RL, A1 is close to but measurably below H1's text output.
-  - The sanity check passes: far above constant velocity, and dev ADE near H1's.
-  - Paired differences on navdev resolve to about ±1 point.
-- **RL scoring service:** equals NAVSIM's official scores on 200 navtest scenes, with a maximum difference of 0.0 in every sub-score. It scores 11.6 paths/s in one process and 71.8 paths/s with 4 workers at 8 candidates per scene.
-- **Text pilot H1: 85.6 PDMS**, still the best.
-  - S3's earlier passes scored 77.3, 81.9 and 84.5; the final pass 84.7.
-  - H2 (8 passes) ties H1. Details in `pilot_sft/README.md`.
-- **Layer test, dev ADE so far** (2,000 dev scenes; a training check only, not used for choices):
-  - A1 reading layer 24, final (epoch 20): dev ADE 0.765 m, dev best-of-6 ADE 0.514 m.
-  - A1 reading layers 12, 18 and 24, at epoch 12: 0.759 m and 0.507 m.
-  - H1's text output: 0.77 m.
-  - NAVSIM scores to come (navtest, for the report; the choice will be made on navdev once it exists).
-- **NAVSIM scoring now runs on the desktop.** H1 re-scored there matches Anvil on all 12,146 scenes: PDMS 0.856069 on both, with 53 ego-progress values off by at most 1.3e-11 from CPU rounding.
+  - Choices: A1 epoch 15, 8 steps, setting 1.5. B epoch 10. D epoch 10, 2 steps, setting 0.5. RL starts (R11): A epoch 20, B epoch 10, D epoch 5.
+- **The RL trial** (200 updates on a1-l24 over 3 training drives, recipe as registered) lowered A1's navdev single path from 81.18 to 73.97 (-7.2, -13.3 to -2.6). That led to R12 (eca6ee6).
+- **RL scoring service:** equals NAVSIM's official scores on 200 navtest scenes, with a maximum difference of 0.0 in every sub-score.
+- **Text pilot H1: 85.6 PDMS on navtest**, still the best single path. H2 (8 passes) ties it.
+- **NAVSIM scoring runs on the desktop.** H1 re-scored there matches Anvil on all 12,146 scenes (PDMS 0.856069 both).
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
@@ -104,12 +92,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - scores navtest for the report.
    - Its status is `~/navsim_workspace/exp/heads/driver_status.json`; its log is `driver.log`.
    - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
-7. Phase 1: navdev and navtest paths and scores for all 10 runs; each method's layer choice. **Under way:** the driver scores as the GPU jobs land.
-8. **RL code: done and tested for all four methods.**
-   - Policies with exact log-probabilities and exact KL; the trainer, with KL; the scoring service, which equals official scores.
-   - The driver handles phases 4–5: the R12 recipe stage, then the matched RL runs, the RL checkpoint choice on navdev (update 0 allowed), navtest reporting, and R5's drive-and-seed bootstrap decision.
-   - ~~Waiting on the navtrain cache.~~ **Done:** ready on the desktop at 02:52 (103,288 scenes). R12's 8 recipe runs are under way.
-9. **Report at 12:00 Fri Nov 20:** results with drive intervals for every configuration so far (navdev for choices, navtest for the report), R12's recipe result if it has landed, problems and fixes, and next steps. An HTML overview stays on the home PC; the headline numbers go here.
+7. Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice. A, B and D are done; C and R are training.
+8. **RL recipe rounds:** R12 is scored except RL2 and RL3. R13's 7 runs come next on the GPU, and the driver chooses over RL0-RL7 by itself. If a recipe helps, phase 4 starts with it; if every recipe lowers both methods, phase 4 waits for you.
+9. **Report at 12:00 Fri Nov 20:** an HTML overview on the home PC (results with drive intervals, R12 and as much of R13 as has landed, problems and fixes, next steps); the headline numbers go here.
+10. Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md` (a1-l12-18-24-rlrecipe0 is there already).
 
 ## Waiting on the researcher
 - **A question for your 12:00 check; it blocks nothing.**
@@ -122,6 +108,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     2. Also build phase 6's cross-fitted selector for the runner-up, when its best-of-6 is clearly higher. The final system then uses whichever generator-plus-selector scores higher on navdev.
   - **My recommendation is option 2.** It costs one more selector, and R5's answer stays as it is.
   - Nothing changes unless you say so.
+- **For your information: R13, a second RL recipe round, added under your "improve RL round after round" clarification.** R12's recipes all lowered the navdev single path so far, and the sub-scores point to the advantage normalisation, the missing imitation term and D's step size. R13 tests the published remedies, on A and D, before phase 4. It moves phase 4 back by about 3.5 h of GPU time. If none helps, phase 4 waits for your call rather than running a recipe that only lowers scores.
 - **The plan (`docs/HEADS_PLAN.md`, revision 2) was approved 2026-11-19 ~21:00, and the HOLD is lifted.** Two clarifications are in the plan's header:
   - equal tuning until a clear winner: contenders proceed together;
   - quality over schedule: improve RL round after round, even past the dates.
