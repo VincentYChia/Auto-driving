@@ -13,9 +13,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 from collections import Counter
-from typing import Dict
+from typing import Dict, Sequence
 
 LOG = re.compile(r"(\d{4}\.\d{2}\.\d{2}\.\d{2}\.\d{2}\.\d{2}_veh-\d+)(?:_\d+_\d+)?")
 
@@ -25,6 +26,28 @@ def drive_of_log(log: str) -> str:
     if not m:
         raise ValueError(f"not an OpenScene log name: {log!r}")
     return m.group(1)
+
+
+def drive_of_id(row_id: str) -> str:
+    """The drive of a stored-feature or view row id, ``openscene/<log>/<token>``."""
+    return drive_of_log(row_id.split("/")[1])
+
+
+def drive_halves(ids: Sequence[str], seed: int = 0) -> Dict[str, int]:
+    """Phase 6 cross-fitting (docs/HEADS_PLAN.md): the drives of ``ids`` in two halves of about equal scene counts.
+
+    The drives, sorted, are shuffled with ``seed`` and taken in that order into half 0 until it holds at least half of
+    the scenes; the remaining drives form half 1. Returns {drive: 0 or 1}."""
+    counts = Counter(drive_of_id(i) for i in ids)
+    order = sorted(counts)
+    random.Random(seed).shuffle(order)
+    half, taken, total = {}, 0, sum(counts.values())
+    for d in order:
+        if taken < total / 2:
+            half[d], taken = 0, taken + counts[d]
+        else:
+            half[d] = 1
+    return half
 
 
 def navtest_map(inputs: str) -> Dict[str, str]:

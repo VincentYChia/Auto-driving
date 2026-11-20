@@ -23,12 +23,13 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Iterator, List
+from typing import Dict, Iterator, List, Optional
 
 import numpy as np
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import drive_map  # noqa: E402
 import features  # noqa: E402
 import model as hm  # noqa: E402
 
@@ -54,8 +55,12 @@ def batches(store: features.Store, order: List[int], batch: int, workers: int) -
             yield b
 
 
-def target_stats(store: features.Store, cfg: hm.HeadConfig, seed: int) -> Dict[str, torch.Tensor]:
+def target_stats(store: features.Store, cfg: hm.HeadConfig, seed: int, rows: Optional[List[int]] = None
+                 ) -> Dict[str, torch.Tensor]:
+    """Normalisation (and D's anchors) from the training targets: every row, or only ``rows`` (a drive half)."""
     xy = torch.from_numpy(store.target_xy.reshape(len(store.target_xy), -1))
+    if rows is not None:
+        xy = xy[torch.as_tensor(rows, dtype=torch.long)]
     stats = {"mean": xy.mean(0), "std": xy.std(0)}
     if cfg.kind == "anchor":
         g = np.random.default_rng(seed)
@@ -116,6 +121,9 @@ def main() -> None:
     p.add_argument("--limit", type=int, default=None, help="only the first N train rows (timing runs)")
     p.add_argument("--max-steps", type=int, default=None, help="stop early (timing runs)")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--drive-half", type=int, choices=(0, 1), default=None,
+                   help="phase 6 cross-fitting: train only on the rows of this half of the training drives "
+                        "(drive_map.drive_halves, seed 0); the target statistics come from that half too")
     p.add_argument("--resume", action="store_true")
     args = p.parse_args()
 
@@ -133,7 +141,17 @@ def main() -> None:
                         steps=args.steps or default_steps)
     ckpt_path = os.path.join(args.out, "checkpoint.pt")
     resume = torch.load(ckpt_path, map_location="cpu", weights_only=False) if args.resume and os.path.exists(ckpt_path) else None
-    stats = resume["stats"] if resume else target_stats(train, cfg, args.seed)
+    rows = list(range(train.rows))[: args.limit]
+    half_info = None
+    if args.drive_half is not None:  # only this half's drives, so the other half's scenes stay unseen (phase 6)
+        halves = drive_map.drive_halves(train.ids)
+        rows = [r for r in rows if halves[drive_map.drive_of_id(train.ids[r])] == args.drive_half]
+        half_info = {"half": args.drive_half, "split_seed": 0, "rows": len(rows),
+                     "drives": sum(1 for h in halves.values() if h == args.drive_half), "drives_all": len(halves)}
+        print(f"drive half {args.drive_half}: {len(rows)} rows from {half_info['drives']} of {len(halves)} drives",
+              flush=True)
+    stats = resume["stats"] if resume else target_stats(train, cfg, args.seed,
+                                                        rows if args.drive_half is not None else None)
     if cfg.kind == "masked":
         xy = train.target_xy
         clipped = int(((xy[..., 0] < cfg.x_range[0]) | (xy[..., 0] > cfg.x_range[1]) |
@@ -141,7 +159,6 @@ def main() -> None:
         print(f"{clipped} of {len(xy)} training paths leave the grid and are clipped", flush=True)
     head = hm.Head(cfg, stats).to(device)
     n_params = sum(p.numel() for p in head.parameters())
-    rows = list(range(train.rows))[: args.limit]
     steps_per_epoch = math.ceil(len(rows) / args.batch)
     total = steps_per_epoch * args.epochs if args.max_steps is None else args.max_steps
     opt = torch.optim.AdamW(head.parameters(), lr=args.lr, weight_decay=args.weight_decay, betas=(0.9, 0.95))
@@ -161,8 +178,8 @@ def main() -> None:
         commit = None
     run = {"args": vars(args), "config": cfg.to_dict(), "params": n_params, "commit": commit,
            "cache": {"train": train.config, "dev": {k: dev.config.get(k) for k in ("rows", "source", "tokens")}},
-           "train_rows": len(rows), "steps_per_epoch": steps_per_epoch, "device": torch.cuda.get_device_name(0)
-           if device == "cuda" else "cpu"}
+           "train_rows": len(rows), "drive_half": half_info, "steps_per_epoch": steps_per_epoch,
+           "device": torch.cuda.get_device_name(0) if device == "cuda" else "cpu"}
     with open(os.path.join(args.out, "run.json"), "w", encoding="utf-8") as f:
         json.dump(run, f, indent=1)
     print(f"{cfg.kind} head, {n_params / 1e6:.1f}M parameters, layers {cfg.layers}, {len(rows)} rows, "
