@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-19 23:05 EST
+**Updated:** 2026-11-19 23:55 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -20,6 +20,12 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Anvil:** wide job 22320518 builds the navtrain metric cache for RL, estimated to start Nov 20 17:05. The RL runs are queued automatically once it is on the desktop.
 
 ## Latest results
+- **The RL trial changed the plan (R12, eca6ee6):** 200 updates on a1-l24 over 2,662 scenes from 3 training drives, with the recipe as registered (lr 1e-5, no KL, 8 × 32).
+  - It runs cleanly: about 2.2 s per update, 100–150 scored paths/s, 0 scorer errors.
+  - **It made A1 worse on navdev:** the single path went 81.18 → 75.58 → 73.97 at 100 and 200 updates (paired −7.2, drive interval −13.3 to −2.6). No-collision fell 0.976 → 0.914, drivable area 0.914 → 0.871, time-to-collision 0.943 → 0.847.
+  - On its own scenes the reward did not improve. Diversity collapsed: best-of-8 0.953 → 0.906, and equal-reward groups rose 26% → 52%.
+  - **R12, committed before any recipe run:** 4 recipes (as registered; KL β = 0.04; KL + lr 3e-6; KL + lr 3e-6 + 16 candidates × 16 scenes), each run on A and D for 500 updates on the full navtrain cache. The recipe with the best mean navdev gain over A and D is chosen, then phase 4 runs it afresh. Update 0 (no RL) is an allowed checkpoint.
+  - The KL is exact along each sampled path, for all four methods. The driver runs the whole R12 stage by itself once the navtrain cache is ready.
 - **A1's navdev choices (R10):**
   - layer 24: epoch 15, 4 steps, setting 1.0; single path **81.48**, best-of-6 89.52.
   - layers 12/18/24: epoch 15, 8 steps, setting 1.5; single path **81.86**, best-of-6 89.65.
@@ -66,13 +72,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - Its status is `~/navsim_workspace/exp/heads/driver_status.json`; its log is `driver.log`.
    - Each phase-1 training job now ends with its navdev grid, `scripts/desk/navdev_grid.sh`.
 7. Phase 1: navdev and navtest paths and scores for all 10 runs; each method's layer choice. **Under way:** the driver scores as the GPU jobs land.
-8. RL code (phase 4), A and D first:
-   - **Written and tested:**
-     - the PDM scoring service (`pdm_server.py`), which scores each candidate alone next to the PDM-Closed reference, exactly as run_pdm_score does;
-     - the policies (`Head.rl_sample` / `rl_logprob`): A's exact token log-probability, and D's anchor draw plus its stochastic refinement;
-     - the trainer (`rl_head.py`).
-   - **Next:** check the service against official scores and measure its speed; a 200-update trial on A1 (needs part of the navtrain cache); then B's and C's policies.
-   - **To watch:** in a toy test, RL on A's 0.1 m bins (951 values for x) gave a weak signal over 25 updates, while 5 m bins learned at once. Each sampled path reinforces only its own bins. Phase 4 measures whether this costs A.
+8. **RL code: done and tested for all four methods.**
+   - Policies with exact log-probabilities and exact KL; the trainer, with KL; the scoring service, which equals official scores.
+   - The driver handles phases 4–5: the R12 recipe stage, then the matched RL runs, the RL checkpoint choice on navdev (update 0 allowed), navtest reporting, and R5's drive-and-seed bootstrap decision.
+   - **Waiting on the navtrain cache:** Anvil job 22320518, estimated start Fri 17:05, then a copy to the desktop with the paths rewritten and a `.ready` mark.
 9. **Report at 12:00 Fri Nov 20.**
 
 ## Waiting on the researcher
