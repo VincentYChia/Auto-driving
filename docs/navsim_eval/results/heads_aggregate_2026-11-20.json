@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-20 13:07:18",
+ "generated": "2026-11-20 14:48:17",
  "references": {
   "h1_text_navdev": {
    "pdms": 0.824,
@@ -931,6 +931,50 @@
    "params": 40349329,
    "train_seconds": 2849.9
   },
+  "r-l12-18-24": {
+   "choice": {
+    "epoch": 10,
+    "steps": 1,
+    "scale": null,
+    "navdev_single_pdms": 0.8158,
+    "navdev_best_of_6": null
+   },
+   "navdev_single": {
+    "pdms": 0.8158,
+    "ci_drives": [
+     0.7971,
+     0.8456
+    ],
+    "scenes": 743,
+    "drives": 11,
+    "vs_h1_text": {
+     "difference": -0.0083,
+     "ci_drives": [
+      -0.0241,
+      0.0011
+     ],
+     "scenes": 743
+    },
+    "subscores": {
+     "no_at_fault_collisions": 0.9744,
+     "drivable_area_compliance": 0.9219,
+     "driving_direction_compliance": 0.9643,
+     "ego_progress": 0.7425,
+     "time_to_collision_within_bound": 0.93,
+     "comfort": 0.9987
+    }
+   },
+   "dev_ade": 0.7358,
+   "dev_best6_ade": 0.7358,
+   "kind": "regression",
+   "layers": [
+    12,
+    18,
+    24
+   ],
+   "params": 40976642,
+   "train_seconds": 7744.4
+  },
   "r-l24": {
    "choice": {
     "epoch": 10,
@@ -962,6 +1006,31 @@
      "ego_progress": 0.7354,
      "time_to_collision_within_bound": 0.9394,
      "comfort": 1.0
+    }
+   },
+   "navtest_single": {
+    "pdms": 0.8476,
+    "ci_drives": [
+     0.8337,
+     0.8629
+    ],
+    "scenes": 12146,
+    "drives": 44,
+    "vs_h1_text": {
+     "difference": -0.0085,
+     "ci_drives": [
+      -0.0136,
+      -0.0026
+     ],
+     "scenes": 12146
+    },
+    "subscores": {
+     "no_at_fault_collisions": 0.9813,
+     "drivable_area_compliance": 0.9353,
+     "driving_direction_compliance": 0.9793,
+     "ego_progress": 0.7899,
+     "time_to_collision_within_bound": 0.936,
+     "comfort": 0.9994
     }
    },
    "dev_ade": 0.7604,
@@ -1130,6 +1199,21 @@
     ],
     "scenes": 12146
    }
+  },
+  "R": {
+   "runs": [
+    "r-l12-18-24",
+    "r-l24"
+   ],
+   "chosen": "r-l12-18-24",
+   "navdev_single": {
+    "difference": 0.0053,
+    "ci_drives": [
+     -0.0102,
+     0.0164
+    ],
+    "scenes": 743
+   }
   }
  },
  "comparisons": {
@@ -1247,6 +1331,20 @@
     "scenes": 12146
    }
   },
+  "A-R": {
+   "runs": [
+    "a1-l12-18-24",
+    "r-l12-18-24"
+   ],
+   "navdev_single": {
+    "difference": 0.0028,
+    "ci_drives": [
+     -0.0114,
+     0.0176
+    ],
+    "scenes": 743
+   }
+  },
   "B-C": {
    "runs": [
     "b-l12-18-24",
@@ -1323,6 +1421,20 @@
     "scenes": 12146
    }
   },
+  "B-R": {
+   "runs": [
+    "b-l12-18-24",
+    "r-l12-18-24"
+   ],
+   "navdev_single": {
+    "difference": -0.0018,
+    "ci_drives": [
+     -0.0171,
+     0.0194
+    ],
+    "scenes": 743
+   }
+  },
   "C-D": {
    "runs": [
     "c-l12-18-24",
@@ -1359,6 +1471,34 @@
      -0.0121
     ],
     "scenes": 12146
+   }
+  },
+  "C-R": {
+   "runs": [
+    "c-l12-18-24",
+    "r-l12-18-24"
+   ],
+   "navdev_single": {
+    "difference": -0.0081,
+    "ci_drives": [
+     -0.0277,
+     0.0232
+    ],
+    "scenes": 743
+   }
+  },
+  "D-R": {
+   "runs": [
+    "d-l12-18-24",
+    "r-l12-18-24"
+   ],
+   "navdev_single": {
+    "difference": -0.0316,
+    "ci_drives": [
+     -0.0569,
+     -0.015
+    ],
+    "scenes": 743
    }
   }
  },
@@ -7660,6 +7800,39 @@
     "20": 0.8891
    },
    "rule": "docs/HEADS_PLAN.md R11"
+  },
+  "R": {
+   "method": "R",
+   "kind": "regression",
+   "layers": "12,18,24",
+   "run": "r-l12-18-24",
+   "choice": {
+    "run": "r-l12-18-24",
+    "kind": "regression",
+    "epoch": 10,
+    "steps": 1,
+    "scale": null,
+    "navdev_single_pdms": 0.8158,
+    "navdev_best_of_6": null,
+    "stage1_epoch_single": {
+     "5": 0.7874,
+     "10": 0.8158,
+     "15": 0.8153,
+     "20": 0.8142
+    },
+    "stage2_steps_single": {
+     "1": 0.8158
+    },
+    "stage3_scale_best_of_6": {},
+    "rule": "docs/HEADS_PLAN.md R10",
+    "decided": "2026-11-20 14:47:12"
+   },
+   "candidates": {
+    "r-l24": 0.8104,
+    "r-l12-18-24": 0.8158
+   },
+   "rule": "docs/HEADS_PLAN.md R10",
+   "decided": "2026-11-20 14:47:12"
   },
   "rl_recipe": {
    "recipe": 4,
