@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 17:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 18:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -26,7 +26,14 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - scored R's navtest paths at layer 24 (14:45) and R's navdev grid at layers 12/18/24;
   - chose R's layers at 14:47 and queued R's seeds;
   - its last pass (14:41-14:47) was OK, with no failed passes.
-- **Desktop CPU queue (`~/queue2`):** since 17:42, a smoke test of phase 6's selector pipeline on real data, CPU only (`58_selector-smoke`). It runs A1's candidates for 1,000 RL scenes, PDM-scores them on port 47412, trains a selector for 2 epochs, and applies it to navdev against NAVSIM's score files. It checks the pipeline before phase 6 depends on it; its numbers are used for no choice.
+- **Desktop CPU queue (`~/queue2`):** idle. The selector smoke test on real data (17:42-18:14, CPU only; numbers used for no choice) checked phase 6's pipeline end to end:
+  - A1's candidates for 1,000 RL scenes;
+  - PDM scores, 7,000 paths at 115/s with 0 errors;
+  - a 7.2M-parameter selector, 983 scenes and 2 held-out drives;
+  - navdev with NAVSIM's score files.
+  - It reproduced A1's registered navdev own pick exactly (81.86) and a plausible best-of-7 (90.10).
+  - The barely trained selector was correctly worse than the own pick (-1.59, -2.63 to -0.47), so the adoption rule would turn it down.
+  - It found one bug, fixed in 8ab600d: a dev-split folder has 2,000 scenes but navdev scores 743.
 - **Anvil:** nothing running.
 
 ## Latest results
