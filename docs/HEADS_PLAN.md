@@ -1,6 +1,19 @@
 # Path-generator study: plan to Mon 2026-11-30, with the reasoning behind each step
 
-Revision 2 (2026-11-19 21:10), after the researcher's review. Revision 1 is in git history. **For approval; no new training runs start until it is approved.** The two running layer-test runs (jobs 362, 363) finish either way: they match the phase-1 rules exactly (seed 0, 20 epochs, every epoch's weights saved, the shared optimiser settings below). Terms are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
+Revision 2 (2026-11-19 21:10), after the researcher's review, **approved 2026-11-19 ~21:00** with two clarifications. They take precedence over anything below. Revision 1 is in git history.
+
+**Clarification 1, equal tuning until a clear winner:** "Equal tuning means they should just both proceed till a clear winner is shown."
+- There is no fixed decision date. Every generating method that is not clearly beaten keeps going through the same stages, with the same treatment: seeds, the RL stage, and each RL improvement.
+- A method drops out only when it is clearly behind the leader on navdev: the drive-bootstrap interval of leader minus method excludes 0 (R3), seed-averaged where seeds exist.
+- The repeated looks are choices on navdev. navtest's confirmatory tests (R4) run once, at the end, so the repeated looks don't inflate them.
+
+**Clarification 2, quality over schedule:** "I would rather come back to comprehensive high quality work that is behind schedule then behind schedule work that is messy and unusable."
+- The dates below are a guide.
+- When the RL stage can be improved round after round (more updates, a better recipe, starting the next round from the last round's best checkpoint), it is, past the schedule if need be.
+- Every RL improvement goes to every method still in contention, under the same settings, and is measured on navdev.
+- Work is reported when it is right, not when the calendar says.
+
+The two running layer-test runs (jobs 362, 363) are part of phase 1. They match the phase-1 rules exactly: seed 0, 20 epochs, every epoch's weights saved, the shared optimiser settings below. Terms are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal:** the best single-path NAVSIM score we can reach, without breaking scientific integrity. Integrity means:
 - every choice is made on data the final number is not measured on;
@@ -38,7 +51,7 @@ Revision 2 (2026-11-19 21:10), after the researcher's review. Revision 1 is in g
 - C3: the navdev-chosen generating method before RL against regression R: does generation help?
 - C4: the chosen method before against after RL: does RL help?
 
-**R5. Method decision** (navdev, single-path PDMS after the RL stage, seed-averaged).
+**R5. Method decision** (navdev, single-path PDMS after the RL stage, seed-averaged). Clarification 1 governs: contenders continue, with the same treatment, until this rule shows a clear winner. A tie means more of the same work for every contender, not an early stop.
 - The method with the highest point estimate continues automatically only if its interval against every other generating method excludes 0.
 - Otherwise it is a tie: **no automatic preference for A**. I report, and the researcher decides.
 - My recommendation then uses, in this order: best-of-6 after RL on navdev, then generation time per scene.

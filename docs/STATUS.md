@@ -12,7 +12,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet.
 
 ## Running now
-- **4090 desktop, GPU queue:**
+- **4090 desktop, GPU queue** (phase 1, queued 21:10, in run order: 363, then D, B and C at both layer settings, 364–369, about 9 h; R once its code exists):
   - Job 361, layer test part 1: the training run of configuration A1 reading stored layer 24 only. It trained all 20 epochs in 41 min, and every epoch's weights are saved. Its navtest prediction step failed on the one navtest scene with 420 tokens (the training scenes have at most 419); fixed in f08b281.
   - Job 362, layer test part 2: the training run of configuration A1 reading layers 12, 18 and 24. Epoch 12 of 20 at 20:47, 6.8 min per epoch (3.4 times the one-layer run, from reading 3 layers), about 2.3 h in all; it ends about 21:45.
   - Job 363: navtest paths from job 361's path generator, next in the queue.
@@ -38,12 +38,17 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 5. The choice of generation method by the decision rule. With a clear winner, the selector and the full RL stage; on a tie, wait for the researcher.
 
 ## Waiting on the researcher
-- **HOLD (since 2026-11-19 20:50): review of `docs/HEADS_PLAN.md`, now revision 2 (21:10).** Revision 2 folds in the researcher's review: phase 2 is analysis only; drive-level bootstrap; the exact decision and confirmatory tests; the RL settings pinned; parity for the sampling settings; a cross-fitted selector; the drop order. Until it is approved, no new training runs are queued. The two running layer-test training runs (jobs 362, 363) and their scoring finish either way, because they are part of phase 1.
-- Earlier questions, answered 2026-11-19 evening:
-  - **Spare GPU time:** no filler runs, only what a comprehensive comparison needs. Configuration A0 (plain bins, no notion of distance) was added to A's continuity series for that reason. The ego-as-tokens run and the backbone snapshot runs are dropped.
-  - **After the choice of method:** continue to the selector and full RL if the rule gives a clear winner; on a tie, stop and wait.
-  - **The ~650 GB feature cache:** keep it all week, and ask before deleting it.
-  - **The repo:** commit everything allowed, and keep it current and descriptive. Pages with nuPlan camera images stay on the home PC.
+- Nothing. **The plan (`docs/HEADS_PLAN.md`, revision 2) was approved 2026-11-19 ~21:00, and the HOLD is lifted.** Two clarifications are in the plan's header:
+  - equal tuning until a clear winner: contenders proceed together;
+  - quality over schedule: improve RL round after round, even past the dates.
+- **Schedule:**
+  - The researcher is away from about 15:00–16:00 Fri Nov 20.
+  - Report at **12:00 Fri Nov 20**; then one final check by the researcher. Work proceeds whether or not they reply.
+  - Work must not stop when a usage limit is hit, so the desktop queues are kept deep (hours of queued GPU work) and phase transitions are scripted.
+- Earlier answers (2026-11-19 evening):
+  - **Spare GPU time:** no filler runs; only what a comprehensive comparison needs.
+  - **The feature cache:** keep it all week, and ask before deleting it.
+  - **The repo:** commit everything allowed, kept current and descriptive.
 
 ## Decisions made by rule (no input needed)
 - **Desktop NAVSIM scores accepted.** They equal Anvil's to at most 1.3e-11 per scene, with identical PDMS.
