@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-19 20:50 EST
+**Updated:** 2026-11-19 20:50 EST (heartbeat)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,7 +14,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Running now
 - **4090 desktop, GPU queue:**
   - Job 361, layer test part 1: the training run of configuration A1 reading stored layer 24 only. It trained all 20 epochs in 41 min, and every epoch's weights are saved. Its navtest prediction step failed on the one navtest scene with 420 tokens (the training scenes have at most 419); fixed in f08b281.
-  - Job 362, layer test part 2: the training run of configuration A1 reading layers 12, 18 and 24, now training.
+  - Job 362, layer test part 2: the training run of configuration A1 reading layers 12, 18 and 24. Epoch 12 of 20 at 20:47, 6.8 min per epoch (3.4 times the one-layer run, from reading 3 layers), about 2.3 h in all; it ends about 21:45.
   - Job 363: navtest paths from job 361's path generator, next in the queue.
 - **4090 desktop, CPU queue:** scoring jobs 371 and 372 wait for those runs' paths, then score them on NAVSIM (about an hour each).
 - **Anvil:** wide job 22320518 builds the navtrain metric cache, the reward for the RL stage. Estimated start Nov 20 19:05.
@@ -23,7 +23,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Text pilot H1: 85.6 PDMS**, still the best.
   - S3's earlier passes scored 77.3, 81.9 and 84.5; the final pass 84.7.
   - H2 (8 passes) ties H1. Details in `pilot_sft/README.md`.
-- **Path generator A1 (masked diffusion, 0.1 m bins, distance-aware bin embeddings), reading layer 24 only:** dev ADE about 0.77–0.82 m after epochs 8–11 (H1's text output: 0.77 m), dev best-of-6 ADE about 0.52 m. NAVSIM scores to come.
+- **Layer test, dev ADE so far** (2,000 dev scenes; a training check only, not used for choices):
+  - A1 reading layer 24, final (epoch 20): dev ADE 0.765 m, dev best-of-6 ADE 0.514 m.
+  - A1 reading layers 12, 18 and 24, at epoch 12: 0.759 m and 0.507 m.
+  - H1's text output: 0.77 m.
+  - NAVSIM scores to come (navtest, for the report; the choice will be made on navdev once it exists).
 - **NAVSIM scoring now runs on the desktop.** H1 re-scored there matches Anvil on all 12,146 scenes: PDMS 0.856069 on both, with 53 ego-progress values off by at most 1.3e-11 from CPU rounding.
 
 ## Next (the week plan: `pilot_sft/EXPERIMENTS.md`, "Path-generator heads: the week of 2026-11-19")
