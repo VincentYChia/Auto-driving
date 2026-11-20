@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, leave a note in `docs/INBOX.md`.
 
-**Updated:** 2026-11-19 22:10 EST
+**Updated:** 2026-11-19 23:05 EST
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -12,14 +12,19 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet.
 
 ## Running now
-- **4090 desktop, GPU queue** (phase 1, queued 21:10, in run order: 363, then D, B and C at both layer settings, 364–369, about 9 h; R once its code exists):
-  - Job 361, layer test part 1: the training run of configuration A1 reading stored layer 24 only. It trained all 20 epochs in 41 min, and every epoch's weights are saved. Its navtest prediction step failed on the one navtest scene with 420 tokens (the training scenes have at most 419); fixed in f08b281.
-  - Job 362, layer test part 2: the training run of configuration A1 reading layers 12, 18 and 24. Epoch 12 of 20 at 20:47, 6.8 min per epoch (3.4 times the one-layer run, from reading 3 layers), about 2.3 h in all; it ends about 21:45.
-  - Job 363: navtest paths from job 361's path generator, next in the queue.
-- **4090 desktop, CPU queue:** scoring jobs 371 and 372 wait for those runs' paths, then score them on NAVSIM (about an hour each).
-- **Anvil:** wide job 22320518 builds the navtrain metric cache, the reward for the RL stage. Estimated start Nov 20 19:05.
+- **4090 desktop, GPU queue** (one job at a time):
+  - **Done:** the A1 layer test (2 training runs), D reading layer 24, and navtest paths for both A1 runs at their navdev choices.
+  - **Running:** the RL trial on a1-l24 (job 355, started 22:53).
+  - **Queued, about 26 h:** D reading 12/18/24; B and C at both layer settings; R at both; A1's seeds 1–2 at layers 12/18/24; A's continuity series A0, A2, A3, A4.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, phases 1–5, restarted 22:55 with the phase-4 logic): scoring D reading layer 24 on navdev. The old navtest scoring job 371 is still running in queue2.
+- **Anvil:** wide job 22320518 builds the navtrain metric cache for RL, estimated to start Nov 20 17:05. The RL runs are queued automatically once it is on the desktop.
 
 ## Latest results
+- **A1's navdev choices (R10):**
+  - layer 24: epoch 15, 4 steps, setting 1.0; single path **81.48**, best-of-6 89.52.
+  - layers 12/18/24: epoch 15, 8 steps, setting 1.5; single path **81.86**, best-of-6 89.65.
+  - **A reads layers 12/18/24** by the point-estimate rule. The 0.4-point gap is within noise, and is reported as such.
+  - A best-of-6 about 8 points above the single path is the room a selector could use.
 - **First navdev results** (743 scenes, 11 drives; intervals resample drives; for choices only, R1):
   - **H1's text output: 82.4** (80.6–86.0). Constant velocity: 19.8.
   - **A1 reading layer 24:** epochs 5 / 10 / 15 / 20 at 4 steps score 77.9 / 79.0 / **81.5** / 81.2. At epoch 15, 1 / 2 / 4 / 8 steps score 80.8 / 81.3 / 81.5 / 80.2.
