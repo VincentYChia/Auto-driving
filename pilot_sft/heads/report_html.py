@@ -75,7 +75,7 @@ def diff(d: dict) -> dict:
             "hi": round(d["ci_drives"][1] * 100, 2)}
 
 
-def page_data(agg: dict) -> dict:
+def page_data(agg: dict, ms: Optional[dict] = None) -> dict:
     refs = {k: iv(v) for k, v in agg.get("references", {}).items()}
     runs = []
     for run, r in agg.get("runs", {}).items():
@@ -113,7 +113,23 @@ def page_data(agg: dict) -> dict:
                 vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
         seeds.append({"method": m, "run": lc["run"], "values": vals})
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
-            "generated": agg.get("generated"), "names": METHOD_NAMES}
+            "seedPairs": seed_pairs(ms), "generated": agg.get("generated"), "names": METHOD_NAMES}
+
+
+def seed_pairs(ms: Optional[dict]) -> dict:
+    """Method pairs with every seed, from method_seeds.py (points; R5's hierarchical bootstrap), per split."""
+    out = {}
+    for sp, r in (ms or {}).items():
+        rows = []
+        for p, v in r.get("pairs", {}).items():
+            row = {"pair": p}
+            for k in ("single", "best_of_6"):
+                if k in v:
+                    row[k] = {"x": v[k]["difference"], "lo": v[k]["ci"][0], "hi": v[k]["ci"][1]}
+                    row["seeds"] = v[k]["seeds"]
+            rows.append(row)
+        out[sp] = {"pairs": rows, "fill": r.get("seed_sd_added_for_single_seed", {})}
+    return out
 
 
 CSS = """
@@ -278,6 +294,16 @@ function drawPhase1() {
     return v.map(y => y == null ? '–' : y.toFixed(2)).join(' · ') + ` <span class="small">(mean ${m.toFixed(2)}${sd != null ? ', SD ' + sd.toFixed(2) : ''})</span>`; };
   table(document.getElementById('tb-seeds'), ['Method (layer choice)', 'Single path: seeds 0 · 1 · 2', 'Best-of-6: seeds 0 · 1 · 2'],
     (D.seeds || []).map(r => [`${r.method} <span class="small">${esc(r.run)}</span>`, cell(r.values[SPLIT + '_single']), cell(r.values[SPLIT + '_best_of_6'])]));
+  const sp = ((D.seedPairs || {})[SPLIT] || {}).pairs || [], rowsS = [];
+  sp.forEach(p => [['single', 'single path', 'solid'], ['best_of_6', 'best-of-6', 'hollow']].forEach(([k, name, kind]) => {
+    const o = p[k]; if (!o) return;
+    rowsS.push({label: `${p.pair.replace('-', ' − ')} · ${name}`, color: 'var(--ink-2)', marks: [{...o, kind,
+      tip: `<b>${esc(p.pair.replace('-', ' − '))}</b>, ${p.seeds[0]} and ${p.seeds[1]} seeds<br>${name}, ${SPLIT}: ${dvs(o)}`}]});
+  }));
+  const spBox = document.getElementById('ch-seedpairs');
+  if (rowsS.length) forest(spBox, rowsS, {zero: true, signed: true, aria: 'Method pairs with every seed'}); else spBox.innerHTML = '';
+  table(document.getElementById('tb-seedpairs'), ['Pair (seed-averaged means)', 'Seeds', 'Single path', 'Best-of-6'],
+    sp.map(p => [esc(p.pair.replace('-', ' − ')), `${p.seeds[0]} vs ${p.seeds[1]}`, p.single ? dvs(p.single) : '–', p.best_of_6 ? dvs(p.best_of_6) : '–']));
   document.querySelectorAll('.splitname').forEach(e => e.textContent = SPLIT);
 }
 function drawRL() {
@@ -374,6 +400,12 @@ BODY = """
   <h3>Phase 3: three seeds of each method's chosen configuration, at seed 0's choices</h3>
   <p class="sub">Seeds 1 and 2 reuse seed 0's epoch, steps and sampling setting (R10). The spread between seeds is training noise.</p>
   <div id="tb-seeds"></div>
+  <h3>Method pairs with every seed: seed-averaged means, resampling drives and seeds</h3>
+  <p class="sub">Each mark is the difference of two methods' seed-averaged means. Its 95% interval redraws drives (with all their scenes)
+  and each method's seeds, as R5's decision does. A method with one seed gets the larger between-seed SD of the three-seed methods as an
+  added draw. These intervals include training noise, which the paired intervals above leave out.</p>
+  <div class="chart" id="ch-seedpairs"></div>
+  <details><summary>Table: method pairs with every seed on <span class="splitname"></span></summary><div id="tb-seedpairs"></div></details>
 </section>
 <section>
   <h2>RL: change from the starting point on navdev</h2>
@@ -396,8 +428,8 @@ BODY = """
 """
 
 
-def build(agg: dict, notes: dict) -> str:
-    data = json.dumps(page_data(agg)).replace("</", "<\\/")
+def build(agg: dict, notes: dict, ms: Optional[dict] = None) -> str:
+    data = json.dumps(page_data(agg, ms)).replace("</", "<\\/")
     nj = json.dumps(notes).replace("</", "<\\/")
     title = html.escape(notes.get("title", "Path-generator progress"))
     body = BODY.replace('<span id="gen"></span>', html.escape(str(agg.get("generated", ""))))
@@ -412,11 +444,13 @@ def main() -> None:
     p.add_argument("--aggregate", required=True)
     p.add_argument("--notes", required=True)
     p.add_argument("--out", required=True)
+    p.add_argument("--method-seeds", default=None, help="method_seeds.py's output: method pairs with every seed")
     a = p.parse_args()
     agg = json.load(open(a.aggregate, encoding="utf-8"))
     notes = json.load(open(a.notes, encoding="utf-8"))
+    ms = json.load(open(a.method_seeds, encoding="utf-8")) if a.method_seeds else None
     with open(a.out, "w", encoding="utf-8") as f:
-        f.write(build(agg, notes))
+        f.write(build(agg, notes, ms))
     print(f"wrote {a.out}")
 
 
