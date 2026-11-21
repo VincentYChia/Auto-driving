@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 12:15: the selector works at full scale, +1.35 on navdev; phase 3 complete for all five): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 12:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 13:13 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,8 +14,9 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 12:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 12:47):
-  - **Running: the rehearsal's boundary-ablation selector** (`0_62rehearsal6`, since 12:09; 7 candidates plus 4 boundary paths per training scene, so about 2 min per epoch). Epoch 18 of 20 at 12:47; its best held-out so far is 91.20 (epoch 12, margin 0.03), against 91.01 for the seed-0 selector. It ends about 12:55, then phase 2 starts: A0 (`400`).
+- **4090 desktop, GPU queue** (one job at a time; read 13:11):
+  - **Running: phase 2, A0** (`400`, since 12:51): plain bins with no notion of distance, at layers 12/18/24; epoch 3.5 at 13:11, about 5.7 min per epoch, then its navdev grid. A2, A3, A4 follow (about 2.3 h each).
+  - **Done 12:51: the rehearsal's boundary-ablation selector** (+2.08 on navdev; "Latest results"). The rehearsal is complete: every chain job ran at full scale without a failure.
   - **Done 12:09: the rehearsal's cross-fitted seed-0 selector** (11:34-12:09): +1.35 on navdev (above, "Latest results").
   - **Done 11:34: R's seed 2** (`39r2`, rc 0; 1 h 43 min): navdev 80.69, navtest 84.46. On both machines with matching checksums (11:44).
   - **The rehearsal of the selector chain:** both half generators are done, the shared boundary set and both halves' candidates are scored, and the selectors are training.
@@ -25,7 +26,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - **Headroom of half 0's out-of-fold candidates** (40,943 training RL scenes, 7 candidates each; `pilot_sft/heads/candidate_headroom.py`): own pick 89.06, best of the 7 (a perfect selector) 95.00, mean candidate 80.73. Some candidate beats the own pick in 58.6% of scenes. The own pick fails NC or DAC in 1,907 scenes (4.7%), and some candidate passes both in 73.5% of those. So the selector has about 5.9 points to learn from, but the average candidate is 8.3 points below the own pick: switching has to be precise, which is what R14's margin is for. The selector's inputs on the desktop (A1's epoch-20 weights and navdev candidates) are in place.
     - **Half 1's candidates** (scored 10:39-11:24: 277,781 paths, 0 errors) agree: own pick 89.67, best of the 7 95.52, mean candidate 81.05; some candidate beats the own pick in 57.5% of scenes; the own pick fails NC or DAC in 1,764 scenes (4.4%), and a candidate passes in 76.2% of those.
   - **Done 07:49: R's seed 1** (`39r1`, rc 0). navdev single path 82.33 (seed 0: 81.58), navtest 84.88 (seed 0: 84.57). The run is on both machines with matching checksums (08:14). Paired against seed 0: +0.31 on navtest (-0.06 to +0.73). With R's two seeds, R is level with A and B on navtest's single path and above C and D ("Latest results").
-  - **Queued: 24 jobs, in run order:** phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
+  - **Queued: 23 jobs, in run order:** phase 2: A's continuity series A2, A3, A4 (`401`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
 - **Desktop CPU queue (`~/queue2`):** idle since 11:24, when the rehearsal's candidates were all scored.
   - **Done 09:52: the shared boundary set** (R14), the first CPU job of the chain at full scale. 16 perturbations of each of the 80,626 RL scenes' logged paths: 1,290,016 paths scored in 3.04 h (117.7 paths/s, 0 errors). A lateral NC or DAC limit lies within ±4 m in 75,992 scenes (94%); a longitudinal one within 0.6-1.4 times the path's length in only 9,517 (12%), so most scenes' longitudinal boundary pair is the outermost two, both passing. Every later chain reuses the set.
 - **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
@@ -42,7 +43,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - It closes 14% of the gap to the best of the 7 candidates (90.81). It switches in 38% of scenes: 145 wins, 84 losses, 56 ties. Its picks fail NC or DAC in 72 scenes, against 79 for the own pick.
   - Held-out training drives (10 drives, 9,737 scenes) chose epoch 10 and margin 0.02: selected 91.01 against the own pick's 89.28 there.
   - For scale: H1's text output scores 82.4 on navdev, so A1 plus this selector is level with or above it before any RL (point estimates; no paired test).
-  - Training took 34.7 min (7.2M parameters, 70,889 training scenes from 91 drives, about 800 scenes/s). The boundary ablation follows (since 12:09).
+  - Training took 34.7 min (7.2M parameters, 70,889 training scenes from 91 drives, about 800 scenes/s).
+  - **The boundary ablation did better (12:51):** the same selector trained with 4 boundary paths per training scene (training-only candidates that straddle the NC or DAC limit) gives **+2.08 on navdev (+0.93 to +5.15)**, closing 22% of the gap. It switches in 34% of scenes (128 wins, 75 losses, 48 ties), its picks fail NC or DAC in 67 scenes against 79, and held-out training drives agree (91.20 against 91.01). 41.7 min to train. The paired difference between the two selectors on the same scenes comes at the next check (`pilot_sft/heads/selector_pair.py`).
   - What it means for the final system: R14's selector adds a measured gain on top of a supervised generator, so phase 6's chains, where it is judged after RL, start from a working design.
 - **Phase 3 is complete for all five, R included (Nov 21 12:12): three seeds each.** R's navtest single path 84.57, 84.88, 84.46 (mean 84.64). With three seeds on both sides, R is level with A (+0.05, -0.53 to +0.63) and B (-0.00, -0.37 to +0.36) and above C (-0.79, -1.36 to -0.19) and D (-2.45, -3.42 to -1.51).
 - **Phase 3 is complete for A, B, C and D (Nov 21 06:42): three seeds each.** With every seed, D has the best candidates of any method (navtest best-of-6 93.47, against 91.35-91.99; each pair's interval excludes 0) and the worst own pick (82.20, against 83.85-84.69). A and B cannot be told apart; C is below both on the single path. R, the regression control with one path, is level with A and B on navtest's single path and above C and D, now with two seeds (A - R -0.04, -0.62 to +0.55; C - R -0.88, -1.45 to -0.25; D - R -2.53, -3.50 to -1.53); its seed 2 is queued. Intervals below ("Phase 3 is complete for A-D").
@@ -170,11 +172,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates):
-1. **The rehearsal's boundary-ablation selector** (until about 12:45). Its seed-0 selector is done: +1.35 on navdev.
-2. **Phase 2: A's continuity series** A0, A2, A3, A4 (from about 12:45, about 2.3 h each), read by R17. Then the leave-one-out, bin-size and (if the series' best is not A1) R17 seed runs.
-3. **Phase 4:** RL4 and RL6 on every method (16 runs of 1,500 updates). Then R16's gate for B and C, and R5's ranking (reported only).
-4. **Phase 6:** D's four tuning runs (R15), then each contender's full RL stage (rounds of 5,000 updates, R18) and selector chain (R14); the final system on navdev (R16), one navtest score per contender, and R4's confirmatory tests.
-5. **The report after each result** (the private link at the top of this page).
+1. **Phase 2: A's continuity series** A0 (since 12:51), A2, A3, A4 (about 2.3 h each), read by R17. Then the leave-one-out, bin-size and (if the series' best is not A1) R17 seed runs.
+2. **Phase 4:** RL4 and RL6 on every method (16 runs of 1,500 updates). Then R16's gate for B and C, and R5's ranking (reported only).
+3. **Phase 6:** D's four tuning runs (R15), then each contender's full RL stage (rounds of 5,000 updates, R18) and selector chain (R14); the final system on navdev (R16), one navtest score per contender, and R4's confirmatory tests.
+4. **The report after each result** (the private link at the top of this page).
 
 ### Done so far (details, oldest first)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
@@ -291,12 +292,16 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - `pilot_sft/heads/confirmatory.py` runs them once every input exists. 2 new tests.
 
 ## Waiting on the researcher
-- **One optional question below (the pooled-candidate system); nothing blocks on it.** Your 13:45 answers, now R16 in `docs/HEADS_PLAN.md`, registered 13:51 before any phase-4 run had started:
+- **Two optional questions below (the boundary-path selector and a pooled-candidate system); nothing blocks on them.** Your 13:45 answers, now R16 in `docs/HEADS_PLAN.md`, registered 13:51 before any phase-4 run had started:
   - Phase 4 runs RL4 (as registered) and RL6 on every method, with the same seeds and 1,500 updates. Neither recipe is dropped on single-path score alone.
   - R5's single-path ranking after RL is reported, no longer deciding.
   - A and D, each under both recipes, go into phase 6. B and C join if phase 4 shows they are not clearly below. Each contender gets its tuning (R15), the full RL stage with its own recipe, and the cross-fitted selector (R14).
   - The final system is the contender with the highest navdev generator-plus-selector score. Then every contender is scored once on navtest.
   - Compute: "we have excess in the week". The queue is reordered or cut when a result is pertinent.
+- **A question for you, not blocking: should held-out training drives choose between the selector with and without boundary paths?**
+  - **What happened:** in the rehearsal, the selector trained with R14's boundary paths beat the main selector: navdev +2.08 against +1.35, and held-out training drives 91.20 against 91.01. R14 deploys the main selector and reports the boundary version as an ablation.
+  - **Why I won't switch on my own:** I registered that the rehearsal's numbers change no selector setting. Changing the deployed variant now would rest on them.
+  - **The option:** for every contender, let its 10 held-out training drives choose between the two cross-fitted selectors (the rule never reads navdev), and report both. Your call; without it, R14 stands as registered.
 - **An idea for you, not blocking: a pooled-candidate system.** Nothing changes without your yes.
   - **Why:** R16's final system is one path generator plus its own selector. But D has the best candidates of any method (navtest best-of-6 93.5, three seeds) and A the best own pick. One of D's samples stays in the drivable area in 80% of the scenes where D's own pick leaves it. A selector choosing among A's own pick plus D's 6 samples could beat both A plus its selector and D plus its selector.
   - **How:** a fifth kind of contender, registered before any phase-6 result and judged by the same navdev rule (R16). Its candidates are each contender's existing out-of-fold candidates, pooled per scene, so it adds about one selector chain's selectors (about 4 GPU hours) and one CPU scoring pass, plus a little code.
