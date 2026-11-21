@@ -53,3 +53,17 @@ def test_the_page_carries_them_and_works_without_them():
     data = json.loads(page.split('<script type="application/json" id="data">')[1].split("</script>")[0])
     assert data["seedPairs"]["navtest"]["pairs"][0]["pair"] == "A-D"
     assert report_html.page_data({})["seedPairs"] == {}
+
+
+def test_phase4_rows_per_split_and_recipe():
+    p4 = {"RL4": {"methods": {"A": {"single": {"seeds": [86.55, 82.55, 85.55], "mean": 84.88, "sd": 2.08,
+                                              "checkpoints": ["rl_500", "start", "rl_250"]}}},
+                  "change_from_phase3": {"A": {"single": {"difference": 2.33, "ci": [0.9, 3.8], "seeds": 3, "scenes": 12}}},
+                  "pairs": {"A-B": {"single": {"difference": 1.33, "ci": [-0.2, 2.9], "seeds": [3, 1], "scenes": 12}}}}}
+    data = report_html.page_data({}, {"navtest": {"pairs": {}, "phase4": p4}, "navdev": {"pairs": {}}})
+    r = data["phase4"]["navtest"]["RL4"]
+    assert r["methods"][0]["method"] == "A" and r["methods"][0]["single"]["checkpoints"][1] == "start"
+    assert r["change"][0]["single"] == {"x": 2.33, "lo": 0.9, "hi": 3.8, "seeds": 3}
+    assert r["pairs"][0]["pair"] == "A-B" and r["pairs"][0]["single"]["seeds"] == [3, 1]
+    assert "navdev" not in data["phase4"]
+    assert 'id="ph4"' in report_html.build({}, {"title": "t"}, {"navtest": {"pairs": {}, "phase4": p4}})

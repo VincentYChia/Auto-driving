@@ -113,9 +113,24 @@ def page_data(agg: dict, ms: Optional[dict] = None) -> dict:
                 vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
         seeds.append({"method": m, "run": lc["run"], "values": vals})
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
-            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
+            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
                                                                                     (ms or {}).items() if r.get("series_best_vs_a1")},
             "generated": agg.get("generated"), "names": METHOD_NAMES}
+
+
+def phase4_rows(ms: Optional[dict]) -> dict:
+    """Phase 4 with every seed (method_seeds.py's ``phase4``), per split and recipe: each method after RL, its change
+    from phase 3 (seed-paired), and the method pairs after RL; differences in points with their intervals."""
+    iv_ = lambda c: {"x": c["difference"], "lo": c["ci"][0], "hi": c["ci"][1], "seeds": c["seeds"]}  # noqa: E731
+    out = {}
+    for sp, r in (ms or {}).items():
+        for rec, v in sorted((r.get("phase4") or {}).items()):
+            out.setdefault(sp, {})[rec] = {
+                "methods": [{"method": m, **mv} for m, mv in sorted(v.get("methods", {}).items())],
+                "change": [{"method": m, **{k: iv_(c) for k, c in cv.items()}}
+                           for m, cv in sorted(v.get("change_from_phase3", {}).items())],
+                "pairs": [{"pair": p, **{k: iv_(c) for k, c in pv.items()}} for p, pv in v.get("pairs", {}).items()]}
+    return out
 
 
 SERIES_LABELS = {"a0": "A0: plain bins, no notion of distance", "a2": "A2: A1 + soft labels",
@@ -352,6 +367,29 @@ function drawPhase1() {
   table(document.getElementById('tb-series'), ['Configuration (minus A1, each at its navdev choices)', 'Single path', 'Best-of-6', 'R17 on this split, single path'],
     ser.map(r => [esc(r.label), r[SPLIT + '_single'] ? dvs(r[SPLIT + '_single']) : '–', r[SPLIT + '_best_of_6'] ? dvs(r[SPLIT + '_best_of_6']) : '–',
       verdict(r[SPLIT + '_single'])]));
+  const p4box = document.getElementById('ph4'), p4 = (D.phase4 || {})[SPLIT] || {};
+  p4box.innerHTML = Object.keys(p4).length ? '' : '<p class="small">No method has all its phase-4 RL seeds chosen and scored yet.</p>';
+  const meas = [['single', 'single path', 'solid'], ['best_of_6', 'best-of-6', 'hollow']];
+  Object.keys(p4).forEach(rec => {
+    const v = p4[rec], h = document.createElement('h3'); h.textContent = `${rec}: each method after RL, at the checkpoint R11 chose`; p4box.appendChild(h);
+    const tb = document.createElement('div'); p4box.appendChild(tb);
+    const seedCell = (o, k) => !o[k] ? '–' : o[k].seeds.map(x => x.toFixed(2)).join(' · ') +
+      ` <span class="small">(mean ${o[k].mean.toFixed(2)}${o[k].sd != null ? ', SD ' + o[k].sd.toFixed(2) : ''})</span>`;
+    table(tb, ['Method', 'Single path, by seed', 'Best-of-6, by seed', 'Chosen checkpoints'],
+      v.methods.map(o => [o.method, seedCell(o, 'single'), seedCell(o, 'best_of_6'), esc(((o.single || o.best_of_6 || {}).checkpoints || []).join(', '))]));
+    const h2 = document.createElement('h3'); h2.textContent = `${rec}: change from phase 3 (after RL minus before, each RL seed against its own supervised seed)`; p4box.appendChild(h2);
+    const c1 = document.createElement('div'); c1.className = 'chart'; p4box.appendChild(c1);
+    const rowsC = [];
+    v.change.forEach(o => meas.forEach(([k, name, kind]) => { if (o[k]) rowsC.push({label: `${o.method} · ${name}`, color: C(o.method),
+      marks: [{...o[k], kind, tip: `<b>${o.method}, ${rec}</b>: ${name} after minus before, ${SPLIT}<br>${dvs(o[k])} (${o[k].seeds} seed${o[k].seeds > 1 ? 's' : ''})`}]}); }));
+    if (rowsC.length) forest(c1, rowsC, {zero: true, signed: true, aria: `${rec}: change from phase 3`});
+    const h3 = document.createElement('h3'); h3.textContent = `${rec}: method pairs after RL, seed-averaged, drives and seeds resampled`; p4box.appendChild(h3);
+    const c2 = document.createElement('div'); c2.className = 'chart'; p4box.appendChild(c2);
+    const rowsP4 = [];
+    v.pairs.forEach(o => meas.forEach(([k, name, kind]) => { if (o[k]) rowsP4.push({label: `${o.pair.replace('-', ' − ')} · ${name}`, color: 'var(--ink-2)',
+      marks: [{...o[k], kind, tip: `<b>${esc(o.pair.replace('-', ' − '))}, ${rec}</b><br>${name}, ${SPLIT}: ${dvs(o[k])}`}]}); }));
+    if (rowsP4.length) forest(c2, rowsP4, {zero: true, signed: true, aria: `${rec}: method pairs after RL`});
+  });
   const sb = (D.seriesBest || {})[SPLIT];
   document.getElementById('tb-seriesbest').innerHTML = sb ? '' : '<p class="small">Only if the series\' best is not A1: its seeds 1 and 2, then this comparison.</p>';
   if (sb) table(document.getElementById('tb-seriesbest'), ['Series\' best minus A1, three seeds each', 'Seeds (best; A1)', 'Difference'],
@@ -470,6 +508,14 @@ BODY = """
   <details><summary>Table: continuity series minus A1 on <span class="splitname"></span></summary><div id="tb-series"></div></details>
   <h3>The series' best against A1, three seeds each (R17)</h3>
   <div id="tb-seriesbest"></div>
+</section>
+<section>
+  <h2>Phase 4: every method before and after a matched RL stage</h2>
+  <p class="sub">RL4 and RL6 run 1,500 updates on every method with the same seeds (A and D: three; B and C: one). Each RL seed's
+  checkpoint is chosen on navdev by R11's rule, and update 0 (no RL) is allowed. "Before" is phase 3, at R10's choices. Each RL seed is
+  paired with the supervised seed it started from, so shared seed noise cancels. With one RL seed, B's and C's intervals hold drive noise
+  only. R5's ranking after RL is reported, not deciding (R16).</p>
+  <div id="ph4"></div>
 </section>
 <section>
   <h2>RL: change from the starting point on navdev</h2>
