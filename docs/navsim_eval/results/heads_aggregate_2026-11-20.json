@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-21 04:43:00",
+ "generated": "2026-11-21 06:42:36",
  "references": {
   "h1_text_navdev": {
    "pdms": 0.824,
@@ -7914,6 +7914,12 @@
     "navdev_best_of_6": 0.9153,
     "navtest_single_pdms": 0.8208,
     "navtest_best_of_6": 0.9324
+   },
+   "d-l12-18-24-s2": {
+    "navdev_single_pdms": 0.7652,
+    "navdev_best_of_6": 0.9178,
+    "navtest_single_pdms": 0.8159,
+    "navtest_best_of_6": 0.9349
    }
   },
   "R": {
@@ -8010,6 +8016,29 @@
    "phase4": "started with RL4",
    "rule": "docs/HEADS_PLAN.md R12, R13",
    "decided": "2026-11-20 10:17:38"
+  },
+  "selector_spec_rehearsal": {
+   "method": "A",
+   "kind": "masked",
+   "layers": "12,18,24",
+   "flags": [],
+   "rl_start_epoch": 20,
+   "recipe": null,
+   "updates": 0,
+   "save_every": 500,
+   "deployed_run": "a1-l12-18-24",
+   "deployed_weights": "epoch_20",
+   "steps": 8,
+   "scale": 1.5,
+   "k": 6,
+   "variants": [
+    "xfit-s0",
+    "xfit-boundary"
+   ],
+   "first": true,
+   "role": "rehearsal of R14's chain at full scale on the phase-1 configuration without RL; no contender (R16), used for no choice",
+   "rule": "docs/HEADS_PLAN.md R14",
+   "written": "2026-11-21 06:41:52"
   }
  }
 }

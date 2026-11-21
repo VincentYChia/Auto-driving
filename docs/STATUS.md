@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 06:19 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 06:45 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,25 +14,25 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read 14:51). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 06:11):
-  - **Running:** seed 1 of R at layers 12/18/24 (`39r1`, since 05:55; about 2 h).
-  - **Done 05:55: D's seed 2** (`39d2`, 04:02-05:55, rc 0). Its navdev paths are scored; its navtest paths were being scored at 06:11 (about 26 min). The run is on both machines with matching checksums (06:16, `pilot_sft/MODELS.md`). D's three-seed comparison follows once its navtest scores are written.
-  - **Next, ahead of the queue: a rehearsal of the selector chain** (registered in `docs/HEADS_PLAN.md`, R14, at 05:55; code a85fba3). It was deferred at 06:11 because the driver was scoring D's paths; it deploys at the 06:42 check. Its two half generators (about 1.2 h each) follow R's seed 1, their candidates are scored on the CPU queue, then its two selectors run. It is no contender and its numbers are used for no choice (see "Next").
-  - **Queued: 19 jobs, in run order:**
+- **4090 desktop, GPU queue** (one job at a time; read 06:42):
+  - **Running:** seed 1 of R at layers 12/18/24 (`39r1`, since 05:55; epoch 8 of 20 at 06:42, so it ends about 07:55).
+  - **Next, ahead of the queue: the rehearsal of the selector chain** (registered in `docs/HEADS_PLAN.md`, R14, at 05:55). Its spec was written at 06:41: A1 at its R11 starting epoch (20), 8 steps, 6 samples at setting 1.5, without RL. The driver queues its jobs on its next pass. Its two half generators (about 1.2 h each) run after R's seed 1, their candidates are scored on the CPU queue, then its two selectors run. It is no contender and its numbers are used for no choice.
+  - **Queued: 25 jobs, in run order:**
     - phase 3: R's seed 2 (`39r2`);
     - phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`). The leave-one-out, bin-size and R17 seed runs follow once the series' best is known;
-    - phase 4: RL4 and RL6 for A's three seeds (`45a*`, 6 runs) and for B's and C's seed 0 (`45b0`, `45b0r6`, `45c0`, `45c0r6`). D's six follow;
+    - phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 (`45b0`, `45b0r6`, `45c0`, `45c0r6`) and D's three seeds (`45d*`, queued 06:25);
     - phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
 - **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
   - Phases 2-4 and D's tuning: about 50-62 h. The full RL stages would start about Mon Nov 23 08:00-20:00.
   - Phase 6 for the four contenders A4, A6, D4, D6 (a full RL stage and a selector chain each, about 11-17 h): about 44-68 h, ending about Wed Nov 25 04:00 to Thu Nov 26 16:00.
   - If the gate admits B and C, their tuning, full RL stages and chains add about 63-87 h, ending about Sat Nov 28 19:00 to Mon Nov 30 07:00.
   - If that happens, the plan's cut order applies (`docs/HEADS_PLAN.md`, "Schedule risks"): phase 6 is not shortened. The estimate will be redone from measured run lengths when the gate decides.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): on e9ffb8f (R17) since 23:13 Nov 20; last completed pass 05:51, OK, no failed passes; scoring D's seed 2 at 06:11. It restarts on the current code at the 06:42 check, for the rehearsal.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on bad4139 at 06:41 (the rehearsal's spec options); its first pass, 06:41, was OK, with no failed passes.
 - **Desktop CPU queue (`~/queue2`):** idle until the rehearsal's scoring.
 - **Anvil:** nothing running.
 
 ## Latest results
+- **Phase 3 is complete for A, B, C and D (Nov 21 06:42): three seeds each.** With every seed, D has the best candidates of any method (navtest best-of-6 93.47, against 91.35-91.99; each pair's interval excludes 0) and the worst own pick (82.20, against 83.85-84.69). A and B cannot be told apart; C is below both on the single path. R's seeds are running. Intervals below ("Phase 3 is complete for A-D").
 - **Phase 1 is complete (14:47).** A, B and C cannot be told apart on navtest (single path or best-of-6, at their layer choices). The regression control R is level with them on the single path: its own pick is not beaten by any path generator's before RL. D has the best candidates and the weakest own pick (table below).
 - **R13 is complete. The driver chose RL4 (Dr. GRPO) at 10:17 by the registered rule, and phase 4 has started with it.** The rule (R12, R13) takes the recipe with the highest navdev single-path change from the start at its better checkpoint (250 or 500 updates), averaged over A and D. Numbers are on navdev (743 scenes, 11 drives), seed 0, with the change and its drive interval in brackets:
 
@@ -97,21 +97,30 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - R loses about 1.5 PDMS to H1 at turns, against 0.8 going straight.
       - A stays about 1 point behind H1 in every command.
     - Turns are where a selector that predicts DAC per candidate has the most room.
-  - **Method pairs with seed noise** (Nov 21 02:43; `pilot_sft/heads/method_seeds.py`, `docs/navsim_eval/results/heads_method_seeds_2026-11-21.json`).
-    - Method: R5's hierarchical bootstrap over drives and seeds, with every scored seed at seed 0's choices. Methods with one seed get the larger between-seed SD of the three-seed methods: 0.50 single path, 0.49 best-of-6.
-    - **C is now measurably below A and B** (three seeds each, navtest, reporting; the confirmatory tests C1-C4 come at the end, Holm-corrected).
-      - B - C single path +0.79 (+0.22 to +1.32), best-of-6 +0.64 (+0.09 to +1.13).
-      - A - C single path +0.85 (+0.06 to +1.60).
-      - C's seeds: 84.34, 83.55, 83.65 (mean 83.85, SD 0.43).
-    - A - B +0.06 (-0.56 to +0.68) [3 vs 3]: still indistinguishable.
-    - A - R +0.12 (-1.01 to +1.24) and B - R +0.06 [R 1 seed so far].
-    - With D's two seeds (Nov 21 04:43; D: 82.92, 82.08 on navtest single path, best-of-6 93.67, 93.24):
-      - A - D +2.19 (+1.10 to +3.34) single path, -1.60 (-2.16 to -0.99) best-of-6;
-      - B - D +2.14 (+1.28 to +3.01), -1.46 (-2.01 to -0.84);
-      - C - D +1.35 (+0.35 to +2.32), -2.10 (-2.76 to -1.31);
-      - D - R -2.07 (-3.46 to -0.70).
-      - D keeps the lowest own pick and the best candidates.
-    - So before RL, DDIM (B) beats rectified flow (C) on this body, and masked diffusion (A) matches DDIM.
+  - **Phase 3 is complete for A-D: method pairs with every seed** (Nov 21 06:42; `pilot_sft/heads/method_seeds.py`, `docs/navsim_eval/results/heads_method_seeds_2026-11-21.json`).
+    - **Method:** R5's hierarchical bootstrap. Each resample redraws drives (with all their scenes) and each method's seeds, at seed 0's choices. R has one seed so far and gets the larger between-seed SD of the three-seed methods (navtest: 0.67 single path, 0.48 best-of-6).
+    - **Seeds on navtest** (single path; best-of-6):
+      - A: 84.67, 84.20, 85.20 (mean 84.69, SD 0.50); best-of-6 mean 91.85 (SD 0.35).
+      - B: 84.56, 84.74, 84.61 (mean 84.64, SD 0.09); 91.99 (SD 0.13).
+      - C: 84.34, 83.55, 83.65 (mean 83.85, SD 0.43); 91.35 (SD 0.49).
+      - D: 82.92, 82.08, 81.59 (mean 82.20, SD 0.67); 93.47 (SD 0.22).
+    - **Pairs on navtest** (difference of seed-averaged means, 95% interval over drives and seeds):
+
+      | Pair | Single path | Best-of-6 |
+      |---|---|---|
+      | A - B | +0.06 (-0.56 to +0.68) | -0.14 (-0.67 to +0.33) |
+      | A - C | +0.85 (+0.06 to +1.60) | +0.50 (-0.18 to +1.12) |
+      | B - C | +0.79 (+0.22 to +1.32) | +0.64 (+0.09 to +1.13) |
+      | A - D | +2.50 (+1.41 to +3.67) | -1.61 (-2.11 to -1.05) |
+      | B - D | +2.44 (+1.56 to +3.31) | -1.47 (-1.94 to -0.95) |
+      | C - D | +1.65 (+0.62 to +2.60) | -2.11 (-2.73 to -1.40) |
+      | A - R | +0.12 (-1.33 to +1.56) | - |
+      | D - R | -2.38 (-4.08 to -0.73) | - |
+
+    - **navdev, where choices are made, agrees.** D's own pick is below A's, B's and C's by 2.78-3.75 points, and its best-of-6 is above theirs by 2.10-2.26. Every one of those intervals excludes 0. A, B and C cannot be told apart on navdev.
+    - **What it means for the final system:** D has the best candidates of any method with every seed and the worst own pick. Its gap from own pick to best candidate is 11.3 points on navtest, against 7.2-7.5 for A, B and C [D]. That gap is what a selector can recover, which is why R16 takes D to phase 6 under both recipes. Phase 4's RL comes first.
+    - **D's seed spread is the largest:** seed 2 is 1.33 below seed 0 on navtest (-1.89 to -0.78), a range of 1.33 points. So a one-seed comparison can be off by about a point.
+    - Before RL, DDIM (B) beats rectified flow (C) on this body, masked diffusion (A) matches DDIM, and anchored diffusion (D) trades its own pick for its candidates. These are reports; the confirmatory tests C1-C4 come at the end, Holm-corrected.
   - **Seed spread: A1's three seeds (19:12; phase 3; `docs/navsim_eval/results/heads_seed_pairs_2026-11-20.json`).** At seed 0's choices, layers 12/18/24:
     - navtest single path 84.67, 84.20, 85.20: mean 84.69, between-seed SD 0.50. Paired against seed 0: seed 1 -0.47 (-0.72 to -0.19), seed 2 +0.53 (+0.20 to +0.90).
     - navtest best-of-6 91.77, 91.55, 92.24: mean 91.85, SD 0.35.
