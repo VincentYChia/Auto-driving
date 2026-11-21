@@ -159,6 +159,15 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **NAVSIM scoring runs on the desktop.** H1 re-scored there matches Anvil on all 12,146 scenes (PDMS 0.856069 both).
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
+**Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates):
+1. **R's seed 2** (`39r2`, ends about 11:45): paired against seed 0, then the method pairs with R's three seeds; copy to Anvil.
+2. **The rehearsal's two selectors** (about 11:45-13:20): R14's measures on navdev, read with the candidates' headroom above. Any pipeline failure is fixed for every chain before a contender's chain runs. The result is used for no choice.
+3. **Phase 2: A's continuity series** A0, A2, A3, A4 (from about 13:20, about 2.3 h each), read by R17. Then the leave-one-out, bin-size and (if the series' best is not A1) R17 seed runs.
+4. **Phase 4:** RL4 and RL6 on every method (16 runs of 1,500 updates). Then R16's gate for B and C, and R5's ranking (reported only).
+5. **Phase 6:** D's four tuning runs (R15), then each contender's full RL stage (rounds of 5,000 updates, R18) and selector chain (R14); the final system on navdev (R16), one navtest score per contender, and R4's confirmatory tests.
+6. **The report after each result** (the private link at the top of this page).
+
+### Done so far (details, oldest first)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
 2. ~~Code: regression R as a configuration kind, with tests; queue its two phase-1 training runs.~~ **Done** (bb05104; jobs 380, 381 queued).
 3. ~~Phase 0, navdev.~~ **Done** (02a8d7d):
@@ -271,11 +280,6 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - R16 came after R4, so two phrases needed a fixed reading. "After the RL stage" is phase 4 under the registered recipe (RL4, each seed at its R11 checkpoint); RL6 is reported beside it, not tested. "The navdev-chosen method" is R5's leader under RL4.
       - C1 A minus D after RL; C2 the chosen method after RL minus H1; C3 the chosen method before RL minus R; C4 the chosen method after minus before RL, seed-paired. All on navtest's single path, by R3's hierarchical bootstrap, with two-sided p-values and Holm's correction at family-wise 0.05.
       - `pilot_sft/heads/confirmatory.py` runs them once every input exists. 2 new tests.
-    - **Next:**
-      - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49), C's (Nov 21 02:43) and D's (Nov 21 06:42); R's are training (seed 1 since 05:55).
-      - the rehearsal of the selector chain (its two half generators after R's seed 1, about 07:55-10:30; then scoring and its two selectors): any failure fixed for every chain before a contender's chain runs.
-      - phase 4's RL4 and RL6 runs for B and C, which decide the phase-6 gate;
-      - the report after each.
 
 ## Waiting on the researcher
 - **Nothing is waiting on you.** Your 13:45 answers, now R16 in `docs/HEADS_PLAN.md`, registered 13:51 before any phase-4 run had started:
