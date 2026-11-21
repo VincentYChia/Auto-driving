@@ -51,8 +51,10 @@ def per_seed(exp, lc, split):
     return out
 
 
-def hier(a, b, drives, fill, n=10000, seed=0):
-    """Mean difference a - b (lists of per-scene series, one per seed) and its hierarchical-bootstrap 95% interval."""
+def hier(a, b, drives, fill, n=10000, seed=0, fill_b=None, draws=False):
+    """Mean difference a - b (lists of per-scene series, one per seed) and its hierarchical-bootstrap 95% interval.
+    A one-seed side gets an added normal draw with SD ``fill`` (``fill_b`` for b, if given; 0 for a fixed reference).
+    With ``draws``, also returns the bootstrap differences (fractions), for p-values."""
     toks = sorted(set.intersection(*[set(s.index) for s in a + b]))
     drv = np.array([drives[t] for t in toks])
     uniq, inv = np.unique(drv, return_inverse=True)
@@ -65,12 +67,13 @@ def hier(a, b, drives, fill, n=10000, seed=0):
         ma = A[rng.integers(0, len(A), len(A))].mean(0)
         mb = B[rng.integers(0, len(B), len(B))].mean(0)
         da = (ma * w).sum() / w.sum() + (rng.normal(0, fill) if len(A) == 1 else 0.0)
-        db = (mb * w).sum() / w.sum() + (rng.normal(0, fill) if len(B) == 1 else 0.0)
+        db = (mb * w).sum() / w.sum() + (rng.normal(0, fill if fill_b is None else fill_b) if len(B) == 1 else 0.0)
         d[i] = da - db
     point = float(A.mean() - B.mean())
-    return {"difference": round(100 * point, 2), "ci": [round(100 * float(np.percentile(d, 2.5)), 2),
-                                                       round(100 * float(np.percentile(d, 97.5)), 2)],
-            "seeds": [len(A), len(B)], "scenes": len(toks)}
+    res = {"difference": round(100 * point, 2), "ci": [round(100 * float(np.percentile(d, 2.5)), 2),
+                                                      round(100 * float(np.percentile(d, 97.5)), 2)],
+           "seeds": [len(A), len(B)], "scenes": len(toks)}
+    return (res, d) if draws else res
 
 
 RL_SEEDS = {"A": (0, 1, 2), "D": (0, 1, 2), "B": (0,), "C": (0,)}  # phase 4's RL seeds (driver.RL_SEEDS, R11)
@@ -106,7 +109,7 @@ def rl_seeds(exp: str, heads: str, lc: dict, method: str, recipe: int, base: int
     return out
 
 
-def hier_paired(a, b, drives, n=10000, seed=0):
+def hier_paired(a, b, drives, n=10000, seed=0, draws=False):
     """Mean of a - b where a[i] and b[i] share seed i (an RL run and the supervised run it started from). Each
     resample redraws drives and seed indices, the same indices for both, so the shared seed cancels. One seed: drives
     only (the RL stage's own training noise is then not in the interval)."""
@@ -119,9 +122,10 @@ def hier_paired(a, b, drives, n=10000, seed=0):
     for i in range(n):
         w = np.bincount(rng.integers(0, len(uniq), len(uniq)), minlength=len(uniq))[inv]
         d[i] = (D[rng.integers(0, len(D), len(D))].mean(0) * w).sum() / w.sum()
-    return {"difference": round(100 * float(D.mean()), 2), "ci": [round(100 * float(np.percentile(d, 2.5)), 2),
-                                                                 round(100 * float(np.percentile(d, 97.5)), 2)],
-            "seeds": len(D), "scenes": len(toks)}
+    res = {"difference": round(100 * float(D.mean()), 2), "ci": [round(100 * float(np.percentile(d, 2.5)), 2),
+                                                                round(100 * float(np.percentile(d, 97.5)), 2)],
+           "seeds": len(D), "scenes": len(toks)}
+    return (res, d) if draws else res
 
 
 def phase4(exp: str, heads: str, lcs: dict, split: str, drives: dict) -> Optional[dict]:

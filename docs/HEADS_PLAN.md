@@ -50,6 +50,12 @@ The two running layer-test runs (jobs 362, 363) are part of phase 1. They match 
 - C2: the navdev-chosen method after RL against H1's text output.
 - C3: the navdev-chosen generating method before RL against regression R: does generation help?
 - C4: the chosen method before against after RL: does RL help?
+- **Implementation** (added 2026-11-21 09:44, before any phase-4 run had started; `pilot_sft/heads/confirmatory.py`). R16 came after R4 and made phase 4 run two recipes and R5 report only, so the wording is fixed here:
+  - All four use navtest's single-path PDMS and R3's hierarchical bootstrap: drives with all their scenes, and each method's seeds; a one-seed path generator gets the larger of A's and D's between-seed SDs as an added draw.
+  - "After the RL stage" is phase 4 under the registered recipe, RL4, each RL seed at its R11 checkpoint (update 0 allowed). RL6's results are reported beside them, not tested.
+  - "The navdev-chosen method" is R5's leader under RL4 (`choices/decision_phase5.json`), computed as registered although R16 no longer lets it decide the final system.
+  - C2's H1 is one fixed model, so it gets no seed draw. C3 compares phase 3's seeds with R's. C4 pairs each RL seed with the supervised seed it started from.
+  - Each p-value is two-sided: twice the smaller bootstrap tail at 0 (10,000 resamples, so a resolution of 1e-4). Holm's step-down procedure holds the family-wise error at 0.05. Each test's 95% interval is reported beside its p-value.
 
 **R5. Method decision** (navdev, single-path PDMS after the RL stage, seed-averaged). Clarification 1 governs: contenders continue, with the same treatment, until this rule shows a clear winner. A tie means more of the same work for every contender, not an early stop.
 - The method with the highest point estimate continues automatically only if its interval against every other generating method excludes 0.
