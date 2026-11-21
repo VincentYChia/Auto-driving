@@ -98,7 +98,21 @@ def page_data(agg: dict) -> dict:
                    "checkpoints": cps,
                    "curve": r.get("curve", []), "choice": (r.get("choice") or {}).get("checkpoint")})
     rl.sort(key=lambda r: (r["recipe"] or "", ORDER.index(r["method"]) if r["method"] in ORDER else 9, r["seed"]))
-    return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "methods": agg.get("methods", {}),
+    seeds = []
+    for m in ORDER:
+        lc = agg.get("methods", {}).get(m)
+        if not isinstance(lc, dict) or "run" not in lc:
+            continue
+        r0, extra = agg.get("runs", {}).get(lc["run"], {}), agg.get("methods", {}).get(f"{m}_seeds") or {}
+        vals = {}
+        for sp in ("navdev", "navtest"):
+            for k in ("single", "best_of_6"):
+                first = (r0.get(f"{sp}_{k}") or {}).get("pdms")
+                rest = [extra.get(f"{lc['run']}-s{sd}", {}).get(f"{sp}_{k}" if k == "best_of_6" else f"{sp}_single_pdms")
+                        for sd in (1, 2)]
+                vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
+        seeds.append({"method": m, "run": lc["run"], "values": vals})
+    return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
             "generated": agg.get("generated"), "names": METHOD_NAMES}
 
 
@@ -258,6 +272,12 @@ function drawPhase1() {
   forest(document.getElementById('ch-pairs'), rowsP, {zero: true, signed: true, aria: 'Method pairs, paired differences'});
   table(document.getElementById('tb-pairs'), ['Pair (each at its navdev choices)', 'Single path', 'Best-of-6'],
     D.pairs.map(p => [`${esc(p.runs[0])} − ${esc(p.runs[1])}`, dvs(p[SPLIT + '_single']), dvs(p[SPLIT + '_best_of_6'])]));
+  const cell = v => { const x = v.filter(y => y != null); if (!x.length) return '–';
+    const m = x.reduce((a, b) => a + b, 0) / x.length;
+    const sd = x.length > 1 ? Math.sqrt(x.reduce((a, b) => a + (b - m) ** 2, 0) / (x.length - 1)) : null;
+    return v.map(y => y == null ? '–' : y.toFixed(2)).join(' · ') + ` <span class="small">(mean ${m.toFixed(2)}${sd != null ? ', SD ' + sd.toFixed(2) : ''})</span>`; };
+  table(document.getElementById('tb-seeds'), ['Method (layer choice)', 'Single path: seeds 0 · 1 · 2', 'Best-of-6: seeds 0 · 1 · 2'],
+    (D.seeds || []).map(r => [`${r.method} <span class="small">${esc(r.run)}</span>`, cell(r.values[SPLIT + '_single']), cell(r.values[SPLIT + '_best_of_6'])]));
   document.querySelectorAll('.splitname').forEach(e => e.textContent = SPLIT);
 }
 function drawRL() {
@@ -351,6 +371,9 @@ BODY = """
   <h3>Method pairs, each at its layer choice, paired on the same scenes</h3>
   <div class="chart" id="ch-pairs"></div>
   <details><summary>Table: method pairs on <span class="splitname"></span></summary><div id="tb-pairs"></div></details>
+  <h3>Phase 3: three seeds of each method's chosen configuration, at seed 0's choices</h3>
+  <p class="sub">Seeds 1 and 2 reuse seed 0's epoch, steps and sampling setting (R10). The spread between seeds is training noise.</p>
+  <div id="tb-seeds"></div>
 </section>
 <section>
   <h2>RL: change from the starting point on navdev</h2>
