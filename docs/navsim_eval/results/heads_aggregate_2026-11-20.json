@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-21 13:41:45",
+ "generated": "2026-11-21 17:11:46",
  "references": {
   "h1_text_navdev": {
    "pdms": 0.824,
@@ -51,6 +51,96 @@
   }
  },
  "runs": {
+  "a0-l12-18-24": {
+   "choice": {
+    "epoch": 15,
+    "steps": 2,
+    "scale": 1.0,
+    "navdev_single_pdms": 0.818,
+    "navdev_best_of_6": 0.8858
+   },
+   "navdev_single": {
+    "pdms": 0.818,
+    "ci_drives": [
+     0.7887,
+     0.8535
+    ],
+    "scenes": 743,
+    "drives": 11,
+    "vs_h1_text": {
+     "difference": -0.006,
+     "ci_drives": [
+      -0.0268,
+      0.0027
+     ],
+     "scenes": 743
+    },
+    "subscores": {
+     "no_at_fault_collisions": 0.9764,
+     "drivable_area_compliance": 0.9219,
+     "driving_direction_compliance": 0.9643,
+     "ego_progress": 0.7402,
+     "time_to_collision_within_bound": 0.9354,
+     "comfort": 0.996
+    }
+   },
+   "navdev_best_of_6": {
+    "pdms": 0.8858,
+    "ci_drives": [
+     0.8659,
+     0.9168
+    ],
+    "scenes": 743,
+    "drives": 11,
+    "vs_h1_text": {
+     "difference": 0.0617,
+     "ci_drives": [
+      0.0442,
+      0.0715
+     ],
+     "scenes": 743
+    },
+    "diversity": {
+     "endpoint_m": 2.033,
+     "pairwise_ade_m": 0.637
+    }
+   },
+   "navtest_single": {
+    "pdms": 0.8494,
+    "ci_drives": [
+     0.8364,
+     0.8632
+    ],
+    "scenes": 12146,
+    "drives": 44,
+    "vs_h1_text": {
+     "difference": -0.0067,
+     "ci_drives": [
+      -0.0108,
+      -0.0028
+     ],
+     "scenes": 12146
+    },
+    "subscores": {
+     "no_at_fault_collisions": 0.9804,
+     "drivable_area_compliance": 0.9395,
+     "driving_direction_compliance": 0.9803,
+     "ego_progress": 0.7942,
+     "time_to_collision_within_bound": 0.9313,
+     "comfort": 0.9972
+    }
+   },
+   "dev_ade": 0.7794,
+   "dev_best6_ade": 0.602,
+   "kind": "masked",
+   "layers": [
+    12,
+    18,
+    24
+   ],
+   "params": 42403516,
+   "train_seconds": 6881.9
+  },
   "a1-l12-18-24": {
    "choice": {
     "epoch": 15,
@@ -270,6 +360,71 @@
    ],
    "params": 41061180,
    "train_seconds": 2425.2
+  },
+  "a2-l12-18-24": {
+   "choice": {
+    "epoch": 20,
+    "steps": 2,
+    "scale": 1.5,
+    "navdev_single_pdms": 0.8236,
+    "navdev_best_of_6": 0.9068
+   },
+   "navdev_single": {
+    "pdms": 0.8236,
+    "ci_drives": [
+     0.8036,
+     0.8542
+    ],
+    "scenes": 743,
+    "drives": 11,
+    "vs_h1_text": {
+     "difference": -0.0004,
+     "ci_drives": [
+      -0.0138,
+      0.0043
+     ],
+     "scenes": 743
+    },
+    "subscores": {
+     "no_at_fault_collisions": 0.9812,
+     "drivable_area_compliance": 0.9246,
+     "driving_direction_compliance": 0.9643,
+     "ego_progress": 0.7449,
+     "time_to_collision_within_bound": 0.9421,
+     "comfort": 0.9987
+    }
+   },
+   "navdev_best_of_6": {
+    "pdms": 0.9068,
+    "ci_drives": [
+     0.8953,
+     0.9261
+    ],
+    "scenes": 743,
+    "drives": 11,
+    "vs_h1_text": {
+     "difference": 0.0828,
+     "ci_drives": [
+      0.0622,
+      0.0927
+     ],
+     "scenes": 743
+    },
+    "diversity": {
+     "endpoint_m": 4.415,
+     "pairwise_ade_m": 1.367
+    }
+   },
+   "dev_ade": 0.7621,
+   "dev_best6_ade": 0.5379,
+   "kind": "masked",
+   "layers": [
+    12,
+    18,
+    24
+   ],
+   "params": 41853244,
+   "train_seconds": 6573.1
   },
   "b-l12-18-24": {
    "choice": {
@@ -1567,7 +1722,64 @@
    }
   }
  },
- "series": {},
+ "series": {
+  "a0-l12-18-24": {
+   "config": "a0",
+   "variant": "",
+   "against": "a1-l12-18-24",
+   "navdev_single": {
+    "difference": -0.0005,
+    "ci_drives": [
+     -0.0186,
+     0.0087
+    ],
+    "scenes": 743,
+    "beyond_seed_noise": false
+   },
+   "navdev_best_of_6": {
+    "difference": -0.0107,
+    "ci_drives": [
+     -0.0194,
+     0.0008
+    ],
+    "scenes": 743,
+    "beyond_seed_noise": false
+   },
+   "navtest_single": {
+    "difference": 0.0027,
+    "ci_drives": [
+     -0.001,
+     0.0063
+    ],
+    "scenes": 12146,
+    "beyond_seed_noise": false
+   },
+   "measured_effect": false
+  },
+  "a2-l12-18-24": {
+   "config": "a2",
+   "variant": "",
+   "against": "a1-l12-18-24",
+   "navdev_single": {
+    "difference": 0.005,
+    "ci_drives": [
+     -0.0021,
+     0.0093
+    ],
+    "scenes": 743,
+    "beyond_seed_noise": false
+   },
+   "navdev_best_of_6": {
+    "difference": 0.0103,
+    "ci_drives": [
+     0.0013,
+     0.0197
+    ],
+    "scenes": 743,
+    "beyond_seed_noise": false
+   }
+  }
+ },
  "rl": {
   "a1-l12-18-24-rlrecipe0": {
    "start": {
