@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-21 08:42:29",
+ "generated": "2026-11-21 12:12:33",
  "references": {
   "h1_text_navdev": {
    "pdms": 0.824,
@@ -7665,6 +7665,105 @@
    }
   }
  },
+ "selectors": {
+  "selector-rehearsal-xfit-boundary": {
+   "chain": "rehearsal",
+   "variant": "xfit-boundary",
+   "heldout": {
+    "epoch": 1,
+    "delta": 0.1,
+    "heldout_selected_pdms": 0.8901381492614746,
+    "epochs_done": 1
+   },
+   "train": {
+    "params": 7199493,
+    "scenes": {
+     "train": 70889,
+     "heldout": 9737
+    },
+    "elapsed_s": null,
+    "peak_gpu_gb": null,
+    "candidates_per_scene": 7,
+    "extra_candidates_per_scene": 4
+   }
+  },
+  "selector-rehearsal-xfit-s0": {
+   "chain": "rehearsal",
+   "variant": "xfit-s0",
+   "heldout": {
+    "epoch": 10,
+    "delta": 0.02,
+    "heldout_selected_pdms": 0.9101446270942688,
+    "epochs_done": 20
+   },
+   "train": {
+    "params": 7199493,
+    "scenes": {
+     "train": 70889,
+     "heldout": 9737
+    },
+    "elapsed_s": 2058.5,
+    "peak_gpu_gb": 2.77,
+    "candidates_per_scene": 7,
+    "extra_candidates_per_scene": 0
+   },
+   "navdev": {
+    "scenes_selected": 2000,
+    "weights": "epoch_10",
+    "delta": 0.02,
+    "scenes": 743,
+    "candidates": 7,
+    "drives": 11,
+    "selected_pdms": 0.8277329206466675,
+    "own_pick_pdms": 0.8142665028572083,
+    "selected_minus_own": 0.013466390781104565,
+    "selected_minus_own_ci": [
+     0.004763734642638193,
+     0.036543544438751095
+    ],
+    "best_of_k_pdms": 0.9080834984779358,
+    "random_pick_pdms": 0.7093629240989685,
+    "mean_candidate_pdms": 0.7105847597122192,
+    "share_of_best_of_k_gap_closed": 0.1435389667749405,
+    "switch_rate": 0.3835800807537012,
+    "switches": {
+     "wins": 145,
+     "losses": 84,
+     "ties": 56
+    },
+    "picks_failing_nc_or_dac": {
+     "selected": 72,
+     "own_pick": 79
+    },
+    "top1_exact": 0.3297442799461642,
+    "top1_tie_aware": 0.4899057873485868
+   }
+  }
+ },
+ "selector_candidates": {
+  "rehearsal": {
+   "oof_half0": {
+    "scenes": 40943,
+    "candidates": 7,
+    "own_pick_pdms": 89.06,
+    "best_of_k_pdms": 95.0,
+    "mean_candidate_pdms": 80.73,
+    "share_some_candidate_beats_own": 0.586,
+    "own_pick_fails_nc_or_dac": 1907,
+    "share_of_failures_some_candidate_passes": 0.7352
+   },
+   "oof_half1": {
+    "scenes": 39683,
+    "candidates": 7,
+    "own_pick_pdms": 89.67,
+    "best_of_k_pdms": 95.52,
+    "mean_candidate_pdms": 81.05,
+    "share_some_candidate_beats_own": 0.5748,
+    "own_pick_fails_nc_or_dac": 1764,
+    "share_of_failures_some_candidate_passes": 0.7619
+   }
+  }
+ },
  "methods": {
   "A": {
    "method": "A",
@@ -7960,6 +8059,10 @@
    "r-l12-18-24-s1": {
     "navdev_single_pdms": 0.8233,
     "navtest_single_pdms": 0.8488
+   },
+   "r-l12-18-24-s2": {
+    "navdev_single_pdms": 0.8069,
+    "navtest_single_pdms": 0.8446
    }
   },
   "rl_recipe": {
@@ -8023,6 +8126,21 @@
    "phase4": "started with RL4",
    "rule": "docs/HEADS_PLAN.md R12, R13",
    "decided": "2026-11-20 10:17:38"
+  },
+  "selector_rehearsal_adoption": {
+   "selector": "selector-rehearsal-xfit-s0",
+   "adopted": true,
+   "gain_claimed": true,
+   "navdev_selected_minus_own": 0.013466390781104565,
+   "ci_drives": [
+    0.004763734642638193,
+    0.036543544438751095
+   ],
+   "navdev_selected_pdms": 0.8277329206466675,
+   "navdev_own_pick_pdms": 0.8142665028572083,
+   "rule": "docs/HEADS_PLAN.md R14",
+   "role": "rehearsal of R14's chain at full scale on the phase-1 configuration without RL; no contender (R16), used for no choice",
+   "decided": "2026-11-21 12:11:52"
   },
   "selector_spec_rehearsal": {
    "method": "A",

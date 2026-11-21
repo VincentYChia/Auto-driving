@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 08:47: R's two seeds, and empty phase-2 and phase-4 sections ready for their results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 11:44 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 12:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,9 +14,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 10:48). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 11:41):
-  - **Running: the rehearsal's cross-fitted seed-0 selector** (`0_62rehearsal0`, since 11:34), then its boundary ablation (`0_62rehearsal6`). Each trains on both halves' out-of-fold candidates (80,626 RL scenes, 7 candidates each), chooses its epoch and margin on 10 held-out training drives, then picks among A1's navdev candidates.
-  - **Done 11:34: R's seed 2** (`39r2`, rc 0; 1 h 43 min). Its paths were scored by 11:41; the pair against seed 0 and the method pairs with R's three seeds come at the next check. On both machines with matching checksums (11:44).
+- **4090 desktop, GPU queue** (one job at a time; read 12:11):
+  - **Running: the rehearsal's boundary-ablation selector** (`0_62rehearsal6`, since 12:09; about 35 min). Then phase 2 starts: A0 (`400`).
+  - **Done 12:09: the rehearsal's cross-fitted seed-0 selector** (11:34-12:09): +1.35 on navdev (above, "Latest results").
+  - **Done 11:34: R's seed 2** (`39r2`, rc 0; 1 h 43 min): navdev 80.69, navtest 84.46. On both machines with matching checksums (11:44).
   - **The rehearsal of the selector chain:** both half generators are done, the shared boundary set and both halves' candidates are scored, and the selectors are training.
     - **Half 0** (08:52): 118,387 scenes from 78 drives, 61.6 min; dev ADE 0.771 m at epoch 19. Its candidates for half 1's 40,943 RL scenes took about 1.5 min.
     - **Half 1** (09:51): 117,746 scenes from 80 drives, 56 min; dev ADE 0.752 m at epoch 20, against 0.758 for A1 on all drives.
@@ -24,7 +25,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - **Headroom of half 0's out-of-fold candidates** (40,943 training RL scenes, 7 candidates each; `pilot_sft/heads/candidate_headroom.py`): own pick 89.06, best of the 7 (a perfect selector) 95.00, mean candidate 80.73. Some candidate beats the own pick in 58.6% of scenes. The own pick fails NC or DAC in 1,907 scenes (4.7%), and some candidate passes both in 73.5% of those. So the selector has about 5.9 points to learn from, but the average candidate is 8.3 points below the own pick: switching has to be precise, which is what R14's margin is for. The selector's inputs on the desktop (A1's epoch-20 weights and navdev candidates) are in place.
     - **Half 1's candidates** (scored 10:39-11:24: 277,781 paths, 0 errors) agree: own pick 89.67, best of the 7 95.52, mean candidate 81.05; some candidate beats the own pick in 57.5% of scenes; the own pick fails NC or DAC in 1,764 scenes (4.4%), and a candidate passes in 76.2% of those.
   - **Done 07:49: R's seed 1** (`39r1`, rc 0). navdev single path 82.33 (seed 0: 81.58), navtest 84.88 (seed 0: 84.57). The run is on both machines with matching checksums (08:14). Paired against seed 0: +0.31 on navtest (-0.06 to +0.73). With R's two seeds, R is level with A and B on navtest's single path and above C and D ("Latest results").
-  - **Queued: 25 jobs, in run order:** the rehearsal's boundary-ablation selector; phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
+  - **Queued: 24 jobs, in run order:** phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
 - **Desktop CPU queue (`~/queue2`):** idle since 11:24, when the rehearsal's candidates were all scored.
   - **Done 09:52: the shared boundary set** (R14), the first CPU job of the chain at full scale. 16 perturbations of each of the 80,626 RL scenes' logged paths: 1,290,016 paths scored in 3.04 h (117.7 paths/s, 0 errors). A lateral NC or DAC limit lies within ±4 m in 75,992 scenes (94%); a longitudinal one within 0.6-1.4 times the path's length in only 9,517 (12%), so most scenes' longitudinal boundary pair is the outermost two, both passing. Every later chain reuses the set.
 - **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
@@ -37,6 +38,13 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Anvil:** nothing running (10:47). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
 
 ## Latest results
+- **The selector works at full scale (the rehearsal, 12:09; no contender, used for no choice).** On A1 without RL, the cross-fitted selector (seed 0) lifts navdev from the own pick's 81.43 to **82.77: +1.35 (+0.48 to +3.65), the interval excluding 0.**
+  - It closes 14% of the gap to the best of the 7 candidates (90.81). It switches in 38% of scenes: 145 wins, 84 losses, 56 ties. Its picks fail NC or DAC in 72 scenes, against 79 for the own pick.
+  - Held-out training drives (10 drives, 9,737 scenes) chose epoch 10 and margin 0.02: selected 91.01 against the own pick's 89.28 there.
+  - For scale: H1's text output scores 82.4 on navdev, so A1 plus this selector is level with or above it before any RL (point estimates; no paired test).
+  - Training took 34.7 min (7.2M parameters, 70,889 training scenes from 91 drives, about 800 scenes/s). The boundary ablation follows (since 12:09).
+  - What it means for the final system: R14's selector adds a measured gain on top of a supervised generator, so phase 6's chains, where it is judged after RL, start from a working design.
+- **Phase 3 is complete for all five, R included (Nov 21 12:12): three seeds each.** R's navtest single path 84.57, 84.88, 84.46 (mean 84.64). With three seeds on both sides, R is level with A (+0.05, -0.53 to +0.63) and B (-0.00, -0.37 to +0.36) and above C (-0.79, -1.36 to -0.19) and D (-2.45, -3.42 to -1.51).
 - **Phase 3 is complete for A, B, C and D (Nov 21 06:42): three seeds each.** With every seed, D has the best candidates of any method (navtest best-of-6 93.47, against 91.35-91.99; each pair's interval excludes 0) and the worst own pick (82.20, against 83.85-84.69). A and B cannot be told apart; C is below both on the single path. R, the regression control with one path, is level with A and B on navtest's single path and above C and D, now with two seeds (A - R -0.04, -0.62 to +0.55; C - R -0.88, -1.45 to -0.25; D - R -2.53, -3.50 to -1.53); its seed 2 is queued. Intervals below ("Phase 3 is complete for A-D").
 - **Phase 1 is complete (14:47).** A, B and C cannot be told apart on navtest (single path or best-of-6, at their layer choices). The regression control R is level with them on the single path: its own pick is not beaten by any path generator's before RL. D has the best candidates and the weakest own pick (table below).
 - **R13 is complete. The driver chose RL4 (Dr. GRPO) at 10:17 by the registered rule, and phase 4 has started with it.** The rule (R12, R13) takes the recipe with the highest navdev single-path change from the start at its better checkpoint (250 or 500 updates), averaged over A and D. Numbers are on navdev (743 scenes, 11 drives), seed 0, with the change and its drive interval in brackets:
@@ -103,13 +111,13 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - A stays about 1 point behind H1 in every command.
     - Turns are where a selector that predicts DAC per candidate has the most room.
   - **Phase 3 is complete for A-D: method pairs with every seed** (Nov 21 06:42; `pilot_sft/heads/method_seeds.py`, `docs/navsim_eval/results/heads_method_seeds_2026-11-21.json`).
-    - **Method:** R5's hierarchical bootstrap. Each resample redraws drives (with all their scenes) and each method's seeds, at seed 0's choices. R has two seeds so far (Nov 21 08:42), resampled like the others.
+    - **Method:** R5's hierarchical bootstrap. Each resample redraws drives (with all their scenes) and each method's seeds, at seed 0's choices. R has three seeds (Nov 21 12:12), resampled like the others.
     - **Seeds on navtest** (single path; best-of-6):
       - A: 84.67, 84.20, 85.20 (mean 84.69, SD 0.50); best-of-6 mean 91.85 (SD 0.35).
       - B: 84.56, 84.74, 84.61 (mean 84.64, SD 0.09); 91.99 (SD 0.13).
       - C: 84.34, 83.55, 83.65 (mean 83.85, SD 0.43); 91.35 (SD 0.49).
       - D: 82.92, 82.08, 81.59 (mean 82.20, SD 0.67); 93.47 (SD 0.22).
-      - R (one path, no best-of-6): 84.57, 84.88 (mean 84.72). R's seed 1 minus seed 0: +0.31 on navtest (-0.06 to +0.73), +0.76 on navdev (+0.05 to +1.95).
+      - R (one path, no best-of-6): 84.57, 84.88, 84.46 (mean 84.64, SD 0.22). Seed 1 minus seed 0 +0.31 on navtest (-0.06 to +0.73); seed 2 minus seed 0 -0.11 (-0.48 to +0.31).
     - **Pairs on navtest** (difference of seed-averaged means, 95% interval over drives and seeds):
 
       | Pair | Single path | Best-of-6 |
@@ -120,10 +128,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       | A - D | +2.50 (+1.41 to +3.67) | -1.61 (-2.11 to -1.05) |
       | B - D | +2.44 (+1.56 to +3.31) | -1.47 (-1.94 to -0.95) |
       | C - D | +1.65 (+0.62 to +2.60) | -2.11 (-2.73 to -1.40) |
-      | A - R | -0.04 (-0.62 to +0.55) | - |
-      | B - R | -0.09 (-0.48 to +0.32) | - |
-      | C - R | -0.88 (-1.45 to -0.25) | - |
-      | D - R | -2.53 (-3.50 to -1.53) | - |
+      | A - R | +0.05 (-0.53 to +0.63) | - |
+      | B - R | -0.00 (-0.37 to +0.36) | - |
+      | C - R | -0.79 (-1.36 to -0.19) | - |
+      | D - R | -2.45 (-3.42 to -1.51) | - |
 
     - **navdev, where choices are made, agrees.** D's own pick is below A's, B's and C's by 2.78-3.75 points, and its best-of-6 is above theirs by 2.10-2.26. Every one of those intervals excludes 0. A, B and C cannot be told apart on navdev.
     - **What it means for the final system:** D has the best candidates of any method with every seed and the worst own pick. Its gap from own pick to best candidate is 11.3 points on navtest, against 7.2-7.5 for A, B and C [D]. That gap is what a selector can recover, which is why R16 takes D to phase 6 under both recipes. Phase 4's RL comes first.
@@ -162,12 +170,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates):
-1. **R's seed 2** (done 11:34, copied): paired against seed 0, then the method pairs with R's three seeds.
-2. **The rehearsal's two selectors** (about 11:45-13:20): R14's measures on navdev, read with the candidates' headroom above. Any pipeline failure is fixed for every chain before a contender's chain runs. The result is used for no choice.
-3. **Phase 2: A's continuity series** A0, A2, A3, A4 (from about 13:20, about 2.3 h each), read by R17. Then the leave-one-out, bin-size and (if the series' best is not A1) R17 seed runs.
-4. **Phase 4:** RL4 and RL6 on every method (16 runs of 1,500 updates). Then R16's gate for B and C, and R5's ranking (reported only).
-5. **Phase 6:** D's four tuning runs (R15), then each contender's full RL stage (rounds of 5,000 updates, R18) and selector chain (R14); the final system on navdev (R16), one navtest score per contender, and R4's confirmatory tests.
-6. **The report after each result** (the private link at the top of this page).
+1. **The rehearsal's boundary-ablation selector** (until about 12:45). Its seed-0 selector is done: +1.35 on navdev.
+2. **Phase 2: A's continuity series** A0, A2, A3, A4 (from about 12:45, about 2.3 h each), read by R17. Then the leave-one-out, bin-size and (if the series' best is not A1) R17 seed runs.
+3. **Phase 4:** RL4 and RL6 on every method (16 runs of 1,500 updates). Then R16's gate for B and C, and R5's ranking (reported only).
+4. **Phase 6:** D's four tuning runs (R15), then each contender's full RL stage (rounds of 5,000 updates, R18) and selector chain (R14); the final system on navdev (R16), one navtest score per contender, and R4's confirmatory tests.
+5. **The report after each result** (the private link at the top of this page).
 
 ### Done so far (details, oldest first)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
