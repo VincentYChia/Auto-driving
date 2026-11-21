@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 08:47: R's two seeds, and empty phase-2 and phase-4 sections ready for their results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 09:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 09:18 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -266,6 +266,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - **Why:** your direction to iterate RL while it improves, past the dates. Without it, a full RL stage still rising at 5,000 updates would stop there.
       - 2 new tests; 129 heads tests pass. `rl_choose` was split into `checkpoint_scores` and `best_update`, with the same behaviour.
     - **Done 08:46 (Nov 21): training-log fix** (683e005). An epoch's first training-loss line divided a partial window by 50, so the logged loss swung in a sawtooth (A1's ran 0.02-1.08). It looked like the rehearsal's half-0 loss had risen from 0.26 to 1.14; it had not (its dev ADE tracks A1's). Lines now average the steps they cover (logged as `window`). Training never read these numbers, so no result changes.
+    - **Done 09:18 (Nov 21): the selectors in the aggregate and the report, before the first one is trained** (ab215d8). The aggregate now has every trained selector's held-out choice, training and R14's measures on navdev. The report gets a phase-6 section per chain: the adoption verdict, selected minus own pick per variant with its drive interval, and the switches and failures behind it. The rehearsal's two selectors will fill it first (about 13:40).
     - **Next:**
       - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49), C's (Nov 21 02:43) and D's (Nov 21 06:42); R's are training (seed 1 since 05:55).
       - the rehearsal of the selector chain (its two half generators after R's seed 1, about 07:55-10:30; then scoring and its two selectors): any failure fixed for every chain before a contender's chain runs.
