@@ -586,7 +586,8 @@ def rl_navtest(rl: str, ch: dict, lc: dict) -> Optional[dict]:
     return res
 
 
-def decide(per_method: Dict[str, List[pd.Series]], drives: Dict[str, str], n: int = 10000, seed: int = 0) -> dict:
+def decide(per_method: Dict[str, List[pd.Series]], drives: Dict[str, str], n: int = 10000, seed: int = 0,
+           fill: Optional[float] = None) -> dict:
     """R5 with R3's hierarchical bootstrap. Each resample redraws drives (with all their scenes) and every method's
     seeds with replacement. A method with one seed gets an added normal draw with the larger of A's and D's
     between-seed SDs. The leader continues only if its interval against every other method excludes 0."""
@@ -596,7 +597,8 @@ def decide(per_method: Dict[str, List[pd.Series]], drives: Dict[str, str], n: in
     mats = {m: np.stack([s.loc[tokens].values for s in ss]) for m, ss in per_method.items()}  # [seeds, scenes]
     point = {m: float(v.mean()) for m, v in mats.items()}
     seed_sd = {m: float(v.mean(1).std(ddof=1)) for m, v in mats.items() if v.shape[0] > 1}
-    fill = max([seed_sd.get(m, 0.0) for m in ("A", "D")] or [0.0])
+    if fill is None:  # R5: the larger of A's and D's between-seed SDs
+        fill = max([seed_sd.get(m, 0.0) for m in ("A", "D")] or [0.0])
     rng = np.random.default_rng(seed)
     draws = {m: np.empty(n) for m in mats}
     for i in range(n):
@@ -891,9 +893,11 @@ def drive_interval(x: np.ndarray, groups, n: int = 10000) -> List[float]:
 
 
 def bc_gate() -> Optional[dict]:
-    """R16: B and C join phase 6 (both recipes) if, after phase 4, either measure (navdev single path or best-of-6, seed
-    0, at each run's chosen checkpoint) under its better recipe is not clearly below the best of A and D: the paired
-    drive interval of the difference reaches 0 or above. None until every phase-4 seed-0 run is chosen."""
+    """R16 (amended 21:42): B and C join phase 6, under both recipes, if after phase 4 the interval of (the best of A
+    and D) minus it includes 0, or it leads, on navdev single path or best-of-6. The interval is R5's hierarchical
+    bootstrap over drives and seeds: every phase-4 seed at its chosen checkpoint, with the larger of A's and D's
+    between-seed SDs added for single-seed methods. Each method takes its better recipe and A and D their best
+    (method, recipe), by point estimate. None until every phase-4 run is chosen."""
     out = os.path.join(P["heads"], "choices", "phase6_gate_bc.json")
     if os.path.exists(out):
         return read_json(out)
@@ -901,38 +905,48 @@ def bc_gate() -> Optional[dict]:
     if not os.path.exists(rf):
         return None
     base = read_json(rf)["recipe"]
-    vals = {}
+    vals = {}  # (method, recipe) -> measure -> one per-scene series per seed
     for m in ("A", "D", "B", "C"):
         lc = choose_layers(m)
         start = rl_start(m, lc) if lc else None
         if not start:
             return None
         for r in phase4_recipes(base):
-            ch = rl_choose(rl_name(lc["run"], r, base), lc, lc["run"], start["epoch"], RL_CHECKPOINTS, navtest=False)
-            if not ch:
-                return None
-            paths = chosen_paths(ch, "navdev")
-            single = score(os.path.join(paths, "single"), "navdev")
-            if ch["scale"] is not None:
-                b6 = pd.concat([score(f, "navdev") for f in sample_folders(paths, ch["scale"], GRID[lc["kind"]]["k"])],
-                               axis=1).max(axis=1)
-            else:
-                b6 = single
-            vals[(m, r)] = {"single": single, "best_of_6": b6}
+            per = {"single": [], "best_of_6": []}
+            for sd in RL_SEEDS[m]:
+                sft = lc["run"] if sd == 0 else f"{lc['run']}-s{sd}"
+                ch = rl_choose(rl_name(sft, r, base), lc, sft, start["epoch"], RL_CHECKPOINTS, navtest=False)
+                if not ch:
+                    return None
+                paths = chosen_paths(ch, "navdev")
+                single = score(os.path.join(paths, "single"), "navdev")
+                if ch["scale"] is not None:
+                    b6 = pd.concat([score(f, "navdev") for f in sample_folders(paths, ch["scale"], GRID[lc["kind"]]["k"])],
+                                   axis=1).max(axis=1)
+                else:
+                    b6 = single
+                per["single"].append(single)
+                per["best_of_6"].append(b6)
+            vals[(m, r)] = per
     drives = read_json(os.path.join(os.path.dirname(P["cache"]), "drives_navdev.json"))
-    res = {"rule": "docs/HEADS_PLAN.md R16", "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
+    mean = lambda ss: float(np.mean([x.mean() for x in ss]))  # noqa: E731
+    res = {"rule": "docs/HEADS_PLAN.md R16 (amended 2026-11-20 21:42)", "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
     for m in ("B", "C"):
         res[m] = {"joins": False, "tests": {}}
         for meas in ("single", "best_of_6"):
-            best = max(((x, r) for x in ("A", "D") for r in phase4_recipes(base)), key=lambda k: float(vals[k][meas].mean()))
-            mine = max(phase4_recipes(base), key=lambda r: float(vals[(m, r)][meas].mean()))
-            d = (vals[(m, mine)][meas] - vals[best][meas]).dropna()
-            ci = drive_interval(d.values, [drives[t] for t in d.index])
-            res[m]["tests"][meas] = {"recipe": mine, "against": f"{best[0]} RL{best[1]}",
-                                     "difference": round(float(d.mean()), 4), "ci_drives": ci}
-            res[m]["joins"] = res[m]["joins"] or ci[1] >= 0
+            best = max(((x, r) for x in ("A", "D") for r in phase4_recipes(base)), key=lambda k: mean(vals[k][meas]))
+            mine = max(phase4_recipes(base), key=lambda r: mean(vals[(m, r)][meas]))
+            sds = [float(np.std([x.mean() for x in vals[(x, r)][meas]], ddof=1))
+                   for x in ("A", "D") for r in phase4_recipes(base) if len(vals[(x, r)][meas]) > 1]
+            d = decide({"AD": vals[best][meas], m: vals[(m, mine)][meas]}, drives, fill=max(sds or [0.0]))
+            leads = d["leader"] == m
+            ci = None if leads else d["leader_minus_other"][m]["ci"]
+            res[m]["tests"][meas] = {"recipe": mine, "against": f"{best[0]} RL{best[1]}", "leads": leads,
+                                     "point": d["point_navdev_single_pdms"], "best_ad_minus_it_ci": ci,
+                                     "seed_sd_added": d["sd_added_for_single_seed_methods"]}
+            res[m]["joins"] = res[m]["joins"] or leads or ci[0] <= 0
     write_json(out, res)
-    log(f"phase 6 gate for B and C (R16): {json.dumps(res)}")
+    log(f"phase 6 gate for B and C (R16, amended): {json.dumps(res)}")
     return res
 
 

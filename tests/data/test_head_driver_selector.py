@@ -212,11 +212,12 @@ def test_phase6_queues_tuning_runs_and_holds_methods_without_their_flags(tree, m
     assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("47")]  # nothing until the tuning is done
 
 
-def phase4_seed0(method, recipe, base=4):
-    """Write a phase-4 seed-0 run's navdev choice and its chosen paths (checkpoint rl_250)."""
+def phase4_seed0(method, recipe, base=4, seed=0):
+    """Write a phase-4 run's navdev choice and its chosen paths (checkpoint rl_250), for one supervised seed."""
     lc = driver.choose_layers(method)
     assert driver.rl_start(method, lc)
-    rl = driver.rl_name(lc["run"], recipe, base)
+    sft = lc["run"] if seed == 0 else f"{lc['run']}-s{seed}"
+    rl = driver.rl_name(sft, recipe, base)
     c, g = lc["choice"], driver.GRID[lc["kind"]]
     rd = Path(driver.P["heads"]) / rl
     paths = rd / "navdev_rl_250" / f"steps{c['steps']}"
@@ -224,7 +225,7 @@ def phase4_seed0(method, recipe, base=4):
         (paths / n).mkdir(parents=True, exist_ok=True)
         (paths / n / "shard_000_of_001.jsonl").write_text("{}\n")
     (rd / "choices_navdev.json").write_text(json.dumps(
-        {"run": rl, "start": {"run": lc["run"], "weights": "epoch_15"}, "checkpoint": "rl_250", "updates": 250,
+        {"run": rl, "start": {"run": sft, "weights": "epoch_15"}, "checkpoint": "rl_250", "updates": 250,
          "steps": c["steps"], "scale": c["scale"], "navdev_single_pdms": 0.8, "navdev_best_of_6": 0.9,
          "single_by_checkpoint": {"0": 0.8, "250": 0.8}, "best_of_6_by_checkpoint": {"0": 0.9, "250": 0.9}}))
 
@@ -252,13 +253,21 @@ def test_b_and_c_join_phase6_only_if_not_clearly_below_a_and_d(tree, monkeypatch
     choices = Path(driver.P["heads"]) / "choices"
     choices.mkdir(parents=True, exist_ok=True)
     (choices / "rl_recipe.json").write_text(json.dumps({"recipe": 4}))
-    assert driver.bc_gate() is None  # not before every phase-4 seed-0 run is chosen
+    assert driver.bc_gate() is None  # not before every phase-4 run is chosen
     for m in ("A", "D", "B", "C"):
         for r in (4, 6):
             phase4_seed0(m, r)
+    assert driver.bc_gate() is None  # A's and D's seeds 1 and 2 are still missing (amended R16: every seed)
+    for m in ("A", "D"):
+        for r in (4, 6):
+            for sd in (1, 2):
+                phase4_seed0(m, r, seed=sd)
     g = driver.bc_gate()
     assert g["B"]["joins"] is True and g["C"]["joins"] is False
-    assert g["C"]["tests"]["single"]["ci_drives"][1] < 0 and g["C"]["tests"]["best_of_6"]["ci_drives"][1] < 0
+    assert g["B"]["tests"]["single"]["leads"] is True  # B scores 0.02 above A and D in this fake
+    c = g["C"]["tests"]
+    assert c["single"]["best_ad_minus_it_ci"][0] > 0 and c["best_of_6"]["best_ad_minus_it_ci"][0] > 0
+    assert "amended" in g["rule"]
     assert driver.contenders() == [("A", 4), ("A", 6), ("D", 4), ("D", 6), ("B", 4), ("B", 6)]
 
 
