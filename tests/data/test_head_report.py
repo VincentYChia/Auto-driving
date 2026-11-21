@@ -87,3 +87,6 @@ def test_selector_rows_per_chain_with_adoption():
     assert rh["adoption"] == {"adopted": True, "gain_claimed": True, "role": "rehearsal"}
     assert "navdev" not in rows[0]["variants"][0]  # trained, not yet applied to navdev
     assert 'id="sel"' in report_html.build(agg, {"title": "t"})
+    agg["selector_candidates"] = {"rehearsal": {"oof_half0": {"scenes": 40943, "own_pick_pdms": 89.06}}, "d4": {"oof_half0": {}}}
+    rows = report_html.page_data(agg)["selectors"]
+    assert [r["chain"] for r in rows] == ["a4", "d4", "rehearsal"] and rows[2]["candidates"]["oof_half0"]["scenes"] == 40943

@@ -21,6 +21,7 @@ Sections:
   choices, paired, with R17's test (more than 1.4 points and a drive interval excluding 0).
 - ``selectors``: phase 6 (R14): every trained selector's held-out choice, training, and R14's measures on navdev
   (and navtest once run).
+- ``selector_candidates``: per chain, the headroom of each completely scored candidate set (training scenes).
 - ``methods``: the choice files the driver wrote (layer choices, RL starts, the R12 recipe, decisions).
 
 Intervals resample drives: 10,000 resamples, seed 0. Runs on the desktop with the score CSVs (pilot env).
@@ -43,6 +44,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from summarize import diversity, read_paths  # noqa: E402
+from candidate_headroom import headroom  # noqa: E402
 
 HOME = os.path.expanduser("~")
 SPLITS = ("navdev", "navtest")
@@ -284,6 +286,20 @@ class Results:
             out[os.path.basename(d)] = rec
         return out
 
+    def selector_candidates(self) -> dict:
+        """Phase 6 (R14): the headroom of each chain's completely scored candidate sets (``selector-<chain>/
+        candidates_<set>.jsonl`` with its ``.done`` marker): the own pick, the best of the candidates, the mean
+        candidate, how often some candidate beats the own pick, and the own pick's NC or DAC failures some candidate
+        passes. These are training scenes (out of fold, or in fold for the control)."""
+        out = {}
+        for f in sorted(glob.glob(os.path.join(self.heads, "selector-*", "candidates_*.jsonl"))):
+            if not os.path.exists(f + ".done"):
+                continue
+            chain = os.path.basename(os.path.dirname(f))[len("selector-"):]
+            name = os.path.basename(f)[len("candidates_"):-len(".jsonl")]
+            out.setdefault(chain, {})[name] = headroom(f)
+        return out
+
     def comparisons(self, methods: Dict[str, dict]) -> dict:
         chosen = {m: f["run"] for m, f in methods.items() if "run" in f and "choice" in f}
         return {f"{m1}-{m2}": {"runs": [chosen[m1], chosen[m2]], **self.pair(chosen[m1], chosen[m2])}
@@ -348,7 +364,8 @@ class Results:
                                                           "ci_drives": drive_ci(s.values, g),
                                                           "scenes": int(len(s)), "subscores": self.subscores(d)}
         out.update(runs=self.runs(), layer_tests=self.layer_tests(methods), comparisons=self.comparisons(methods),
-                   series=self.series(methods), rl=self.rl(), selectors=self.selectors(), methods=methods)
+                   series=self.series(methods), rl=self.rl(), selectors=self.selectors(),
+                   selector_candidates=self.selector_candidates(), methods=methods)
         return out
 
 

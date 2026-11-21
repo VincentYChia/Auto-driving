@@ -174,6 +174,21 @@ def test_selectors_carry_their_choice_training_and_navdev_measures(tree):
     assert "not_kept" not in r["navdev"] and "navtest" not in r
 
 
+def test_each_chains_scored_candidate_sets_carry_their_headroom(tree):
+    exp, cache = tree
+    d = exp / "heads" / "selector-rehearsal"
+    d.mkdir(parents=True)
+    rows = [{"token": "t1", "names": ["single", "sample_0"], "results": [
+        {"score": 0.8, "no_at_fault_collisions": 1.0, "drivable_area_compliance": 1.0},
+        {"score": 0.9, "no_at_fault_collisions": 1.0, "drivable_area_compliance": 1.0}]}]
+    for h in (0, 1):
+        (d / f"candidates_oof_half{h}.jsonl").write_text("".join(json.dumps(r) + chr(10) for r in rows))
+    (d / "candidates_oof_half0.jsonl.done").write_text("")  # half 1 still being scored: left out
+    out = cr.Results(str(exp), str(cache)).collect()["selector_candidates"]
+    assert list(out) == ["rehearsal"] and list(out["rehearsal"]) == ["oof_half0"]
+    assert out["rehearsal"]["oof_half0"]["own_pick_pdms"] == 80.0 and out["rehearsal"]["oof_half0"]["best_of_k_pdms"] == 90.0
+
+
 def test_cli(tree, tmp_path):
     exp, cache = tree
     import subprocess

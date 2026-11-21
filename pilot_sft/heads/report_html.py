@@ -139,6 +139,8 @@ def selector_rows(agg: dict) -> list:
                            "switches": n.get("switches"), "fail": n.get("picks_failing_nc_or_dac"),
                            "top1": n.get("top1_tie_aware"), "scenes": n.get("scenes"), "candidates": n.get("candidates")}
         chains.setdefault(r["chain"], {"chain": r["chain"], "variants": []})["variants"].append(row)
+    for x, sets in agg.get("selector_candidates", {}).items():  # the chain's scored training candidates
+        chains.setdefault(x, {"chain": x, "variants": []})["candidates"] = sets
     out = []
     for x in sorted(chains, key=lambda c: (c == "rehearsal", c)):
         ch = chains[x]
@@ -501,6 +503,9 @@ function drawSel() {
     const h = document.createElement('h3');
     h.textContent = ch.chain === 'rehearsal' ? 'Rehearsal: A1 without RL (no contender; used for no choice)' : `Contender ${ch.chain.toUpperCase()}`;
     box.appendChild(h);
+    Object.entries(ch.candidates || {}).forEach(([k, c]) => { const p = document.createElement('p'); p.className = 'small';
+      p.innerHTML = `Training candidates, ${esc(k.replace('_', ' '))} (${c.scenes.toLocaleString()} scenes, ${c.candidates} each): own pick ${c.own_pick_pdms.toFixed(2)}, best ${c.best_of_k_pdms.toFixed(2)}, mean ${c.mean_candidate_pdms.toFixed(2)}; some candidate beats the own pick in ${(100 * c.share_some_candidate_beats_own).toFixed(1)}% of scenes; the own pick fails NC or DAC in ${c.own_pick_fails_nc_or_dac.toLocaleString()}, and a candidate passes in ${(100 * c.share_of_failures_some_candidate_passes).toFixed(1)}% of those.`;
+      box.appendChild(p); });
     if (ch.adoption) { const p = document.createElement('p'); p.className = 'small';
       p.innerHTML = `Adoption on navdev (R14, the cross-fitted seed-0 selector): ${ch.adoption.adopted ? '<b>adopted</b>' : 'not adopted'}; a gain is ${ch.adoption.gain_claimed ? 'claimed (its drive interval excludes 0)' : 'not claimed'}.`;
       box.appendChild(p); }
