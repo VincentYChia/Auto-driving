@@ -275,6 +275,15 @@ def train_body(run: str, kind: str, layers: str, seed: int, flags: List[str]) ->
             "[ -f $RUN/final.pt ] || { echo \"no final.pt\"; exit 1; }\n")
 
 
+def report_navtest(run: str, kind: str, choice: Optional[dict]) -> Optional[dict]:
+    """R1: navtest is reported for every configuration (R17 reads phase 2's series there): once a run has its navdev
+    choices, queue its navtest paths at them and score them. Nothing before the choice; no choice reads the result."""
+    if not choice:
+        return None
+    queue_navtest(run, kind, choice)
+    return score_navtest_run(run, kind, choice)
+
+
 def score_navtest_run(run: str, kind: str, choice: dict) -> Optional[dict]:
     """navtest scores at the run's choices (reporting only): singles at every step count, 6 samples at the chosen
     steps and setting. Returns the summary once complete."""
@@ -388,6 +397,9 @@ def series(lc: dict) -> None:
                   train_body(run, "masked", layers, 0, flags(SERIES[cfg])) +
                   f"bash scripts/desk/navdev_grid.sh $RUN masked\n")
     ch = {cfg: choose_run(name_of[cfg], "masked") for cfg in SERIES}
+    for cfg, c in ch.items():
+        if c and cfg != "a1":
+            report_navtest(name_of[cfg], "masked", c)
     if any(v is None for v in ch.values()):
         return
     order = list(SERIES)
@@ -405,11 +417,13 @@ def series(lc: dict) -> None:
         queue_job(f"41{f[0]}_train-{run}", f"phase 2, leave-one-out: {best.upper()} without '{f}'",
                   train_body(run, "masked", layers, 0, flags(rest)) + "bash scripts/desk/navdev_grid.sh $RUN masked\n",
                   last=True)
+        report_navtest(run, "masked", choose_run(run, "masked"))
     for b in ("0.25", "0.05"):
         run = f"{best}-bin{b.replace('.', '')}-{tag}"
         queue_job(f"42{b.replace('.', '')}_train-{run}", f"phase 2, {best.upper()} with {b} m bins",
                   train_body(run, "masked", layers, 0, flags(feats) + ["--bin-m", b]) +
                   "bash scripts/desk/navdev_grid.sh $RUN masked\n", last=True)
+        report_navtest(run, "masked", choose_run(run, "masked"))
     if best != "a1":  # R17: the series' best gets seeds 1 and 2, at its own R10 choices, against A1's three seeds
         cb, g = ch[best], GRID["masked"]
         res = {}
@@ -1079,6 +1093,9 @@ def tuned_config(method: str, lc: dict) -> Optional[dict]:
         log(f"phase 6: {method}'s R15 tuning runs need their training flags in train_head.py first")
         return None
     ch = [(run, fl, choose_run(run, kind)) for run, fl in cands]
+    for run, _, c in ch:
+        if run != lc["run"]:
+            report_navtest(run, kind, c)
     if any(c is None for _, _, c in ch):
         return None
     run, fl, c = max(ch, key=lambda r: (r[2]["navdev_single_pdms"], r[0] == lc["run"]))

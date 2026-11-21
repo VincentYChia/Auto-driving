@@ -339,6 +339,10 @@ def test_phase6_queues_tuning_runs_and_holds_methods_without_their_flags(tree, m
     jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("46"))
     assert jobs == [f"46d{i}_train-d-r15{i}-{tag}.sh" for i in range(4)]  # queued once for both of D's recipes
     assert "--anchor-trunc 0.02" in (Path(driver.P["queue"]) / f"46d2_train-d-r152-{tag}.sh").read_text()
+    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("350_navtest-d-r15")]  # nothing before a choice
+    make_run(f"d-r150-{tag}", "anchor")  # its navdev grid done: its navtest paths are queued for the report (R1)
+    driver.phase6({})
+    assert f"350_navtest-d-r150-{tag}.sh" in os.listdir(driver.P["queue"])
     monkeypatch.setattr(driver, "R15_READY", {"B", "C", "D"})  # B's flags exist: its 4 runs follow
     driver.phase6({})
     jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("46b"))

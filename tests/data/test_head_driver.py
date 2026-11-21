@@ -131,6 +131,10 @@ def test_the_series_best_gets_two_more_seeds_when_it_is_not_a1(tree, monkeypatch
     lc = driver.choose_layers("A")
     driver.series(lc)
     assert json.loads((Path(driver.P["heads"]) / "choices" / "A_series.json").read_text())["best"] == "a2"
+    # R1 and R17: every series run's navtest paths at its navdev choices, queued once chosen (A1 has its own already)
+    nav = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("350_navtest-a"))
+    assert nav == [f"350_navtest-{c}-l12-18-24.sh" for c in ("a0", "a2", "a3", "a4")]
+    assert "--split navtest" in (Path(driver.P["queue"]) / "350_navtest-a0-l12-18-24.sh").read_text()
     jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("z_43"))  # queued last: no choice reads them
     assert jobs == ["z_431_train-a2-l12-18-24-s1.sh", "z_432_train-a2-l12-18-24-s2.sh"]
     assert sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("z_4")) == sorted(
