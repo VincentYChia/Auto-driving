@@ -7,7 +7,10 @@ their scenes) and each method's seeds. A method with one seed gets the larger be
 three, as an added normal draw (R5). navtest is reporting only (R1); navdev is where choices are made.
 
 R17: once phase 2's series' best (choices/A_series.json) is not A1 and its seeds 1 and 2 are scored at its own
-choices, ``series_best_vs_a1`` compares it with A1 over three seeds each, the same way. Prints JSON.
+choices, ``series_best_vs_a1`` compares it with A1 over three seeds each, the same way.
+
+Phase 4 (``phase4``, per recipe, once a method's RL seeds are all chosen and scored): each method after RL, the method
+pairs after RL, and each method's change from phase 3 (seed-paired). Prints JSON.
 """
 import glob
 import json
@@ -70,6 +73,93 @@ def hier(a, b, drives, fill, n=10000, seed=0):
             "seeds": [len(A), len(B)], "scenes": len(toks)}
 
 
+RL_SEEDS = {"A": (0, 1, 2), "D": (0, 1, 2), "B": (0,), "C": (0,)}  # phase 4's RL seeds (driver.RL_SEEDS, R11)
+PHASE4_RECIPES = (4, 6)  # R16: every method under both recipes
+
+
+def sample_names(scale) -> list:
+    return [f"sample_{j}" if scale == 1.0 else f"scale{scale:g}_sample_{j}" for j in range(6)]
+
+
+def rl_seeds(exp: str, heads: str, lc: dict, method: str, recipe: int, base: int, split: str) -> Optional[dict]:
+    """Phase 4: each RL seed of the method at its chosen checkpoint (R11; update 0 means the start), as per-scene
+    single path and best-of-6 on ``split``, in seed order. None until every seed is chosen and scored."""
+    out = {"single": [], "best_of_6": [], "runs": [], "checkpoints": []}
+    for s in RL_SEEDS[method]:
+        sft = lc["run"] if s == 0 else f"{lc['run']}-s{s}"
+        rl = f"{sft}-rl" if recipe == base else f"{sft}-rl{recipe}"
+        cf = os.path.join(heads, rl, "choices_navdev.json")
+        if not os.path.exists(cf):
+            return None
+        ch = json.load(open(cf))
+        run, w = ((ch["start"]["run"], ch["start"]["weights"]) if ch["checkpoint"] == "start"
+                  else (ch["run"], ch["checkpoint"]))
+        names = ["single"] + (sample_names(ch["scale"]) if ch["scale"] is not None else [])
+        fr = [scores(exp, f"heads-{run}-{split}_{w}-steps{ch['steps']}-{n}_{split}_v1") for n in names]
+        if any(x is None for x in fr):
+            return None
+        out["runs"].append(rl)
+        out["checkpoints"].append(ch["checkpoint"])
+        out["single"].append(fr[0])
+        if len(fr) > 1:
+            out["best_of_6"].append(pd.concat(fr[1:], axis=1).max(axis=1))
+    return out
+
+
+def hier_paired(a, b, drives, n=10000, seed=0):
+    """Mean of a - b where a[i] and b[i] share seed i (an RL run and the supervised run it started from). Each
+    resample redraws drives and seed indices, the same indices for both, so the shared seed cancels. One seed: drives
+    only (the RL stage's own training noise is then not in the interval)."""
+    toks = sorted(set.intersection(*[set(s.index) for s in a + b]))
+    drv = np.array([drives[t] for t in toks])
+    uniq, inv = np.unique(drv, return_inverse=True)
+    D = np.stack([x.loc[toks].values - y.loc[toks].values for x, y in zip(a, b)])  # [seeds, scenes]
+    rng = np.random.default_rng(seed)
+    d = np.empty(n)
+    for i in range(n):
+        w = np.bincount(rng.integers(0, len(uniq), len(uniq)), minlength=len(uniq))[inv]
+        d[i] = (D[rng.integers(0, len(D), len(D))].mean(0) * w).sum() / w.sum()
+    return {"difference": round(100 * float(D.mean()), 2), "ci": [round(100 * float(np.percentile(d, 2.5)), 2),
+                                                                 round(100 * float(np.percentile(d, 97.5)), 2)],
+            "seeds": len(D), "scenes": len(toks)}
+
+
+def phase4(exp: str, heads: str, lcs: dict, split: str, drives: dict) -> Optional[dict]:
+    """Phase 4 with every seed, per recipe: each method after RL (its seeds at their chosen checkpoints), the method
+    pairs after RL (as before RL: seed-averaged means, drives and seeds resampled), and each method's change through
+    phase 4: after RL minus phase 3 at R10's choices, each RL seed paired with the supervised seed it started from."""
+    rf = os.path.join(heads, "choices", "rl_recipe.json")
+    if not os.path.exists(rf):
+        return None
+    base = json.load(open(rf))["recipe"]
+    res = {}
+    for r in (base,) + tuple(x for x in PHASE4_RECIPES if x != base):
+        data = {m: x for m in ("A", "B", "C", "D") if m in lcs
+                for x in [rl_seeds(exp, heads, lcs[m], m, r, base, split)] if x is not None}
+        if not data:
+            continue
+        rr = {"methods": {}, "pairs": {}, "change_from_phase3": {}}
+        for meas in ("single", "best_of_6"):
+            sds = [float(np.std([s.mean() for s in data[m][meas]], ddof=1)) for m in data if len(data[m][meas]) >= 3]
+            fill = max(sds) if sds else 0.0
+            for m, v in data.items():
+                if not v[meas]:
+                    continue
+                means = [round(100 * float(s.mean()), 2) for s in v[meas]]
+                rr["methods"].setdefault(m, {})[meas] = {
+                    "seeds": means, "mean": round(float(np.mean(means)), 2),
+                    "sd": round(float(np.std(means, ddof=1)), 2) if len(means) > 1 else None,
+                    "checkpoints": v["checkpoints"]}
+                before = per_seed(exp, lcs[m], split)[meas][:len(v[meas])]
+                if len(before) == len(v[meas]):
+                    rr["change_from_phase3"].setdefault(m, {})[meas] = hier_paired(v[meas], before, drives)
+            for m1, m2 in combinations([m for m in data if data[m][meas]], 2):
+                rr["pairs"].setdefault(f"{m1}-{m2}", {})[meas] = hier(data[m1][meas], data[m2][meas], drives, fill)
+            rr.setdefault("seed_sd_added_for_single_seed", {})[meas] = round(100 * fill, 2)
+        res[f"RL{r}"] = rr
+    return res or None
+
+
 def series_best_vs_a1(exp: str, heads: str, a1: dict, split: str, drives: dict) -> Optional[dict]:
     """R17: the continuity series' best (if not A1) against A1, three seeds each, each at its own choices."""
     sf = os.path.join(heads, "choices", "A_series.json")
@@ -122,6 +212,9 @@ def main(exp: str = EXP, cache_root: str = CACHE_ROOT) -> dict:
             sb = series_best_vs_a1(exp, heads, lcs["A"], split, drives)
             if sb:
                 res["series_best_vs_a1"] = sb
+        p4 = phase4(exp, heads, lcs, split, drives)
+        if p4:
+            res["phase4"] = p4
         out[split] = res
     return out
 
