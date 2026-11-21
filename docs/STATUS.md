@@ -246,7 +246,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - **Role:** no contender and used for no choice; a failure it finds is fixed for every chain. Cost [D]: about 4 GPU-hours and 3-4 CPU-hours.
       - **How:** `queue_job(first=True)` names a job `0_<name>.sh`, which the runners take first, and a spec may name its selector variants (`pilot_sft/heads/rehearsal_spec.py`). 4 new tests; 120 heads tests pass.
     - **Next:**
-      - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49; seed 1 at 21:12).
+      - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49), C's (Nov 21 02:43) and D's (Nov 21 06:42); R's are training (seed 1 since 05:55).
+      - the rehearsal of the selector chain (its two half generators after R's seed 1, about 07:55-10:30; then scoring and its two selectors): any failure fixed for every chain before a contender's chain runs.
       - phase 4's RL4 and RL6 runs for B and C, which decide the phase-6 gate;
       - the report after each.
 
