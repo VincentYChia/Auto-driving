@@ -128,6 +128,28 @@ def test_collect(tree):
     json.dumps(out)  # serialisable, no per-scene series left in it
 
 
+def test_the_continuity_series_is_read_against_a1_with_r17s_test(tree):
+    exp, cache = tree
+    heads = exp / "heads"
+    # A1 (a1-l12-18-24) scores 0.82 + 0.001 * i; A0 2 points below it, A2 0.5 above, A2's 0.25 m bins 2 above;
+    # A1's phase-3 seed and its layer-24 run are not part of the series
+    for run, base in (("a0-l12-18-24", 0.80), ("a2-l12-18-24", 0.825), ("a2-bin025-l12-18-24", 0.84),
+                      ("a1-l12-18-24-s1", 0.83)):
+        rd = heads / run
+        rd.mkdir(parents=True)
+        (rd / "choices_navdev.json").write_text(json.dumps({"run": run, "epoch": 15, "steps": 4, "scale": 1.5}))
+        for sp in ("navdev", "navtest"):
+            config(exp, run, sp, "epoch_15", 4, 1.5, base)
+    out = cr.Results(str(exp), str(cache)).collect()["series"]
+    assert set(out) == {"a0-l12-18-24", "a2-l12-18-24", "a2-bin025-l12-18-24"}
+    a0, a2, b = out["a0-l12-18-24"], out["a2-l12-18-24"], out["a2-bin025-l12-18-24"]
+    assert a0["against"] == "a1-l12-18-24" and (a0["config"], a0["variant"]) == ("a0", "")
+    assert a0["navtest_single"]["difference"] == pytest.approx(-0.02, abs=1e-6) and a0["measured_effect"] is True
+    assert a2["navtest_single"]["difference"] == pytest.approx(0.005, abs=1e-6) and a2["measured_effect"] is False
+    assert (b["config"], b["variant"], b["measured_effect"]) == ("a2", "bin025", True)
+    assert b["navdev_best_of_6"]["beyond_seed_noise"] is True  # every measure carries the test, for reporting
+
+
 def test_cli(tree, tmp_path):
     exp, cache = tree
     import subprocess

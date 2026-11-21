@@ -17,6 +17,8 @@ Sections:
   - single path and best-of-6, with the paired change from the start;
   - sub-score means and diversity;
   - plus the training curve in blocks of 50 updates.
+- ``series``: phase 2 (R17): A's continuity series, leave-one-out and bin-size runs, each minus A1 at its own
+  choices, paired, with R17's test (more than 1.4 points and a drive interval excluding 0).
 - ``methods``: the choice files the driver wrote (layer choices, RL starts, the R12 recipe, decisions).
 
 Intervals resample drives: 10,000 resamples, seed 0. Runs on the desktop with the score CSVs (pilot env).
@@ -29,6 +31,7 @@ import datetime as dt
 import glob
 import json
 import os
+import re
 import sys
 from itertools import combinations
 from typing import Dict, List, Optional
@@ -45,6 +48,7 @@ REF = {"navdev": "h1-text_navdev_v1", "navtest": "deskcheck-h1_navtest_v1"}
 CV = {"navdev": "cv_navdev_v1", "navtest": "cv_navtest_v1"}
 SUBS = ("no_at_fault_collisions", "drivable_area_compliance", "driving_direction_compliance", "ego_progress",
         "time_to_collision_within_bound", "comfort")
+R17_THRESHOLD = 0.014  # 1.4 PDMS points: two seed SDs of a single-seed difference (docs/HEADS_PLAN.md R17)
 CURVE = ("reward", "best_of_g", "equal_reward_groups", "kl", "grad_norm", "no_at_fault_collisions",
          "drivable_area_compliance", "time_to_collision_within_bound", "ego_progress", "paths_per_s", "bc")
 
@@ -218,6 +222,33 @@ class Results:
                 out[m] = {"runs": [l3[0], l24[0]], "chosen": f.get("run"), **self.pair(l3[0], l24[0])}
         return out
 
+    def series(self, methods: Dict[str, dict]) -> dict:
+        """Phase 2 (R17): every run of A's continuity series (A0, A2-A4), its leave-one-out runs and its bin-size runs,
+        each minus A1, each at its own navdev choices, paired on the same scenes. ``measured_effect`` is R17's call on
+        navtest's single path: the difference exceeds 1.4 points and its drive interval excludes 0. Every other
+        measure carries the same test as ``beyond_seed_noise``, for reporting."""
+        a = methods.get("A")
+        if not isinstance(a, dict) or not str(a.get("run", "")).startswith("a1-"):
+            return {}
+        a1 = a["run"]
+        tag = a1[len("a1-"):]
+        pat = re.compile(rf"^(a[0-4])(?:-(no-[a-z0-9]+|bin\d+))?-{re.escape(tag)}$")
+        out = {}
+        for cf in sorted(glob.glob(os.path.join(self.heads, "*", "choices_navdev.json"))):
+            run = os.path.basename(os.path.dirname(cf))
+            m = pat.match(run)
+            if not m or run == a1 or self.chosen(run) is None:
+                continue
+            rec = {"config": m.group(1), "variant": m.group(2) or "", "against": a1, **self.pair(run, a1)}
+            for k, v in rec.items():
+                if k.startswith("nav") and isinstance(v, dict):
+                    d, (lo, hi) = v["difference"], v["ci_drives"]
+                    v["beyond_seed_noise"] = bool(abs(d) > R17_THRESHOLD and (lo > 0 or hi < 0))
+            if "navtest_single" in rec:
+                rec["measured_effect"] = rec["navtest_single"]["beyond_seed_noise"]
+            out[run] = rec
+        return out
+
     def comparisons(self, methods: Dict[str, dict]) -> dict:
         chosen = {m: f["run"] for m, f in methods.items() if "run" in f and "choice" in f}
         return {f"{m1}-{m2}": {"runs": [chosen[m1], chosen[m2]], **self.pair(chosen[m1], chosen[m2])}
@@ -282,7 +313,7 @@ class Results:
                                                           "ci_drives": drive_ci(s.values, g),
                                                           "scenes": int(len(s)), "subscores": self.subscores(d)}
         out.update(runs=self.runs(), layer_tests=self.layer_tests(methods), comparisons=self.comparisons(methods),
-                   rl=self.rl(), methods=methods)
+                   series=self.series(methods), rl=self.rl(), methods=methods)
         return out
 
 

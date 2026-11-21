@@ -113,7 +113,42 @@ def page_data(agg: dict, ms: Optional[dict] = None) -> dict:
                 vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
         seeds.append({"method": m, "run": lc["run"], "values": vals})
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
-            "seedPairs": seed_pairs(ms), "generated": agg.get("generated"), "names": METHOD_NAMES}
+            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
+                                                                                    (ms or {}).items() if r.get("series_best_vs_a1")},
+            "generated": agg.get("generated"), "names": METHOD_NAMES}
+
+
+SERIES_LABELS = {"a0": "A0: plain bins, no notion of distance", "a2": "A2: A1 + soft labels",
+                 "a3": "A3: A2 + position-error loss and averaged readout", "a4": "A4: A3 + continuous offset in the bin"}
+FEATURE_NAMES = {"metric": "distance-aware bin embeddings", "soft": "soft labels", "l1": "the position-error loss",
+                 "offset": "the continuous offset"}
+
+
+def series_label(config: str, variant: str) -> str:
+    if not variant:
+        return SERIES_LABELS.get(config, config.upper())
+    if variant.startswith("no-"):
+        f = variant[3:]
+        return f"{config.upper()} without {FEATURE_NAMES.get(f, f)}"
+    if variant.startswith("bin"):
+        return f"{config.upper()} with {variant[3]}.{variant[4:]} m bins"
+    return f"{config.upper()} {variant}"
+
+
+def series_rows(agg: dict) -> list:
+    """Phase 2 (R17): each series run minus A1, in points, with R17's test per measure."""
+    rows = []
+    for run, r in agg.get("series", {}).items():
+        v = r.get("variant", "")
+        short = r["config"].upper() + ("" if not v else f" {v}" if v.startswith("no-") else f" {v[3]}.{v[4:]} m bins")
+        row = {"run": run, "variant": v, "label": series_label(r["config"], v), "short": short,
+               "measured": r.get("measured_effect")}
+        for k, v in r.items():
+            if k.startswith("nav") and isinstance(v, dict):
+                row[k] = {**diff(v), "beyond": v.get("beyond_seed_noise")}
+        rows.append(row)
+    rows.sort(key=lambda x: (x["variant"] != "", x["run"]))  # the series first, then leave-one-out and bin sizes
+    return rows
 
 
 def seed_pairs(ms: Optional[dict]) -> dict:
@@ -304,6 +339,24 @@ function drawPhase1() {
   if (rowsS.length) forest(spBox, rowsS, {zero: true, signed: true, aria: 'Method pairs with every seed'}); else spBox.innerHTML = '';
   table(document.getElementById('tb-seedpairs'), ['Pair (seed-averaged means)', 'Seeds', 'Single path', 'Best-of-6'],
     sp.map(p => [esc(p.pair.replace('-', ' − ')), `${p.seeds[0]} vs ${p.seeds[1]}`, p.single ? dvs(p.single) : '–', p.best_of_6 ? dvs(p.best_of_6) : '–']));
+  const ser = D.series || [], rowsSer = [];
+  ser.forEach(r => [['single', 'single path', 'solid'], ['best_of_6', 'best-of-6', 'hollow']].forEach(([k, name, kind]) => {
+    const o = r[SPLIT + '_' + k]; if (!o) return;
+    rowsSer.push({label: `${r.short} · ${name}`, color: C('A'), marks: [{...o, kind,
+      tip: `<b>${esc(r.label)}</b>, minus A1<br>${name}, ${SPLIT}: ${dvs(o)}<br>${o.beyond ? 'beyond seed noise (R17)' : 'within seed noise (R17)'}`}]});
+  }));
+  const serBox = document.getElementById('ch-series');
+  if (rowsSer.length) forest(serBox, rowsSer, {zero: true, signed: true, aria: 'Continuity series minus A1'});
+  else serBox.innerHTML = '<p class="small">No continuity-series run is scored yet.</p>';
+  const verdict = o => !o ? '–' : (o.beyond ? '<b>measured effect</b>' : 'within seed noise');
+  table(document.getElementById('tb-series'), ['Configuration (minus A1, each at its navdev choices)', 'Single path', 'Best-of-6', 'R17 on this split, single path'],
+    ser.map(r => [esc(r.label), r[SPLIT + '_single'] ? dvs(r[SPLIT + '_single']) : '–', r[SPLIT + '_best_of_6'] ? dvs(r[SPLIT + '_best_of_6']) : '–',
+      verdict(r[SPLIT + '_single'])]));
+  const sb = (D.seriesBest || {})[SPLIT];
+  document.getElementById('tb-seriesbest').innerHTML = sb ? '' : '<p class="small">Only if the series\' best is not A1: its seeds 1 and 2, then this comparison.</p>';
+  if (sb) table(document.getElementById('tb-seriesbest'), ['Series\' best minus A1, three seeds each', 'Seeds (best; A1)', 'Difference'],
+    ['single', 'best_of_6'].filter(k => sb[k]).map(k => [`${esc(sb.best.toUpperCase())} − A1 · ${k === 'single' ? 'single path' : 'best-of-6'}`,
+      `${sb[k].best_seeds.join(' · ')}; ${sb[k].a1_seeds.join(' · ')}`, dvs({x: sb[k].difference, lo: sb[k].ci[0], hi: sb[k].ci[1]})]));
   document.querySelectorAll('.splitname').forEach(e => e.textContent = SPLIT);
 }
 function drawRL() {
@@ -406,6 +459,17 @@ BODY = """
   added draw. These intervals include training noise, which the paired intervals above leave out.</p>
   <div class="chart" id="ch-seedpairs"></div>
   <details><summary>Table: method pairs with every seed on <span class="splitname"></span></summary><div id="tb-seedpairs"></div></details>
+</section>
+<section>
+  <h2>Phase 2: how continuous, A's continuity series against A1</h2>
+  <p class="sub">Each configuration adds one feature that makes A's path tokens behave more like continuous numbers. Each mark is a
+  training run minus A1, both at their own navdev choices, paired on the same scenes. R17 calls a difference a measured effect only if
+  it exceeds 1.4 points (about two seed SDs of a one-seed difference) and its drive interval excludes 0, on navtest's single path.
+  Smaller differences are within seed noise.</p>
+  <div class="chart" id="ch-series"></div>
+  <details><summary>Table: continuity series minus A1 on <span class="splitname"></span></summary><div id="tb-series"></div></details>
+  <h3>The series' best against A1, three seeds each (R17)</h3>
+  <div id="tb-seriesbest"></div>
 </section>
 <section>
   <h2>RL: change from the starting point on navdev</h2>
