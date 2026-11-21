@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-20 22:48:29",
+ "generated": "2026-11-21 00:42:09",
  "references": {
   "h1_text_navdev": {
    "pdms": 0.824,
@@ -7844,6 +7844,14 @@
     "20": 0.8941
    },
    "rule": "docs/HEADS_PLAN.md R11"
+  },
+  "C_seeds": {
+   "c-l12-18-24-s1": {
+    "navdev_single_pdms": 0.8149,
+    "navdev_best_of_6": 0.8978,
+    "navtest_single_pdms": 0.8355,
+    "navtest_best_of_6": 0.9113
+   }
   },
   "D": {
    "method": "D",
