@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 13:43: both rehearsal selectors, +1.35 and +2.08 on navdev; phase 2 started): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 14:17 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 14:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,8 +14,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 12:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 14:11):
-  - **Running: phase 2, A0** (`400`, since 12:51): plain bins with no notion of distance, at layers 12/18/24; epoch 14.0 at 14:11, about 5.3 min per epoch, so training ends about 14:43; then its navdev grid. A2, A3, A4 follow (about 2.3 h each).
+- **4090 desktop, GPU queue** (one job at a time; read 14:41):
+  - **Running: phase 2, A0** (`400`, since 12:51): plain bins with no notion of distance, at layers 12/18/24; epoch 19.2 at 14:41, so training ends about 14:46; then its navdev grid and navtest paths. A2, A3, A4 follow (about 2.3 h each).
   - **Done 12:51: the rehearsal's boundary-ablation selector** (+2.08 on navdev; "Latest results"). The rehearsal is complete: every chain job ran at full scale without a failure.
   - **Done 12:09: the rehearsal's cross-fitted seed-0 selector** (11:34-12:09): +1.35 on navdev (above, "Latest results").
   - **Done 11:34: R's seed 2** (`39r2`, rc 0; 1 h 43 min): navdev 80.69, navtest 84.46. On both machines with matching checksums (11:44).
@@ -32,14 +32,16 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Queue reordered (14:16, 266b83e): phase 2's follow-up runs now go last.** The leave-one-out, bin-size and R17 seed runs of A's continuity series (up to 7 training runs, about 16 GPU hours) are queued as `z_<name>.sh`, so they run only when nothing else waits.
   - **Why:** they feed no choice. A's tuned configuration reads the series alone (R15), and R4 calls them exploratory. The rehearsal has shown the selector chain works at full scale, so the final system is limited only by compute. Phase 4, D's tuning and phase 6 now come about 16 GPU hours earlier.
   - **What does not change:** A0-A4 themselves (the "how continuous" series) run now, as planned. The follow-up runs still run, after the final system's work or in its gaps; the plan's cut order already drops the bin-size runs first if time runs short.
-  - The driver restarts on 266b83e at the next check, well before the series' best is known (about 23:00).
-- **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
-  - Phases 2-4 and D's tuning: about 50-62 h. The full RL stages would start about Mon Nov 23 08:00-20:00.
-  - Phase 6 for the four contenders A4, A6, D4, D6 (a full RL stage and a selector chain each, about 11-17 h): about 44-68 h, ending about Wed Nov 25 04:00 to Thu Nov 26 16:00.
-  - If the gate admits B and C, their tuning, full RL stages and chains add about 63-87 h, ending about Sat Nov 28 19:00 to Mon Nov 30 07:00.
-  - If that happens, the plan's cut order applies (`docs/HEADS_PLAN.md`, "Schedule risks"): phase 6 is not shortened. The estimate will be redone from measured run lengths when the gate decides.
-  - R18 (07:44) can lengthen phase 6: each extra full-RL round costs a contender about 9 GPU hours (its RL plus its two half generators), at most 28 h. That follows your direction to iterate RL past the dates.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on fbeee12 (R18's code) at 08:11; its first pass was OK, with no failed passes. Both queue runners are up.
+  - The driver runs it since 14:41 (65b02d8), well before the series' best is known (about 23:00).
+- **Time to Mon Nov 30, an estimate [D]** (redone 14:42 with today's measured run lengths and the reorder): a supervised training run with its navdev grid about 2.3 h; a phase-4 RL run about 1.1 h; 5,000 RL updates about 3.1 h; a half generator about 1 h plus its RL; a selector 35-42 min; candidate scoring about 45 min per half on the CPU queue, beside the GPU.
+  - **Phase 2's series** (A0 now, then A2, A3, A4): to about 22:40 tonight.
+  - **Phase 4** (16 RL runs and their navtest paths): to about Sun Nov 22 18:00. R16's gate for B and C decides then.
+  - **D's tuning** (4 runs): to about Mon Nov 23 03:00.
+  - **Phase 6 for A4, A6, D4, D6** (a full RL stage, two half generators and 7 selectors each, about 15.6 h with one RL round): to about Wed Nov 25 17:00. R18 adds about 9 h for each extra round a contender takes.
+  - **If the gate admits B and C:** their tuning and phase 6 add about 80 h, to about Sun Nov 29 01:00.
+  - **Phase 2's follow-up runs** (now last): about 16 h after that, or earlier in gaps.
+  - The plan's cut order still applies if time runs short (`docs/HEADS_PLAN.md`, "Schedule risks"); phase 6 is not shortened.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on 65b02d8 (the reorder) at 14:41; its first pass was OK, with no failed passes. Both queue runners are up.
 - **Anvil:** nothing running (12:47). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
 
 ## Latest results
