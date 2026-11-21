@@ -227,18 +227,20 @@ HEADER = "#!/bin/bash\n# Queued by pilot_sft/heads/driver.py on {when} (docs/HEA
 
 
 FIRST = "0_"  # a job file named with this prefix sorts before every other job, so the runner starts it next
+LAST = "z_"  # ... and with this one after every other, so it runs only when nothing else is waiting
 
 
-def queue_job(name: str, what: str, body: str, queue: str = "queue", first: bool = False) -> bool:
+def queue_job(name: str, what: str, body: str, queue: str = "queue", first: bool = False, last: bool = False) -> bool:
     """Write ~/queue/pending/<name>.sh (GPU, one job at a time) or, with ``queue="queue2"``, ~/queue2/pending (CPU
-    only) once. A job already pending, running or done in either queue, under either file name, is never written
-    again. The runners take jobs in name order; ``first`` writes ``0_<name>.sh``, which goes ahead of the rest."""
+    only) once. A job already pending, running or done in either queue, under any of its file names, is never
+    written again. The runners take jobs in name order; ``first`` writes ``0_<name>.sh``, which goes ahead of the
+    rest, and ``last`` writes ``z_<name>.sh``, which waits until nothing else is pending."""
     for root in (P["queue_root"], P["queue2_root"]):
         for sub in ("pending", "running", "done", "parked", "dropped", "failed"):
-            if any(os.path.exists(os.path.join(root, sub, f"{pre}{name}.sh")) for pre in ("", FIRST)):
+            if any(os.path.exists(os.path.join(root, sub, f"{pre}{name}.sh")) for pre in ("", FIRST, LAST)):
                 return False
     pending = P["queue"] if queue == "queue" else os.path.join(P["queue2_root"], "pending")
-    path = os.path.join(pending, f"{FIRST if first else ''}{name}.sh")
+    path = os.path.join(pending, f"{FIRST if first else (LAST if last else '')}{name}.sh")
     os.makedirs(pending, exist_ok=True)
     with open(path + ".part", "w", encoding="utf-8", newline="\n") as f:
         f.write(HEADER.format(when=f"{dt.datetime.now():%Y-%m-%d %H:%M}", what=what) + body)
@@ -375,7 +377,8 @@ def flags(fs: set) -> List[str]:
 
 def series(lc: dict) -> None:
     """Phase 2 (analysis only, R2): A's continuity series at A's layers, then leave-one-out from the series' best,
-    then the 0.25 m and 0.05 m bins on it."""
+    then the 0.25 m and 0.05 m bins on it, and R17's seeds. The follow-up runs feed no choice (A's tuned configuration
+    reads the series alone, R15), so they are queued last and run when nothing else waits (reorder of 2026-11-21)."""
     layers, tag = lc["layers"], layers_tag(lc["layers"])
     name_of = {cfg: (lc["run"] if cfg == "a1" else f"{cfg}-{tag}") for cfg in SERIES}
 
@@ -400,12 +403,13 @@ def series(lc: dict) -> None:
             continue
         run = f"{best}-no-{f}-{tag}"
         queue_job(f"41{f[0]}_train-{run}", f"phase 2, leave-one-out: {best.upper()} without '{f}'",
-                  train_body(run, "masked", layers, 0, flags(rest)) + "bash scripts/desk/navdev_grid.sh $RUN masked\n")
+                  train_body(run, "masked", layers, 0, flags(rest)) + "bash scripts/desk/navdev_grid.sh $RUN masked\n",
+                  last=True)
     for b in ("0.25", "0.05"):
         run = f"{best}-bin{b.replace('.', '')}-{tag}"
         queue_job(f"42{b.replace('.', '')}_train-{run}", f"phase 2, {best.upper()} with {b} m bins",
                   train_body(run, "masked", layers, 0, flags(feats) + ["--bin-m", b]) +
-                  "bash scripts/desk/navdev_grid.sh $RUN masked\n")
+                  "bash scripts/desk/navdev_grid.sh $RUN masked\n", last=True)
     if best != "a1":  # R17: the series' best gets seeds 1 and 2, at its own R10 choices, against A1's three seeds
         cb, g = ch[best], GRID["masked"]
         res = {}
@@ -414,7 +418,8 @@ def series(lc: dict) -> None:
             queue_job(f"43{sd}_train-{run}", f"phase 2 (R17), seed {sd} of the continuity series' best, {best.upper()}",
                       train_body(run, "masked", layers, sd, flags(feats)) +
                       predict_cmd(run, "navdev", "dev", cb["epoch"], str(cb["steps"]), g["k"], cb["scale"]) +
-                      predict_cmd(run, "navtest", "navtest", cb["epoch"], str(cb["steps"]), g["k"], cb["scale"]))
+                      predict_cmd(run, "navtest", "navtest", cb["epoch"], str(cb["steps"]), g["k"], cb["scale"]),
+                      last=True)
             r = {}
             for split in ("navdev", "navtest"):
                 base = os.path.join(P["heads"], run, f"{split}_epoch_{cb['epoch']}", f"steps{cb['steps']}")

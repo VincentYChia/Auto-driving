@@ -131,9 +131,13 @@ def test_the_series_best_gets_two_more_seeds_when_it_is_not_a1(tree, monkeypatch
     lc = driver.choose_layers("A")
     driver.series(lc)
     assert json.loads((Path(driver.P["heads"]) / "choices" / "A_series.json").read_text())["best"] == "a2"
-    jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("43"))
-    assert jobs == ["431_train-a2-l12-18-24-s1.sh", "432_train-a2-l12-18-24-s2.sh"]
-    body = (Path(driver.P["queue"]) / "432_train-a2-l12-18-24-s2.sh").read_text()
+    jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("z_43"))  # queued last: no choice reads them
+    assert jobs == ["z_431_train-a2-l12-18-24-s1.sh", "z_432_train-a2-l12-18-24-s2.sh"]
+    assert sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("z_4")) == sorted(
+        j for j in os.listdir(driver.P["queue"]) if j[2:4] in ("41", "42", "43"))  # every follow-up run is last
+    driver.series(lc)  # queued once, under the prefixed name
+    assert len([j for j in os.listdir(driver.P["queue"]) if "431_train" in j]) == 1
+    body = (Path(driver.P["queue"]) / "z_432_train-a2-l12-18-24-s2.sh").read_text()
     assert "--seed 2" in body and "--soft-sigma 1" in body and "--split navtest" in body and "--weights epoch_15" in body
     # their scores, once written, go to choices/A_series_best_seeds.json
     for sd in (1, 2):
@@ -263,13 +267,15 @@ def test_phase_4_runs_the_recipe_that_helps(tree, monkeypatch):
     assert {"45a0r4_rl4-a1-l12-18-24.sh", "45a1r4_rl4-a1-l12-18-24-s1.sh", "45d2r4_rl4-d-l24-s2.sh"} <= jobs
     rl4 = (Path(driver.P["queue"]) / "45a1r4_rl4-a1-l12-18-24-s1.sh").read_text()
     assert "OUT=$H/a1-l12-18-24-s1-rl4" in rl4 and "--adv dr --bc-balance 0 " in rl4 and "--updates 1500" in rl4
-    # phase 4 runs after every phase-2 and phase-3 job (the plan's order), never before
+    # phase 4 runs after the phase-3 seeds and the continuity series (the plan's order); phase 2's follow-up runs
+    # (leave-one-out, bin sizes, R17 seeds) feed no choice and are queued last, after everything else
     driver.seed_runs("A", la)
     driver.series(la)
     names = os.listdir(driver.P["queue"])
     diffusion = [j for j in names if j.startswith(("39", "40"))]
     rl = [j for j in names if j.startswith("45")]
-    assert len(diffusion) >= 6 and max(diffusion + ["41s_train-x.sh", "4205_train-x.sh"]) < min(rl)
+    assert len(diffusion) >= 6 and max(diffusion) < min(rl)
+    assert max(rl + ["47a4_rlfull4-x.sh", "62a40_selector-x.sh"]) < min(["z_41s_train-x.sh", "z_4205_train-x.sh"])
     body = (Path(driver.P["queue"]) / "45a1_rl-a1-l12-18-24-s1.sh").read_text()
     assert "--weights epoch_15" in body and "--seed 1" in body and "--lr 1e-05" in body and "--updates 1500" in body
     assert "--adv dr --bc-balance 1 --lp-sd-floor 0 " in body  # A has no Gaussian steps
