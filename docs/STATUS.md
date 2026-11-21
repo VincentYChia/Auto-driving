@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 17:13: phase 2's first R17 readings, A0 and A2): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 17:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 18:13 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,8 +14,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 16:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 17:41):
-  - **Running: phase 2, A3** (`402`, since 16:41): A2 plus the position-error loss and the averaged readout; epoch 8.9 at 17:41, so training ends about 18:45. Then A2's navtest paths (`350_navtest-a2`, queued 17:30) and A4.
+- **4090 desktop, GPU queue** (one job at a time; read 18:11):
+  - **Running: phase 2, A3** (`402`, since 16:41): A2 plus the position-error loss and the averaged readout; epoch 13.3 at 18:11, so training ends about 18:45. Then A2's navtest paths (`350_navtest-a2`, queued 17:30) and A4.
   - **Done 16:39: A2** (`401`, 1 h 50 min; on both machines with matching checksums, 16:44). Its navdev choices (16:54): epoch 20, 2 steps, setting 1.5; single path 82.36, best-of-6 90.68. Its navtest paths were queued at 17:30 and run after A3.
   - **Done 16:41: A0's navtest paths** (`350_navtest-a0`, 1.4 min). A0's navtest scores are complete (17:30): single path 84.94, best-of-6 91.09.
   - **Done: A0** (1 h 55 min; on both machines, 14:50). Its navdev choices (R10, 15:04): epoch 15, 2 steps, setting 1.0; single path 81.80 (A1: 81.86), best-of-6 88.58 (A1: 89.65). Its navtest paths are queued (15:41) and run after A2; R17's reading of A0 against A1 follows about 17:35.
@@ -50,7 +50,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Latest results
 - **Phase 2, how continuous: R17's first readings** (Nov 21 17:11; each run minus A1, both at their own navdev choices, paired; R17 calls an effect measured only above 1.4 points with its drive interval excluding 0, on navtest's single path).
-  - **A0, plain bins with no notion of distance:** navtest single path 84.94 against A1's 84.67: **+0.27 (-0.10 to +0.63), within seed noise.** Its navtest best-of-6 is 91.09 against A1's 91.77 (the paired interval comes with the next aggregate). navdev: single path -0.05 (-1.86 to +0.87), best-of-6 -1.07 (-1.94 to +0.08). So far the distance-aware bin embeddings of A1 do not measurably help the own pick; they may help the candidates (best-of-6), but not beyond noise yet.
+  - **A0, plain bins with no notion of distance:** navtest single path 84.94 against A1's 84.67: **+0.27 (-0.10 to +0.63), within seed noise.** Its navtest best-of-6 is 91.09 against A1's 91.77: **-0.69 (-0.94 to -0.43)**, an interval excluding 0 but below R17's 1.4 points. So A1's distance-aware embeddings may make slightly better candidates while leaving the own pick unchanged (one seed each). navdev: single path -0.05 (-1.86 to +0.87), best-of-6 -1.07 (-1.94 to +0.08). So far the distance-aware bin embeddings of A1 do not measurably help the own pick; they may help the candidates (best-of-6), but not beyond noise yet.
   - **A2, A1 plus soft labels (navdev only so far):** single path 82.36 against 81.86, +0.50 (-0.21 to +0.93); best-of-6 90.68 against 89.65, +1.03 (+0.13 to +1.97). The best-of-6 interval excludes 0 but stays below R17's 1.4 points. Its navtest paths run after A3.
 - **The selector works at full scale (the rehearsal, 12:09; no contender, used for no choice).** On A1 without RL, the cross-fitted selector (seed 0) lifts navdev from the own pick's 81.43 to **82.77: +1.35 (+0.48 to +3.65), the interval excluding 0.**
   - It closes 14% of the gap to the best of the 7 candidates (90.81). It switches in 38% of scenes: 145 wins, 84 losses, 56 ties. Its picks fail NC or DAC in 72 scenes, against 79 for the own pick.

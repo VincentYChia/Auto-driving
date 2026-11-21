@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-21 17:11:46",
+ "generated": "2026-11-21 18:11:50",
  "references": {
   "h1_text_navdev": {
    "pdms": 0.824,
@@ -128,6 +128,27 @@
      "ego_progress": 0.7942,
      "time_to_collision_within_bound": 0.9313,
      "comfort": 0.9972
+    }
+   },
+   "navtest_best_of_6": {
+    "pdms": 0.9109,
+    "ci_drives": [
+     0.9009,
+     0.9219
+    ],
+    "scenes": 12146,
+    "drives": 44,
+    "vs_h1_text": {
+     "difference": 0.0548,
+     "ci_drives": [
+      0.0503,
+      0.0598
+     ],
+     "scenes": 12146
+    },
+    "diversity": {
+     "endpoint_m": 2.167,
+     "pairwise_ade_m": 0.645
     }
    },
    "dev_ade": 0.7794,
@@ -1750,6 +1771,15 @@
     "ci_drives": [
      -0.001,
      0.0063
+    ],
+    "scenes": 12146,
+    "beyond_seed_noise": false
+   },
+   "navtest_best_of_6": {
+    "difference": -0.0069,
+    "ci_drives": [
+     -0.0094,
+     -0.0043
     ],
     "scenes": 12146,
     "beyond_seed_noise": false
