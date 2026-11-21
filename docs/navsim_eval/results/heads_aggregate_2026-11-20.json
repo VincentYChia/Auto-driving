@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-21 00:42:09",
+ "generated": "2026-11-21 02:43:29",
  "references": {
   "h1_text_navdev": {
    "pdms": 0.824,
@@ -7851,6 +7851,12 @@
     "navdev_best_of_6": 0.8978,
     "navtest_single_pdms": 0.8355,
     "navtest_best_of_6": 0.9113
+   },
+   "c-l12-18-24-s2": {
+    "navdev_single_pdms": 0.7951,
+    "navdev_best_of_6": 0.8917,
+    "navtest_single_pdms": 0.8365,
+    "navtest_best_of_6": 0.9102
    }
   },
   "D": {
