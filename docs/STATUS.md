@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 21 12:15: the selector works at full scale, +1.35 on navdev; phase 3 complete for all five): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 21 13:43: both rehearsal selectors, +1.35 and +2.08 on navdev; phase 2 started): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
 **Updated:** 2026-11-21 13:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
