@@ -504,7 +504,7 @@ function drawSel() {
     h.textContent = ch.chain === 'rehearsal' ? 'Rehearsal: A1 without RL (no contender; used for no choice)' : `Contender ${ch.chain.toUpperCase()}`;
     box.appendChild(h);
     Object.entries(ch.candidates || {}).forEach(([k, c]) => { const p = document.createElement('p'); p.className = 'small';
-      p.innerHTML = `Training candidates, ${esc(k.replace('_', ' '))} (${c.scenes.toLocaleString()} scenes, ${c.candidates} each): own pick ${c.own_pick_pdms.toFixed(2)}, best ${c.best_of_k_pdms.toFixed(2)}, mean ${c.mean_candidate_pdms.toFixed(2)}; some candidate beats the own pick in ${(100 * c.share_some_candidate_beats_own).toFixed(1)}% of scenes; the own pick fails NC or DAC in ${c.own_pick_fails_nc_or_dac.toLocaleString()}, and a candidate passes in ${(100 * c.share_of_failures_some_candidate_passes).toFixed(1)}% of those.`;
+      p.innerHTML = `Training candidates, ${esc(({oof_half0: 'out of fold, half 0', oof_half1: 'out of fold, half 1', infold: 'in fold'})[k] || k)} (${c.scenes.toLocaleString()} scenes, ${c.candidates} each): own pick ${c.own_pick_pdms.toFixed(2)}, best ${c.best_of_k_pdms.toFixed(2)}, mean ${c.mean_candidate_pdms.toFixed(2)}; some candidate beats the own pick in ${(100 * c.share_some_candidate_beats_own).toFixed(1)}% of scenes; the own pick fails NC or DAC in ${c.own_pick_fails_nc_or_dac.toLocaleString()}, and a candidate passes in ${(100 * c.share_of_failures_some_candidate_passes).toFixed(1)}% of those.`;
       box.appendChild(p); });
     if (ch.adoption) { const p = document.createElement('p'); p.className = 'small';
       p.innerHTML = `Adoption on navdev (R14, the cross-fitted seed-0 selector): ${ch.adoption.adopted ? '<b>adopted</b>' : 'not adopted'}; a gain is ${ch.adoption.gain_claimed ? 'claimed (its drive interval excludes 0)' : 'not claimed'}.`;
@@ -514,12 +514,12 @@ function drawSel() {
       tip: `<b>${esc(v.name)}</b><br>selected minus own pick, navdev: ${dvs(v.navdev.gain)}`}]}));
     if (rows.length) forest(c, rows, {zero: true, signed: true, aria: 'Selected path minus own pick, navdev'});
     const tb = document.createElement('div'); box.appendChild(tb);
-    table(tb, ['Variant', 'Selected · own pick · best', 'Gap closed', 'Switches (wins / losses)', 'Fail NC or DAC (selected / own)', 'Held-out epoch, margin · training'],
+    table(tb, ['Variant', 'Selected · own · best', 'Gap closed', 'Switches (wins / losses)', 'NC or DAC fails (selected / own)', 'Held-out choice · training'],
       ch.variants.map(v => { const n = v.navdev || {};
         return [esc(v.variant), `${f2(n.selected)} · ${f2(n.own)} · ${f2(n.best)}`, n.share == null ? '–' : (100 * n.share).toFixed(0) + '%',
           n.switches ? `${(100 * n.switch).toFixed(1)}% (${n.switches.wins} / ${n.switches.losses})` : '–',
           n.fail ? `${n.fail.selected} / ${n.fail.own_pick}` : '–',
-          `${v.heldout.epoch ?? '–'}, ${v.heldout.delta ?? '–'} · ${v.train && v.train.elapsed_s ? Math.round(v.train.elapsed_s / 60) + ' min' : '–'}`]; }));
+          `epoch ${v.heldout.epoch ?? '–'}, margin ${v.heldout.delta ?? '–'} · ${v.train && v.train.elapsed_s ? Math.round(v.train.elapsed_s / 60) + ' min' : '–'}`]; }));
   });
 }
 function drawAll() { drawPhase1(); drawRL(); drawSel(); }
