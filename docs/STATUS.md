@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 05:58 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 06:19 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,11 +14,12 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read 14:51). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 05:41):
-  - **Running:** seed 2 of D at layers 12/18/24 (`39d2`, since 04:02; epoch 17.6 of 20 at 05:41). Its navdev and navtest paths follow. The driver then queues D's six phase-4 runs (RL4 and RL6, 3 seeds).
-  - **Next, ahead of the queue: a rehearsal of the selector chain** (registered in `docs/HEADS_PLAN.md`, R14, at 05:55; code a85fba3). It is deployed at the 06:12 check. Its two half generators (about 1.2 h each) run first, their candidates are scored on the CPU queue, then its two selectors run. It is no contender and its numbers are used for no choice (see "Next").
-  - **Queued: 20 jobs, in run order:**
-    - phase 3: R's seeds 1 and 2 (`39r1`, `39r2`);
+- **4090 desktop, GPU queue** (one job at a time; read 06:11):
+  - **Running:** seed 1 of R at layers 12/18/24 (`39r1`, since 05:55; about 2 h).
+  - **Done 05:55: D's seed 2** (`39d2`, 04:02-05:55, rc 0). Its navdev paths are scored; its navtest paths were being scored at 06:11 (about 26 min). The run is on both machines with matching checksums (06:16, `pilot_sft/MODELS.md`). D's three-seed comparison follows once its navtest scores are written.
+  - **Next, ahead of the queue: a rehearsal of the selector chain** (registered in `docs/HEADS_PLAN.md`, R14, at 05:55; code a85fba3). It was deferred at 06:11 because the driver was scoring D's paths; it deploys at the 06:42 check. Its two half generators (about 1.2 h each) follow R's seed 1, their candidates are scored on the CPU queue, then its two selectors run. It is no contender and its numbers are used for no choice (see "Next").
+  - **Queued: 19 jobs, in run order:**
+    - phase 3: R's seed 2 (`39r2`);
     - phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`). The leave-one-out, bin-size and R17 seed runs follow once the series' best is known;
     - phase 4: RL4 and RL6 for A's three seeds (`45a*`, 6 runs) and for B's and C's seed 0 (`45b0`, `45b0r6`, `45c0`, `45c0r6`). D's six follow;
     - phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
@@ -27,7 +28,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - Phase 6 for the four contenders A4, A6, D4, D6 (a full RL stage and a selector chain each, about 11-17 h): about 44-68 h, ending about Wed Nov 25 04:00 to Thu Nov 26 16:00.
   - If the gate admits B and C, their tuning, full RL stages and chains add about 63-87 h, ending about Sat Nov 28 19:00 to Mon Nov 30 07:00.
   - If that happens, the plan's cut order applies (`docs/HEADS_PLAN.md`, "Schedule risks"): phase 6 is not shortened. The estimate will be redone from measured run lengths when the gate decides.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): on e9ffb8f (R17) since 23:13 Nov 20; last pass 05:41, OK, no failed passes. It restarts on a85fba3 at the 06:12 check, for the rehearsal.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): on e9ffb8f (R17) since 23:13 Nov 20; last completed pass 05:51, OK, no failed passes; scoring D's seed 2 at 06:11. It restarts on the current code at the 06:42 check, for the rehearsal.
 - **Desktop CPU queue (`~/queue2`):** idle until the rehearsal's scoring.
 - **Anvil:** nothing running.
 
