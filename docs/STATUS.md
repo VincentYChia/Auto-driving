@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 06:46: phase 3 complete for A-D, and method pairs with every seed): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 06:55 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 07:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,11 +14,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 06:55). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 06:47):
-  - **Running:** seed 1 of R at layers 12/18/24 (`39r1`, since 05:55; epoch 9.1 of 20 at 06:47, so it ends about 07:55).
+- **4090 desktop, GPU queue** (one job at a time; read 07:11):
+  - **Running:** seed 1 of R at layers 12/18/24 (`39r1`, since 05:55; epoch 13.4 of 20 at 07:11, so it ends about 08:00 with its paths).
   - **Next, ahead of the queue: the rehearsal of the selector chain** (registered in `docs/HEADS_PLAN.md`, R14, at 05:55; spec written 06:41). The driver queued its two half generators at 06:46 (`0_60rehearsalh0`, `0_60rehearsalh1`; about 1.2 h each). The drive halves hold 78 and 80 training drives, with 39,683 and 40,943 RL scenes. Their candidates are scored on the CPU queue, then its two selectors run. It is no contender and its numbers are used for no choice.
   - **Queued: 27 jobs, in run order:** the rehearsal's two half generators; phase 3: R's seed 2 (`39r2`); phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
-- **Desktop CPU queue (`~/queue2`): the shared boundary set, since 06:47** (`0_57boundary_score-selector-shared-boundary`): 16 perturbations of each of the 80,626 RL scenes' logged paths, scored, then the 4 per scene that straddle the NC or DAC limit (R14). It is the first CPU job of the chain at full scale; every later chain reuses it. About 3 h [D].
+- **Desktop CPU queue (`~/queue2`): the shared boundary set, since 06:47** (`0_57boundary_score-selector-shared-boundary`): 16 perturbations of each of the 80,626 RL scenes' logged paths, scored, then the 4 per scene that straddle the NC or DAC limit (R14). It is the first CPU job of the chain at full scale; every later chain reuses it. At 07:11: 9,664 scenes of 80,626 (12%), 120 paths/s, 0 errors, so it ends about 09:50.
 - **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
   - Phases 2-4 and D's tuning: about 50-62 h. The full RL stages would start about Mon Nov 23 08:00-20:00.
   - Phase 6 for the four contenders A4, A6, D4, D6 (a full RL stage and a selector chain each, about 11-17 h): about 44-68 h, ending about Wed Nov 25 04:00 to Thu Nov 26 16:00.
@@ -246,6 +246,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - `method_seeds.py` compares the series' best with A1 over three seeds each, once its seeds 1 and 2 are scored (R17).
       - The report has a phase-2 section: a chart, a table with R17's verdict, and the three-seed table.
       - 4 new tests; 126 heads tests pass.
+    - **Done 07:14 (Nov 21): phase 4 with every seed, before any phase-4 run** (8090a17; `pilot_sft/heads/method_seeds.py`). Per recipe (RL4 and RL6), once a method's RL seeds are all chosen and scored:
+      - each method after RL: its seeds at their chosen checkpoints (R11; update 0 means the start);
+      - the method pairs after RL, as before RL: seed-averaged means, with drives and seeds resampled;
+      - each method's change from phase 3 (R10's choices), with every RL seed paired with the supervised seed it started from. B and C have one RL seed, so their intervals hold drive noise only.
+      - This is the study's before-and-after-RL comparison; the report gets its phase-4 section once the first method's seeds land.
     - **Next:**
       - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49), C's (Nov 21 02:43) and D's (Nov 21 06:42); R's are training (seed 1 since 05:55).
       - the rehearsal of the selector chain (its two half generators after R's seed 1, about 07:55-10:30; then scoring and its two selectors): any failure fixed for every chain before a contender's chain runs.
