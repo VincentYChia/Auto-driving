@@ -87,6 +87,7 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `r-l12-18-24` | R | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 9 min | 3.7 | `b4743f835d991869` | yes | yes |
 | `a1-l12-18-24-s1` | A1 (phase 3, seed 1) | 12, 18, 24 | 1 | 20 | 41.9M | 1 h 55 min | 3.8 | `a94e915be08f507b` | yes | yes |
 | `a1-l12-18-24-s2` | A1 (phase 3, seed 2) | 12, 18, 24 | 2 | 20 | 41.9M | 2 h 2 min | 3.8 | `c1ad469de6b2144a` | yes | yes |
+| `b-l12-18-24-s1` | B (phase 3, seed 1) | 12, 18, 24 | 1 | 20 | 41.0M | 1 h 44 min | 3.7 | `07530ac1c7f30fc8` | yes | yes |
 
 ### RL runs
 

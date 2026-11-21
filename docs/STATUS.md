@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 20:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 20:44 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -16,8 +16,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
   - **Done since 12:30:** R reading layers 12/18/24, the last phase-1 training run (12:30-14:40), with its navdev grid and navtest paths; seed 1 of A1 at layers 12/18/24 (14:40-16:36), whose navdev and navtest paths are being scored.
-  - **Running:** seed 1 of B at layers 12/18/24 (39b1, since 18:39), the first training run with 8 feature readers. A1's seed 2 finished at 18:39; the driver is scoring its paths (about 19:10).
-  - **Queued: 25 jobs, about 43 h before phase 6 (an estimate, with the faster reads):**
+  - **Running:** seed 2 of B at layers 12/18/24 (39b2, since 20:24; about 1 h 45 min, like seed 1). B's seed 1 finished at 20:24 (1 h 44 min, against 2 h 3 min for B's phase-1 run with 4 readers); the driver is scoring its paths (about 21:00).
+  - **Queued: 24 jobs, about 41 h before phase 6 (an estimate, with the faster reads):**
     - phase 3: seeds 1-2 of A1, B, C, D and R at layers 12/18/24 (39a2-39r2; R's two queued 14:47);
     - phase 2: A's continuity series A0, A2, A3, A4 (400-403);
     - phase 4 (R16): RL4 and RL6 for A's three seeds (queued 19:11), B and C (45b0, 45b0r6, 45c0, 45c0r6). D's six follow its supervised seeds;
@@ -154,7 +154,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 7. ~~Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice.~~ **Done 14:47** (R's navtest at 12/18/24 landed 16:40). Layer choices: 12/18/24 for every method (A, B, C, D, R).
 8. **RL recipe rounds: done.** R12 and R13 are complete, and the driver chose RL4 at 10:17 (`choices/rl_recipe.json` on the desktop). Phase 4 runs RL4 on every method, after phases 2-3: B's seed-0 job is queued (45b0); A's and D's 3 seeds each follow their supervised seeds 1-2; C's follows its layer choice.
 9. ~~Report at 12:00 Fri Nov 20.~~ **Done 11:18, refreshed 11:45** (the work set out phase by phase; R14 added): `navsim_demo_renders/heads_report_2026-11-20.html` on the home PC (charts with drive intervals, R12 and R13, problems and fixes, next steps, the two questions below). Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`, and the headline numbers are on this page.
-10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). `c-l12-18-24` and `r-l24` too, with matching checksums (12:53), and `r-l12-18-24` (14:51): all 10 phase-1 training runs are on both machines. Phase 3: `a1-l12-18-24-s1` (16:54), `a1-l12-18-24-s2` (18:44).
+10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). `c-l12-18-24` and `r-l24` too, with matching checksums (12:53), and `r-l12-18-24` (14:51): all 10 phase-1 training runs are on both machines. Phase 3: `a1-l12-18-24-s1` (16:54), `a1-l12-18-24-s2` (18:44), `b-l12-18-24-s1` (20:44).
 
 11. **Phase 6 code, written while the GPU trains** (needed after phase 5):
     - **Done:** training on one half of the training drives (`train_head.py --drive-half`, 9531c27); each half's RL-scene tokens and out-of-fold predictions (`drive_map.py halves`, `predict_head.py --only-tokens`, 5de57e2); scoring every candidate with the PDM scoring service (`score_candidates.py`, 332d20c). 85 heads tests pass.
