@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 23:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 00:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -16,8 +16,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time):
   - **Done since 12:30:** R reading layers 12/18/24, the last phase-1 training run (12:30-14:40), with its navdev grid and navtest paths; seed 1 of A1 at layers 12/18/24 (14:40-16:36), whose navdev and navtest paths are being scored.
-  - **Running:** seed 1 of C at layers 12/18/24 (39c1, since 22:18; about 1 h 50 min). B's seed 2 finished at 22:18; the driver is scoring its paths (about 22:50).
-  - **Queued: 23 jobs, about 39 h before phase 6 (an estimate, with the faster reads):**
+  - **Running:** seed 2 of C at layers 12/18/24 (39c2, since 00:05 Nov 21; about 1 h 50 min). C's seed 1 finished at 00:02; the driver is scoring its paths (about 00:35).
+  - **Queued: 22 jobs, about 37 h before phase 6 (an estimate, with the faster reads):**
     - phase 3: seeds 1-2 of A1, B, C, D and R at layers 12/18/24 (39a2-39r2; R's two queued 14:47);
     - phase 2: A's continuity series A0, A2, A3, A4 (400-403);
     - phase 4 (R16): RL4 and RL6 for A's three seeds (queued 19:11), B and C (45b0, 45b0r6, 45c0, 45c0r6). D's six follow its supervised seeds;
@@ -214,9 +214,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - **Done 23:13: R17 (registered 23:12, before any continuity-series run): phase 2 is read against seed noise.** Driver e9ffb8f, restarted 23:13.
       - A series effect counts only above 1.4 points with its drive interval excluding 0. That is about two seed SDs of a single-seed difference, from A's between-seed SD of 0.50.
       - The series' best, if not A1, gets seeds 1 and 2 (jobs `43{s}_`), so the "how continuous" answer rests on three seeds each.
-    - **Queued 23:42: an RL smoke test for B and C on real data** (`350_rlsmoke-b-c`, next on the GPU after C's seed 1, about 5 min; `scripts/desk/rl_smoke_bc.sh`).
-      - 20 updates each under RL4 and RL6, from each method's RL start, with outputs in `exp/heads_smoke/`, used for no choice.
-      - Only A and D have run RL on real data so far, and phase 4 gives B and C four 1,500-update runs (about 5 GPU hours). This catches a silent failure (NaN rewards, zero gradients) first.
+    - **Done 00:05 (Nov 21): the RL smoke test for B and C on real data passed** (`350_rlsmoke-b-c`, 00:02-00:05; 20 updates each, outputs in `exp/heads_smoke/`, used for no choice).
+      - Every run had finite rewards and gradients, and no scoring errors.
+      - At update 20: B under RL4 reward 0.804 (best of 8, 0.927), B under RL6 0.812, C under RL4 0.808 (best of 8, 0.950), C under RL6 0.798. Gradient norms 3.3-9.0. About 2.2 s per update, so a 1,500-update run takes about 55 min, as A's and D's do.
+      - In 31% of B's groups all 8 candidates get the same reward, against 9% for C, so those groups give no learning signal. B's candidates sit close together (1.4 m apart), which likely explains it. Phase 4 will show whether it slows B's RL.
     - **Next:**
       - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49; seed 1 at 21:12).
       - phase 4's RL4 and RL6 runs for B and C, which decide the phase-6 gate;
