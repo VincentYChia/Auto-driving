@@ -112,5 +112,43 @@
     0.0048
    ]
   }
+ },
+ "b-l12-18-24-s2": {
+  "navdev_single": {
+   "seed0": 0.814,
+   "seed2": 0.8104,
+   "difference": -0.0036,
+   "ci_drives": [
+    -0.0157,
+    0.0052
+   ]
+  },
+  "navdev_best_of_6": {
+   "seed0": 0.8933,
+   "seed2": 0.9009,
+   "difference": 0.0076,
+   "ci_drives": [
+    -0.0024,
+    0.014
+   ]
+  },
+  "navtest_single": {
+   "seed0": 0.8456,
+   "seed2": 0.8461,
+   "difference": 0.0006,
+   "ci_drives": [
+    -0.0022,
+    0.0037
+   ]
+  },
+  "navtest_best_of_6": {
+   "seed0": 0.9187,
+   "seed2": 0.9198,
+   "difference": 0.001,
+   "ci_drives": [
+    -0.0007,
+    0.0029
+   ]
+  }
  }
 }
