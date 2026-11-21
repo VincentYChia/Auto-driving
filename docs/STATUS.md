@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 23:13 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 23:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -214,6 +214,9 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - **Done 23:13: R17 (registered 23:12, before any continuity-series run): phase 2 is read against seed noise.** Driver e9ffb8f, restarted 23:13.
       - A series effect counts only above 1.4 points with its drive interval excluding 0. That is about two seed SDs of a single-seed difference, from A's between-seed SD of 0.50.
       - The series' best, if not A1, gets seeds 1 and 2 (jobs `43{s}_`), so the "how continuous" answer rests on three seeds each.
+    - **Queued 23:42: an RL smoke test for B and C on real data** (`350_rlsmoke-b-c`, next on the GPU after C's seed 1, about 5 min; `scripts/desk/rl_smoke_bc.sh`).
+      - 20 updates each under RL4 and RL6, from each method's RL start, with outputs in `exp/heads_smoke/`, used for no choice.
+      - Only A and D have run RL on real data so far, and phase 4 gives B and C four 1,500-update runs (about 5 GPU hours). This catches a silent failure (NaN rewards, zero gradients) first.
     - **Next:**
       - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49; seed 1 at 21:12).
       - phase 4's RL4 and RL6 runs for B and C, which decide the phase-6 gate;
