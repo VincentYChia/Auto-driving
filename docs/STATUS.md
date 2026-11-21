@@ -4,18 +4,18 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 18:13: phase 2's readings with A0's navtest best-of-6): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 18:13 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 18:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 16:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 18:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 18:11):
-  - **Running: phase 2, A3** (`402`, since 16:41): A2 plus the position-error loss and the averaged readout; epoch 13.3 at 18:11, so training ends about 18:45. Then A2's navtest paths (`350_navtest-a2`, queued 17:30) and A4.
+- **4090 desktop, GPU queue** (one job at a time; read 18:47):
+  - **Running: phase 2, A3** (`402`, since 16:41): A2 plus the position-error loss and the averaged readout; epoch 18.5 at 18:47, so training ends about 18:55. Desktop disk: 711 GB free of 1.9 TB. Then A2's navtest paths (`350_navtest-a2`, queued 17:30) and A4.
   - **Done 16:39: A2** (`401`, 1 h 50 min; on both machines with matching checksums, 16:44). Its navdev choices (16:54): epoch 20, 2 steps, setting 1.5; single path 82.36, best-of-6 90.68. Its navtest paths were queued at 17:30 and run after A3.
   - **Done 16:41: A0's navtest paths** (`350_navtest-a0`, 1.4 min). A0's navtest scores are complete (17:30): single path 84.94, best-of-6 91.09.
   - **Done: A0** (1 h 55 min; on both machines, 14:50). Its navdev choices (R10, 15:04): epoch 15, 2 steps, setting 1.0; single path 81.80 (A1: 81.86), best-of-6 88.58 (A1: 89.65). Its navtest paths are queued (15:41) and run after A2; R17's reading of A0 against A1 follows about 17:35.
@@ -46,7 +46,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **Phase 2's follow-up runs** (now last): about 16 h after that, or earlier in gaps.
   - The plan's cut order still applies if time runs short (`docs/HEADS_PLAN.md`, "Schedule risks"); phase 6 is not shortened.
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on 6c341e1 (navtest for every configuration) at 15:41; its first pass was OK, with no failed passes. Both queue runners are up.
-- **Anvil:** nothing running (16:47). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
+- **Anvil:** nothing running (18:47). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
 
 ## Latest results
 - **Phase 2, how continuous: R17's first readings** (Nov 21 17:11; each run minus A1, both at their own navdev choices, paired; R17 calls an effect measured only above 1.4 points with its drive interval excluding 0, on navtest's single path).
