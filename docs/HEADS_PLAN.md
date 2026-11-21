@@ -145,6 +145,12 @@ Every run's navtest scores are reported.
 - **Why:** the cumulative order confounds the effects; leave-one-out measures each feature's own contribution.
 - **Not used** in the method decision (R2). If A wins in phase 5, the series' best becomes A's candidate for post-decision tuning in phase 6.
 
+**R17. Reading phase 2 against seed noise** (committed 2026-11-20 23:12, before any continuity-series run had started).
+- **The scale of seed noise.** A's three phase-1 seeds measure the training noise of one configuration. The between-seed SD is 0.50 on navtest single path and 0.44 on navdev (A1, phase 3).
+- **The threshold.** A difference between two single-seed runs therefore carries a seed SD of about sqrt(2) x 0.50 = 0.71 on navtest [D]. A continuity-series effect is each run against A1, paired on navtest with its drive interval. It is called a measured effect only if its point estimate exceeds 1.4 points (about two seed SDs of the difference) and its drive interval excludes 0. Smaller effects are reported as within seed noise.
+- **Extra seeds for the series' best.** If the series' best configuration is not A1, it gets seeds 1 and 2, with the same settings at its own R10 choices. A1 and the best are then compared over three seeds each with R5's hierarchical bootstrap. These are jobs `43{s}_`, after the series' leave-one-out and bin runs.
+- **Cost** [D]: two training runs, about 2 h each.
+
 ## Phase 3 — seed spread (Mon 23, 10 training runs)
 
 - **Runs:** seeds 1 and 2 of each method's phase-1 configuration (A1, B, C, D, R at their chosen layers, epochs and settings).
