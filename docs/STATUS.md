@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 13:43: both rehearsal selectors, +1.35 and +2.08 on navdev; phase 2 started): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 15:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 16:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,8 +14,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 14:50). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 15:41):
-  - **Running: phase 2, A2** (`401`, since about 14:50): A1 plus soft labels; epoch 9.6 at 15:41, so training ends about 16:37, then its navdev grid. Then A0's navtest paths (`350_navtest-a0`, queued 15:41), then A3 and A4.
+- **4090 desktop, GPU queue** (one job at a time; read 16:11):
+  - **Running: phase 2, A2** (`401`, since about 14:50): A1 plus soft labels; epoch 15.1 at 16:11, so training ends about 16:38, then its navdev grid. Then A0's navtest paths (`350_navtest-a0`, queued 15:41), then A3 and A4.
   - **Done: A0** (1 h 55 min; on both machines, 14:50). Its navdev choices (R10, 15:04): epoch 15, 2 steps, setting 1.0; single path 81.80 (A1: 81.86), best-of-6 88.58 (A1: 89.65). Its navtest paths are queued (15:41) and run after A2; R17's reading of A0 against A1 follows about 17:35.
   - **Fixed 15:16 (314d2a8): navtest for every configuration.** The driver queued and scored navtest paths only for phase 1's runs. The series runs and the R15 tuning runs got navdev choices but never navtest, so R17, which reads the series on navtest, could not have been computed. Found on A0, the first series run. The driver runs it since 15:41 (6c341e1) and queued A0's navtest paths at once.
   - **Done 12:51: the rehearsal's boundary-ablation selector** (+2.08 on navdev; "Latest results"). The rehearsal is complete: every chain job ran at full scale without a failure.
@@ -184,6 +184,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 2. **Phase 4:** RL4 and RL6 on every method (16 runs of 1,500 updates). Then R16's gate for B and C, and R5's ranking (reported only).
 3. **Phase 6:** D's four tuning runs (R15), then each contender's full RL stage (rounds of 5,000 updates, R18) and selector chain (R14); the final system on navdev (R16), one navtest score per contender, and R4's confirmatory tests.
 4. **The report after each result** (the private link at the top of this page).
+5. **The 20 s replay page for the first path generator that beats H1 on navtest** (your standing rule for each new best; likely after phase 4). The replay pipeline reads `predict_head.py`'s output as it is; what it lacks is H1's stored features for the replay frames (10 drives, 41 re-plans each). They get cached ahead, a GPU job of about 2 min, so the page follows a new best within the hour: path-generator paths, then `replay_demo.py scored` and `page` with H1 as the comparison. Local only (nuPlan images).
 
 ### Done so far (details, oldest first)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
