@@ -398,6 +398,11 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
 - **Cost** [D]:
   - Each candidate set is about 80,626 × 7 = 564k paths, about 50 min at the 190–210 paths/s measured in our RL runs.
   - The two half generators add about 2 × 4 h of GPU time: about 1 h of training on half the data, and about 3 h for 5,000 RL updates (the recipe runs took 17–20 min per 500).
+- **Rehearsal of the chain** (added 2026-11-21 05:55, before any selector chain had run):
+  - **What:** one run of the chain on A's phase-1 configuration (seed 0) without RL, deployed at its R11 starting epoch, with two of the variants above: the cross-fitted seed-0 selector and the boundary ablation (`pilot_sft/heads/rehearsal_spec.py`).
+  - **Why:** in queue order, the first contender's chain would run only after phases 2–4 and the R15 tuning runs, about two days from now. The rehearsal checks every job of the chain on real data at full scale: both half generators, out-of-fold candidates for every RL scene, their PDM scores, the shared boundary set, selector training and navdev evaluation. The CPU smoke test (Nov 20) checked only 1,000 scenes.
+  - **Cost [D]:** about 4 GPU-hours and 3–4 CPU-hours. Its jobs go ahead of each queue: their files are named `0_<name>.sh`, which the runners take first.
+  - **Role:** it is no contender (R16 reads only the contenders' specs), and its numbers are used for no choice. No selector setting changes because of them. A failure it finds is fixed in the code for every chain. Its boundary set is the shared one that every later chain uses.
 
 ## Mon 30 — report
 

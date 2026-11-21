@@ -226,15 +226,19 @@ def choose_run(run: str, kind: str) -> Optional[dict]:
 HEADER = "#!/bin/bash\n# Queued by pilot_sft/heads/driver.py on {when} (docs/HEADS_PLAN.md): {what}\ncd ~/Auto-driving\nsource scripts/anvil/config.local.sh\nC=$HOME/navsim_workspace/head_cache/h1_l12-18-24\nPY=~/miniforge3/envs/pilot/bin/python\n"
 
 
-def queue_job(name: str, what: str, body: str, queue: str = "queue") -> bool:
+FIRST = "0_"  # a job file named with this prefix sorts before every other job, so the runner starts it next
+
+
+def queue_job(name: str, what: str, body: str, queue: str = "queue", first: bool = False) -> bool:
     """Write ~/queue/pending/<name>.sh (GPU, one job at a time) or, with ``queue="queue2"``, ~/queue2/pending (CPU
-    only) once. A job already pending, running or done in either queue is never written again."""
+    only) once. A job already pending, running or done in either queue, under either file name, is never written
+    again. The runners take jobs in name order; ``first`` writes ``0_<name>.sh``, which goes ahead of the rest."""
     for root in (P["queue_root"], P["queue2_root"]):
         for sub in ("pending", "running", "done", "parked", "dropped", "failed"):
-            if os.path.exists(os.path.join(root, sub, f"{name}.sh")):
+            if any(os.path.exists(os.path.join(root, sub, f"{pre}{name}.sh")) for pre in ("", FIRST)):
                 return False
     pending = P["queue"] if queue == "queue" else os.path.join(P["queue2_root"], "pending")
-    path = os.path.join(pending, f"{name}.sh")
+    path = os.path.join(pending, f"{FIRST if first else ''}{name}.sh")
     os.makedirs(pending, exist_ok=True)
     with open(path + ".part", "w", encoding="utf-8", newline="\n") as f:
         f.write(HEADER.format(when=f"{dt.datetime.now():%Y-%m-%d %H:%M}", what=what) + body)
@@ -824,48 +828,67 @@ def half_body(spec: dict, x: str, h: int, halves: str) -> str:
     return body
 
 
+def variant_needs(v: str) -> List[str]:
+    """The candidate sets selector variant ``v`` trains on (R14)."""
+    data, _, extra = SEL_VARIANTS[v]
+    return (["half0", "half1"] if data == "xfit" else ["infold"]) + (["boundary"] if extra == ["boundary"] else [])
+
+
 def selector_chain(x: str, spec: dict) -> dict:
     """R14 for one deployed path generator, one step per pass, each job queued once: halves, the two half generators
     and the in-fold candidates (GPU), scoring every candidate set (CPU, ~/queue2), the selectors (GPU), adoption on
-    navdev, then one navtest evaluation. Returns its state for driver_status.json."""
+    navdev, then one navtest evaluation. Returns its state for driver_status.json.
+
+    Two optional spec keys serve a rehearsal of the chain (a spec that is no contender, used for no choice):
+    ``variants`` (a subset of SEL_VARIANTS; only the candidate sets they need are made and scored) and ``first``
+    (its jobs go ahead of the rest of each queue)."""
     st: Dict[str, object] = {"spec": spec.get("deployed_run")}
     halves = ensure_halves()
     H, S = P["heads"], f"steps{spec['steps']}"
+    variants = [v for v in SEL_VARIANTS if v in spec.get("variants", SEL_VARIANTS)]
+    needed = {n for v in variants for n in variant_needs(v)}
+    first = bool(spec.get("first", False))
     oof, sets = {}, {}
     for h in (0, 1):
         run, weights = ((f"selector-{x}-gen-half{h}-rl", f"rl_{spec['updates']}") if spec["updates"] > 0
                         else (f"selector-{x}-gen-half{h}", f"epoch_{spec['rl_start_epoch']}"))
         oof[h] = os.path.join(H, run, f"navtrain_{weights}", S)
-        queue_job(f"60{x}h{h}_selector-{x}-gen-half{h}",
-                  f"phase 6 (R14): selector {x}, half-{h} path generator and its out-of-fold candidates",
-                  half_body(spec, x, h, halves))
+        if f"half{h}" in needed:
+            queue_job(f"60{x}h{h}_selector-{x}-gen-half{h}",
+                      f"phase 6 (R14): selector {x}, half-{h} path generator and its out-of-fold candidates",
+                      half_body(spec, x, h, halves), first=first)
         sets[f"half{h}"] = (oof[h], os.path.join(H, f"selector-{x}", f"candidates_oof_half{h}.jsonl"))
     dep = os.path.join(H, spec["deployed_run"], f"navtrain_{spec['deployed_weights']}", S)
-    queue_job(f"61{x}_selector-{x}-infold", f"phase 6 (R14): selector {x}, in-fold candidates of the deployed generator",
-              f"taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $HOME/navsim_workspace/exp/heads/"
-              f"{spec['deployed_run']} --weights {spec['deployed_weights']} --split navtrain --cache $C/train "
-              f"--only-tokens {halves}/rl_tokens_all.txt --steps {spec['steps']} --k {spec['k']} --scales {spec['scale']:g}\n")
+    if "infold" in needed:
+        queue_job(f"61{x}_selector-{x}-infold", f"phase 6 (R14): selector {x}, in-fold candidates of the deployed generator",
+                  f"taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $HOME/navsim_workspace/exp/heads/"
+                  f"{spec['deployed_run']} --weights {spec['deployed_weights']} --split navtrain --cache $C/train "
+                  f"--only-tokens {halves}/rl_tokens_all.txt --steps {spec['steps']} --k {spec['k']} --scales {spec['scale']:g}\n",
+                  first=first)
     sets["infold"] = (dep, os.path.join(H, f"selector-{x}", "candidates_infold.jsonl"))
     shared = os.path.join(H, "selector-shared")  # the boundary paths depend on no generator: one set for every chain
     sets["boundary"] = (os.path.join(shared, "perturbed"), os.path.join(shared, "perturbed.jsonl"))
     scored = {}
     for name, (paths, out) in sets.items():
+        if name not in needed:
+            continue
         ready_paths = name == "boundary" or os.path.exists(os.path.join(os.path.dirname(paths), "timing.json"))
         if ready_paths:
             os.makedirs(os.path.dirname(out), exist_ok=True)
             job = "57boundary_score-selector-shared-boundary" if name == "boundary" else f"57{x}{name}_score-selector-{x}-{name}"
             queue_job(job, f"phase 6 (R14): PDM scores of every {name} candidate" + ("" if name == "boundary" else f", selector {x}"),
-                      score_body(paths, out, f"{halves}/rl_tokens_all.txt" if name == "boundary" else None), queue="queue2")
+                      score_body(paths, out, f"{halves}/rl_tokens_all.txt" if name == "boundary" else None), queue="queue2",
+                      first=first)
         scored[name] = os.path.exists(out + ".done")
     st["scored"] = scored
     gen_w = os.path.join(H, spec["deployed_run"], f"{spec['deployed_weights']}.pt")
     nav = os.path.join(H, spec["deployed_run"], f"navdev_{spec['deployed_weights']}", S)
     drives = os.path.dirname(P["cache"])
-    for v, (data, seed, extra) in SEL_VARIANTS.items():
-        need = ["half0", "half1"] if data == "xfit" else ["infold"]
+    for v in variants:
+        data, seed, extra = SEL_VARIANTS[v]
+        need = variant_needs(v)
         if extra == ["boundary"]:
-            need, extra = need + ["boundary"], ["--extra-candidates", os.path.join(shared, "boundary"),
-                                                os.path.join(shared, "boundary", "scores.jsonl")]
+            extra = ["--extra-candidates", os.path.join(shared, "boundary"), os.path.join(shared, "boundary", "scores.jsonl")]
         if not all(scored[n] for n in need):
             continue
         cands = " ".join(f"--candidates {sets[n][0]} {sets[n][1]}" for n in need if n != "boundary")
@@ -875,7 +898,7 @@ def selector_chain(x: str, spec: dict) -> dict:
                   f"--scale {spec['scale']:g} --k {spec['k']} --seed {seed} {' '.join(extra)} --out {out} --resume\n"
                   f"taskset -c 16-31 $PY pilot_sft/heads/apply_selector.py --selector {out} --cache $C/dev --paths {nav} "
                   f"--scale {spec['scale']:g} --k {spec['k']} --out {out}/navdev --exp {P['exp']} --split navdev "
-                  f"--drives {drives}/drives_navdev.json\n")
+                  f"--drives {drives}/drives_navdev.json\n", first=first)
     # adoption on navdev (R14): the cross-fitted seed-0 selector, by the point estimate; a gain is claimed only if
     # its drive interval excludes 0. Then one navtest evaluation, scored by NAVSIM's own scorer.
     rep_path = os.path.join(H, f"selector-{x}-xfit-s0", "navdev", "report.json")
@@ -886,6 +909,7 @@ def selector_chain(x: str, spec: dict) -> dict:
                "gain_claimed": r["selected_minus_own_ci"][0] > 0, "navdev_selected_minus_own": r["selected_minus_own"],
                "ci_drives": r["selected_minus_own_ci"], "navdev_selected_pdms": r["selected_pdms"],
                "navdev_own_pick_pdms": r["own_pick_pdms"], "rule": "docs/HEADS_PLAN.md R14",
+               **({"role": spec["role"]} if "role" in spec else {}),
                "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
         write_json(out, res)
         log(f"selector {x}: adoption on navdev {json.dumps(res)}")

@@ -130,6 +130,70 @@ def test_a_rejected_selector_gets_no_navtest_run(chain):
     assert st["adopted"] is False and "350_navtest-selector-a.sh" not in gpu_jobs()
 
 
+def test_a_job_queued_first_is_never_written_again_under_either_name(tree):  # noqa: F811
+    assert driver.queue_job("47a4_rlfull4-x", "what", "echo\n", first=True)
+    assert gpu_jobs() == ["0_47a4_rlfull4-x.sh"]
+    assert not driver.queue_job("47a4_rlfull4-x", "what", "echo\n")  # pending under the prefixed name
+    done = Path(driver.P["queue_root"]) / "done"
+    done.mkdir(parents=True)
+    os.replace(Path(driver.P["queue"]) / "0_47a4_rlfull4-x.sh", done / "0_47a4_rlfull4-x.sh")
+    assert not driver.queue_job("47a4_rlfull4-x", "what", "echo\n", first=True) and gpu_jobs() == []
+    assert sorted(["0_47a4_rlfull4-x.sh", "350_navtest-a.sh", "39r1_train-r.sh"])[0] == "0_47a4_rlfull4-x.sh"
+
+
+def test_a_rehearsal_spec_runs_only_its_variants_ahead_of_the_queue(chain):
+    H = Path(driver.P["heads"])
+    spec = {**SPEC, "updates": 0, "recipe": None, "deployed_run": "a1-l12-18-24", "deployed_weights": "epoch_20",
+            "variants": ["xfit-s0", "xfit-boundary"], "first": True, "role": "rehearsal"}
+    driver.selector_chain("rehearsal", spec)
+    assert gpu_jobs() == ["0_60rehearsalh0_selector-rehearsal-gen-half0.sh", "0_60rehearsalh1_selector-rehearsal-gen-half1.sh"]
+    assert cpu_jobs() == ["0_57boundary_score-selector-shared-boundary.sh"]  # no in-fold set: no variant needs it
+    h0 = (Path(driver.P["queue"]) / "0_60rehearsalh0_selector-rehearsal-gen-half0.sh").read_text()
+    assert "rl_head.py" not in h0 and "--drive-half 0" in h0 and "--weights epoch_20 --split navtrain" in h0
+    written(H / "selector-rehearsal-gen-half0" / "navtrain_epoch_20")
+    written(H / "selector-rehearsal-gen-half1" / "navtrain_epoch_20")
+    driver.selector_chain("rehearsal", spec)
+    assert cpu_jobs() == ["0_57boundary_score-selector-shared-boundary.sh", "0_57rehearsalhalf0_score-selector-rehearsal-half0.sh",
+                          "0_57rehearsalhalf1_score-selector-rehearsal-half1.sh"]
+    for h in (0, 1):
+        (H / "selector-rehearsal" / f"candidates_oof_half{h}.jsonl.done").write_text("")
+    driver.selector_chain("rehearsal", spec)
+    assert [j for j in gpu_jobs() if "62" in j] == ["0_62rehearsal0_selector-rehearsal-xfit-s0.sh"]  # boundary not scored yet
+    (H / "selector-shared" / "perturbed.jsonl.done").write_text("")
+    st = driver.selector_chain("rehearsal", spec)
+    assert [j for j in gpu_jobs() if "62" in j] == ["0_62rehearsal0_selector-rehearsal-xfit-s0.sh",
+                                                     "0_62rehearsal6_selector-rehearsal-xfit-boundary.sh"]
+    assert st["scored"] == {"half0": True, "half1": True, "boundary": True}
+    # a contender's chain later reuses the shared boundary set: not queued again under its plain name
+    driver.selector_chain("a", SPEC)
+    assert "57boundary_score-selector-shared-boundary.sh" not in cpu_jobs()
+    assert "61a_selector-a-infold.sh" in gpu_jobs() and "60ah0_selector-a-gen-half0.sh" in gpu_jobs()  # all of R14's sets
+    # its adoption record says what it is; the final system reads only the contenders' specs (R16)
+    rep = H / "selector-rehearsal-xfit-s0" / "navdev"
+    rep.mkdir(parents=True)
+    (rep / "report.json").write_text(json.dumps({"report": {"selected_minus_own": 0.004, "selected_minus_own_ci": [-0.002, 0.011],
+                                                            "selected_pdms": 0.866, "own_pick_pdms": 0.862}}))
+    driver.selector_chain("rehearsal", spec)
+    assert json.loads((H / "choices" / "selector_rehearsal_adoption.json").read_text())["role"] == "rehearsal"
+    (H / "choices" / "selector_spec_A.json").unlink()
+    (H / "choices" / "selector_spec_rehearsal.json").write_text(json.dumps(spec))
+    driver.final_system({})
+    assert not (H / "choices" / "final_system.json").exists()
+
+
+def test_the_rehearsal_spec_is_the_phase1_configuration_without_rl(tree):  # noqa: F811
+    import rehearsal_spec
+    make_run("a1-l24", "masked")
+    make_run("a1-l12-18-24", "masked")
+    spec = rehearsal_spec.rehearsal_spec("A")
+    lc, start = driver.choose_layers("A"), driver.rl_start("A", driver.choose_layers("A"))
+    assert (spec["deployed_run"], spec["deployed_weights"], spec["updates"]) == (lc["run"], f"epoch_{start['epoch']}", 0)
+    assert (spec["steps"], spec["scale"], spec["k"]) == (lc["choice"]["steps"], lc["choice"]["scale"], driver.GRID["masked"]["k"])
+    assert spec["first"] is True and spec["variants"] == ["xfit-s0", "xfit-boundary"] and spec["flags"] == []
+    assert rehearsal_spec.rehearsal_spec("A") == spec  # written once
+    assert ("A", 4) in driver.contenders() and not any("rehearsal" in m for m, _ in driver.contenders())
+
+
 def test_without_rl_the_halves_predict_from_the_supervised_epoch(chain):
     spec = {**SPEC, "updates": 0, "deployed_run": "a1-l12-18-24", "deployed_weights": "epoch_20"}
     driver.selector_chain("a", spec)
