@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 04:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 05:58 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,26 +14,21 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read 14:51). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time):
-  - **Done since 12:30:** R reading layers 12/18/24, the last phase-1 training run (12:30-14:40), with its navdev grid and navtest paths; seed 1 of A1 at layers 12/18/24 (14:40-16:36), whose navdev and navtest paths are being scored.
-  - **Running:** seed 2 of D at layers 12/18/24 (39d2, since 04:02 Nov 21; about 2 h 15 min). D's seed 1 finished at 04:02; the driver is scoring its paths (about 04:35).
-  - **Queued: 20 jobs, about 33 h before phase 6 (an estimate, with the faster reads):**
-    - phase 3: seeds 1-2 of A1, B, C, D and R at layers 12/18/24 (39a2-39r2; R's two queued 14:47);
-    - phase 2: A's continuity series A0, A2, A3, A4 (400-403);
-    - phase 4 (R16): RL4 and RL6 for A's three seeds (queued 19:11), B and C (45b0, 45b0r6, 45c0, 45c0r6). D's six follow its supervised seeds;
-    - phase 6 (R15): D's four tuning runs (46d0-46d3).
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, on e5deb98 since 14:01 with R16):
-  - scored R's navtest paths at layer 24 (14:45) and R's navdev grid at layers 12/18/24;
-  - chose R's layers at 14:47 and queued R's seeds;
-  - its last pass (14:41-14:47) was OK, with no failed passes.
-- **Desktop CPU queue (`~/queue2`):** idle. The selector smoke test on real data (17:42-18:14, CPU only; numbers used for no choice) checked phase 6's pipeline end to end:
-  - A1's candidates for 1,000 RL scenes;
-  - PDM scores, 7,000 paths at 115/s with 0 errors;
-  - a 7.2M-parameter selector, 983 scenes and 2 held-out drives;
-  - navdev with NAVSIM's score files.
-  - It reproduced A1's registered navdev own pick exactly (81.86) and a plausible best-of-7 (90.10).
-  - The barely trained selector was correctly worse than the own pick (-1.59, -2.63 to -0.47), so the adoption rule would turn it down.
-  - It found one bug, fixed in 8ab600d: a dev-split folder has 2,000 scenes but navdev scores 743.
+- **4090 desktop, GPU queue** (one job at a time; read 05:41):
+  - **Running:** seed 2 of D at layers 12/18/24 (`39d2`, since 04:02; epoch 17.6 of 20 at 05:41). Its navdev and navtest paths follow. The driver then queues D's six phase-4 runs (RL4 and RL6, 3 seeds).
+  - **Next, ahead of the queue: a rehearsal of the selector chain** (registered in `docs/HEADS_PLAN.md`, R14, at 05:55; code a85fba3). It is deployed at the 06:12 check. Its two half generators (about 1.2 h each) run first, their candidates are scored on the CPU queue, then its two selectors run. It is no contender and its numbers are used for no choice (see "Next").
+  - **Queued: 20 jobs, in run order:**
+    - phase 3: R's seeds 1 and 2 (`39r1`, `39r2`);
+    - phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`). The leave-one-out, bin-size and R17 seed runs follow once the series' best is known;
+    - phase 4: RL4 and RL6 for A's three seeds (`45a*`, 6 runs) and for B's and C's seed 0 (`45b0`, `45b0r6`, `45c0`, `45c0r6`). D's six follow;
+    - phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
+- **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
+  - Phases 2-4 and D's tuning: about 50-62 h. The full RL stages would start about Mon Nov 23 08:00-20:00.
+  - Phase 6 for the four contenders A4, A6, D4, D6 (a full RL stage and a selector chain each, about 11-17 h): about 44-68 h, ending about Wed Nov 25 04:00 to Thu Nov 26 16:00.
+  - If the gate admits B and C, their tuning, full RL stages and chains add about 63-87 h, ending about Sat Nov 28 19:00 to Mon Nov 30 07:00.
+  - If that happens, the plan's cut order applies (`docs/HEADS_PLAN.md`, "Schedule risks"): phase 6 is not shortened. The estimate will be redone from measured run lengths when the gate decides.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): on e9ffb8f (R17) since 23:13 Nov 20; last pass 05:41, OK, no failed passes. It restarts on a85fba3 at the 06:12 check, for the rehearsal.
+- **Desktop CPU queue (`~/queue2`):** idle until the rehearsal's scoring.
 - **Anvil:** nothing running.
 
 ## Latest results
@@ -235,6 +230,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - Every run had finite rewards and gradients, and no scoring errors.
       - At update 20: B under RL4 reward 0.804 (best of 8, 0.927), B under RL6 0.812, C under RL4 0.808 (best of 8, 0.950), C under RL6 0.798. Gradient norms 3.3-9.0. About 2.2 s per update, so a 1,500-update run takes about 55 min, as A's and D's do.
       - In 31% of B's groups all 8 candidates get the same reward, against 9% for C, so those groups give no learning signal. B's candidates sit close together (1.4 m apart), which likely explains it. Phase 4 will show whether it slows B's RL.
+    - **Done 05:55 (Nov 21): a rehearsal of the selector chain at full scale, ahead of the queue** (registered in R14 before any chain ran; code a85fba3).
+      - **Why:** in queue order, the first contender's chain runs only after phases 2-4 and the R15 tuning runs, about two days from now. It is the least tested part of the final system, and the smoke test (Nov 20) covered 1,000 scenes on the CPU.
+      - **What:** the chain as phase 6 runs it, on A's phase-1 configuration (seed 0) without RL, at its R11 starting epoch: both half generators, out-of-fold candidates for every RL scene, their PDM scores, the shared boundary set (kept for every later chain), the cross-fitted seed-0 selector and its boundary ablation, and navdev evaluation.
+      - **Role:** no contender and used for no choice; a failure it finds is fixed for every chain. Cost [D]: about 4 GPU-hours and 3-4 CPU-hours.
+      - **How:** `queue_job(first=True)` names a job `0_<name>.sh`, which the runners take first, and a spec may name its selector variants (`pilot_sft/heads/rehearsal_spec.py`). 4 new tests; 120 heads tests pass.
     - **Next:**
       - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49; seed 1 at 21:12).
       - phase 4's RL4 and RL6 runs for B and C, which decide the phase-6 gate;
