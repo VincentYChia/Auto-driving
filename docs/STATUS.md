@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 17:13: phase 2's first R17 readings, A0 and A2): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 17:13 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 17:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,10 +14,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 16:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 17:11):
-  - **Running: phase 2, A3** (`402`, since 16:41): A2 plus the position-error loss and the averaged readout. About 2.3 h with its navdev grid; A4 follows.
-  - **Done 16:39: A2** (`401`, 1 h 50 min; on both machines with matching checksums, 16:44). Its navdev choices (16:54): epoch 20, 2 steps, setting 1.5; single path 82.36, best-of-6 90.68. Its navtest paths are queued and run after A3.
-  - **Done 16:41: A0's navtest paths** (`350_navtest-a0`, 1.4 min). A0's navtest single path is scored (84.94; R17's reading above); its 6 samples are being scored.
+- **4090 desktop, GPU queue** (one job at a time; read 17:41):
+  - **Running: phase 2, A3** (`402`, since 16:41): A2 plus the position-error loss and the averaged readout; epoch 8.9 at 17:41, so training ends about 18:45. Then A2's navtest paths (`350_navtest-a2`, queued 17:30) and A4.
+  - **Done 16:39: A2** (`401`, 1 h 50 min; on both machines with matching checksums, 16:44). Its navdev choices (16:54): epoch 20, 2 steps, setting 1.5; single path 82.36, best-of-6 90.68. Its navtest paths were queued at 17:30 and run after A3.
+  - **Done 16:41: A0's navtest paths** (`350_navtest-a0`, 1.4 min). A0's navtest scores are complete (17:30): single path 84.94, best-of-6 91.09.
   - **Done: A0** (1 h 55 min; on both machines, 14:50). Its navdev choices (R10, 15:04): epoch 15, 2 steps, setting 1.0; single path 81.80 (A1: 81.86), best-of-6 88.58 (A1: 89.65). Its navtest paths are queued (15:41) and run after A2; R17's reading of A0 against A1 follows about 17:35.
   - **Fixed 15:16 (314d2a8): navtest for every configuration.** The driver queued and scored navtest paths only for phase 1's runs. The series runs and the R15 tuning runs got navdev choices but never navtest, so R17, which reads the series on navtest, could not have been computed. Found on A0, the first series run. The driver runs it since 15:41 (6c341e1) and queued A0's navtest paths at once.
   - **Done 12:51: the rehearsal's boundary-ablation selector** (+2.08 on navdev; "Latest results"). The rehearsal is complete: every chain job ran at full scale without a failure.
@@ -30,7 +30,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - **Headroom of half 0's out-of-fold candidates** (40,943 training RL scenes, 7 candidates each; `pilot_sft/heads/candidate_headroom.py`): own pick 89.06, best of the 7 (a perfect selector) 95.00, mean candidate 80.73. Some candidate beats the own pick in 58.6% of scenes. The own pick fails NC or DAC in 1,907 scenes (4.7%), and some candidate passes both in 73.5% of those. So the selector has about 5.9 points to learn from, but the average candidate is 8.3 points below the own pick: switching has to be precise, which is what R14's margin is for. The selector's inputs on the desktop (A1's epoch-20 weights and navdev candidates) are in place.
     - **Half 1's candidates** (scored 10:39-11:24: 277,781 paths, 0 errors) agree: own pick 89.67, best of the 7 95.52, mean candidate 81.05; some candidate beats the own pick in 57.5% of scenes; the own pick fails NC or DAC in 1,764 scenes (4.4%), and a candidate passes in 76.2% of those.
   - **Done 07:49: R's seed 1** (`39r1`, rc 0). navdev single path 82.33 (seed 0: 81.58), navtest 84.88 (seed 0: 84.57). The run is on both machines with matching checksums (08:14). Paired against seed 0: +0.31 on navtest (-0.06 to +0.73). With R's two seeds, R is level with A and B on navtest's single path and above C and D ("Latest results").
-  - **Queued: 21 jobs, in run order:** phase 2: A4 (`403`); its leave-one-out, bin-size and R17 seed runs now go last (below); phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
+  - **Queued: 22 jobs, in run order:** A2's navtest paths (`350_navtest-a2`); phase 2: A4 (`403`); its leave-one-out, bin-size and R17 seed runs now go last (below); phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
 - **Desktop CPU queue (`~/queue2`):** idle since 11:24, when the rehearsal's candidates were all scored.
   - **Done 09:52: the shared boundary set** (R14), the first CPU job of the chain at full scale. 16 perturbations of each of the 80,626 RL scenes' logged paths: 1,290,016 paths scored in 3.04 h (117.7 paths/s, 0 errors). A lateral NC or DAC limit lies within ±4 m in 75,992 scenes (94%); a longitudinal one within 0.6-1.4 times the path's length in only 9,517 (12%), so most scenes' longitudinal boundary pair is the outermost two, both passing. Every later chain reuses the set.
 - **Queue reordered (14:16, 266b83e): phase 2's follow-up runs now go last.** The leave-one-out, bin-size and R17 seed runs of A's continuity series (up to 7 training runs, about 16 GPU hours) are queued as `z_<name>.sh`, so they run only when nothing else waits.
@@ -50,7 +50,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Latest results
 - **Phase 2, how continuous: R17's first readings** (Nov 21 17:11; each run minus A1, both at their own navdev choices, paired; R17 calls an effect measured only above 1.4 points with its drive interval excluding 0, on navtest's single path).
-  - **A0, plain bins with no notion of distance:** navtest single path 84.94 against A1's 84.67: **+0.27 (-0.10 to +0.63), within seed noise.** navdev: single path -0.05 (-1.86 to +0.87), best-of-6 -1.07 (-1.94 to +0.08). So far the distance-aware bin embeddings of A1 do not measurably help the own pick; they may help the candidates (best-of-6), but not beyond noise yet.
+  - **A0, plain bins with no notion of distance:** navtest single path 84.94 against A1's 84.67: **+0.27 (-0.10 to +0.63), within seed noise.** Its navtest best-of-6 is 91.09 against A1's 91.77 (the paired interval comes with the next aggregate). navdev: single path -0.05 (-1.86 to +0.87), best-of-6 -1.07 (-1.94 to +0.08). So far the distance-aware bin embeddings of A1 do not measurably help the own pick; they may help the candidates (best-of-6), but not beyond noise yet.
   - **A2, A1 plus soft labels (navdev only so far):** single path 82.36 against 81.86, +0.50 (-0.21 to +0.93); best-of-6 90.68 against 89.65, +1.03 (+0.13 to +1.97). The best-of-6 interval excludes 0 but stays below R17's 1.4 points. Its navtest paths run after A3.
 - **The selector works at full scale (the rehearsal, 12:09; no contender, used for no choice).** On A1 without RL, the cross-fitted selector (seed 0) lifts navdev from the own pick's 81.43 to **82.77: +1.35 (+0.48 to +3.65), the interval excluding 0.**
   - It closes 14% of the gap to the best of the 7 candidates (90.81). It switches in 38% of scenes: 145 wins, 84 losses, 56 ties. Its picks fail NC or DAC in 72 scenes, against 79 for the own pick.
