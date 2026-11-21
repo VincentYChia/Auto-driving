@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 21 17:13: phase 2's first R17 readings, A0 and A2): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 21 18:13: phase 2's readings with A0's navtest best-of-6): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
 **Updated:** 2026-11-21 18:13 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
