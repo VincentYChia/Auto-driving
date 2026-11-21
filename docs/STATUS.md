@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-20 18:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-20 19:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -17,10 +17,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **4090 desktop, GPU queue** (one job at a time):
   - **Done since 12:30:** R reading layers 12/18/24, the last phase-1 training run (12:30-14:40), with its navdev grid and navtest paths; seed 1 of A1 at layers 12/18/24 (14:40-16:36), whose navdev and navtest paths are being scored.
   - **Running:** seed 1 of B at layers 12/18/24 (39b1, since 18:39), the first training run with 8 feature readers. A1's seed 2 finished at 18:39; the driver is scoring its paths (about 19:10).
-  - **Queued: 19 jobs, about 36 h before phase 6 (an estimate, with the faster reads):**
+  - **Queued: 25 jobs, about 43 h before phase 6 (an estimate, with the faster reads):**
     - phase 3: seeds 1-2 of A1, B, C, D and R at layers 12/18/24 (39a2-39r2; R's two queued 14:47);
     - phase 2: A's continuity series A0, A2, A3, A4 (400-403);
-    - phase 4 (R16): RL4 and RL6 for B and C (45b0, 45b0r6, 45c0, 45c0r6). A's and D's RL4 and RL6 seeds 0-2 are queued when their supervised seeds finish;
+    - phase 4 (R16): RL4 and RL6 for A's three seeds (queued 19:11), B and C (45b0, 45b0r6, 45c0, 45c0r6). D's six follow its supervised seeds;
     - phase 6 (R15): D's four tuning runs (46d0-46d3).
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`, on e5deb98 since 14:01 with R16):
   - scored R's navtest paths at layer 24 (14:45) and R's navdev grid at layers 12/18/24;
@@ -101,10 +101,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - R loses about 1.5 PDMS to H1 at turns, against 0.8 going straight.
       - A stays about 1 point behind H1 in every command.
     - Turns are where a selector that predicts DAC per candidate has the most room.
-  - **Seed spread, first measurement (17:13; phase 3; `docs/navsim_eval/results/heads_seed_pairs_2026-11-20.json`).** A1 at layers 12/18/24, seed 1 minus seed 0, at seed 0's choices:
-    - navtest single path: -0.47 (-0.72 to -0.19); best-of-6 -0.22 (-0.50 to +0.04).
-    - navdev single path: -0.81 (-2.68 to +0.69).
-    - So two seeds of one configuration differ on navtest by about half a point, as much as the A, B and C method differences (0.1-0.3). Single-seed method claims at that size are within seed noise. R5 and C1-C4 account for this with phase 3's three seeds per method.
+  - **Seed spread: A1's three seeds (19:12; phase 3; `docs/navsim_eval/results/heads_seed_pairs_2026-11-20.json`).** At seed 0's choices, layers 12/18/24:
+    - navtest single path 84.67, 84.20, 85.20: mean 84.69, between-seed SD 0.50. Paired against seed 0: seed 1 -0.47 (-0.72 to -0.19), seed 2 +0.53 (+0.20 to +0.90).
+    - navtest best-of-6 91.77, 91.55, 92.24: mean 91.85, SD 0.35.
+    - navdev single path 81.86, 81.05, 81.76: mean 81.56, SD 0.44.
+    - So training noise alone spreads one configuration by a full point on navtest, more than A, B and C differ (0.1-0.3). Method claims wait for every method's three seeds; R5 and C1-C4 carry the between-seed spread.
   - **What RL fixes (16:50; navdev, seed 0, 743 scenes, point estimates only; `docs/navsim_eval/results/heads_rl_by_command_2026-11-20.json`):**
     - RL4's +4.9 on A comes mostly from staying in the drivable area. A's drivable-area failures fall below H1's in every command:
       - straight 6.7% to 2.7% (H1 5.8%);
@@ -201,7 +202,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - Data order is fixed by the seed and the readers only prefetch, so results do not change.
       - **Measured on B's seed 1 (18:42):** 773 rows/s against 632-638 for B's phase-1 run with 4 readers, about 21% faster. The 4090 is now 67-100% busy, so the GPU sets the pace. Over the roughly 15 training runs left, that saves about 6 GPU hours [D].
     - **Next:**
-      - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`);
+      - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11).
       - phase 4's RL4 and RL6 runs for B and C, which decide the phase-6 gate;
       - the report after each.
 
