@@ -4,18 +4,18 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 12:15: the selector works at full scale, +1.35 on navdev; phase 3 complete for all five): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 12:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 12:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 10:48). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 12:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 12:41):
-  - **Running: the rehearsal's boundary-ablation selector** (`0_62rehearsal6`, since 12:09; 7 candidates plus 4 boundary paths per training scene, so about 2 min per epoch). Epoch 15 of 20 at 12:41; its best held-out so far is 91.20 (epoch 12, margin 0.03), against 91.01 for the seed-0 selector. It ends about 12:55, then phase 2 starts: A0 (`400`).
+- **4090 desktop, GPU queue** (one job at a time; read 12:47):
+  - **Running: the rehearsal's boundary-ablation selector** (`0_62rehearsal6`, since 12:09; 7 candidates plus 4 boundary paths per training scene, so about 2 min per epoch). Epoch 18 of 20 at 12:47; its best held-out so far is 91.20 (epoch 12, margin 0.03), against 91.01 for the seed-0 selector. It ends about 12:55, then phase 2 starts: A0 (`400`).
   - **Done 12:09: the rehearsal's cross-fitted seed-0 selector** (11:34-12:09): +1.35 on navdev (above, "Latest results").
   - **Done 11:34: R's seed 2** (`39r2`, rc 0; 1 h 43 min): navdev 80.69, navtest 84.46. On both machines with matching checksums (11:44).
   - **The rehearsal of the selector chain:** both half generators are done, the shared boundary set and both halves' candidates are scored, and the selectors are training.
@@ -35,7 +35,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - If that happens, the plan's cut order applies (`docs/HEADS_PLAN.md`, "Schedule risks"): phase 6 is not shortened. The estimate will be redone from measured run lengths when the gate decides.
   - R18 (07:44) can lengthen phase 6: each extra full-RL round costs a contender about 9 GPU hours (its RL plus its two half generators), at most 28 h. That follows your direction to iterate RL past the dates.
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on fbeee12 (R18's code) at 08:11; its first pass was OK, with no failed passes. Both queue runners are up.
-- **Anvil:** nothing running (10:47). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
+- **Anvil:** nothing running (12:47). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
 
 ## Latest results
 - **The selector works at full scale (the rehearsal, 12:09; no contender, used for no choice).** On A1 without RL, the cross-fitted selector (seed 0) lifts navdev from the own pick's 81.43 to **82.77: +1.35 (+0.48 to +3.65), the interval excluding 0.**
