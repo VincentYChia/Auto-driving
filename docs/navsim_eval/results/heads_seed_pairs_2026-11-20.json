@@ -226,5 +226,43 @@
     -0.0047
    ]
   }
+ },
+ "d-l12-18-24-s1": {
+  "navdev_single": {
+   "seed0": 0.7841,
+   "seed1": 0.7851,
+   "difference": 0.0009,
+   "ci_drives": [
+    -0.0124,
+    0.0171
+   ]
+  },
+  "navdev_best_of_6": {
+   "seed0": 0.9217,
+   "seed1": 0.9153,
+   "difference": -0.0064,
+   "ci_drives": [
+    -0.0178,
+    0.001
+   ]
+  },
+  "navtest_single": {
+   "seed0": 0.8292,
+   "seed1": 0.8208,
+   "difference": -0.0084,
+   "ci_drives": [
+    -0.0127,
+    -0.0039
+   ]
+  },
+  "navtest_best_of_6": {
+   "seed0": 0.9367,
+   "seed1": 0.9324,
+   "difference": -0.0042,
+   "ci_drives": [
+    -0.0071,
+    -0.0016
+   ]
+  }
  }
 }

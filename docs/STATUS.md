@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 04:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 04:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -109,7 +109,12 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - C's seeds: 84.34, 83.55, 83.65 (mean 83.85, SD 0.43).
     - A - B +0.06 (-0.56 to +0.68) [3 vs 3]: still indistinguishable.
     - A - R +0.12 (-1.01 to +1.24) and B - R +0.06 [R 1 seed so far].
-    - A - D +1.77 (+0.42 to +3.06) single path, -1.81 (-2.88 to -0.76) best-of-6 [D 1 seed so far].
+    - With D's two seeds (Nov 21 04:43; D: 82.92, 82.08 on navtest single path, best-of-6 93.67, 93.24):
+      - A - D +2.19 (+1.10 to +3.34) single path, -1.60 (-2.16 to -0.99) best-of-6;
+      - B - D +2.14 (+1.28 to +3.01), -1.46 (-2.01 to -0.84);
+      - C - D +1.35 (+0.35 to +2.32), -2.10 (-2.76 to -1.31);
+      - D - R -2.07 (-3.46 to -0.70).
+      - D keeps the lowest own pick and the best candidates.
     - So before RL, DDIM (B) beats rectified flow (C) on this body, and masked diffusion (A) matches DDIM.
   - **Seed spread: A1's three seeds (19:12; phase 3; `docs/navsim_eval/results/heads_seed_pairs_2026-11-20.json`).** At seed 0's choices, layers 12/18/24:
     - navtest single path 84.67, 84.20, 85.20: mean 84.69, between-seed SD 0.50. Paired against seed 0: seed 1 -0.47 (-0.72 to -0.19), seed 2 +0.53 (+0.20 to +0.90).
