@@ -116,6 +116,33 @@ def test_layer_choice_and_the_queued_phases(tree):
     assert set(os.listdir(driver.P["queue"])) == before - {"400_train-a0-l12-18-24.sh"}
 
 
+def test_the_series_best_gets_two_more_seeds_when_it_is_not_a1(tree, monkeypatch):
+    def scorer(folder, split, exp_name, **kw):  # A2 above every other configuration of the series (R17)
+        fake_scorer(folder, split, exp_name, **kw)
+        if f"{os.sep}a2-" in folder:
+            f = Path(driver.P["exp"]) / exp_name / "run" / "scores.csv"
+            d = pd.read_csv(f)
+            d["score"] = d["score"] + 0.02
+            d.to_csv(f, index=False)
+
+    monkeypatch.setattr(driver, "SCORER", scorer)
+    for run in ("a1-l24", "a1-l12-18-24", "a0-l12-18-24", "a2-l12-18-24", "a3-l12-18-24", "a4-l12-18-24"):
+        make_run(run, "masked")
+    lc = driver.choose_layers("A")
+    driver.series(lc)
+    assert json.loads((Path(driver.P["heads"]) / "choices" / "A_series.json").read_text())["best"] == "a2"
+    jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("43"))
+    assert jobs == ["431_train-a2-l12-18-24-s1.sh", "432_train-a2-l12-18-24-s2.sh"]
+    body = (Path(driver.P["queue"]) / "432_train-a2-l12-18-24-s2.sh").read_text()
+    assert "--seed 2" in body and "--soft-sigma 1" in body and "--split navtest" in body and "--weights epoch_15" in body
+    # their scores, once written, go to choices/A_series_best_seeds.json
+    for sd in (1, 2):
+        make_run(f"a2-l12-18-24-s{sd}", "masked", epochs=[15])
+    driver.series(lc)
+    res = json.loads((Path(driver.P["heads"]) / "choices" / "A_series_best_seeds.json").read_text())
+    assert set(res["runs"]) == {"a2-l12-18-24-s1", "a2-l12-18-24-s2"} and "navdev_single_pdms" in res["runs"]["a2-l12-18-24-s1"]
+
+
 def test_a_layer_tie_goes_to_layer_24(tree, monkeypatch):
     for run in ("d-l24", "d-l12-18-24"):
         make_run(run, "anchor")

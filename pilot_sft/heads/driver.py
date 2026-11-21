@@ -402,6 +402,31 @@ def series(lc: dict) -> None:
         queue_job(f"42{b.replace('.', '')}_train-{run}", f"phase 2, {best.upper()} with {b} m bins",
                   train_body(run, "masked", layers, 0, flags(feats) + ["--bin-m", b]) +
                   "bash scripts/desk/navdev_grid.sh $RUN masked\n")
+    if best != "a1":  # R17: the series' best gets seeds 1 and 2, at its own R10 choices, against A1's three seeds
+        cb, g = ch[best], GRID["masked"]
+        res = {}
+        for sd in (1, 2):
+            run = f"{name_of[best]}-s{sd}"
+            queue_job(f"43{sd}_train-{run}", f"phase 2 (R17), seed {sd} of the continuity series' best, {best.upper()}",
+                      train_body(run, "masked", layers, sd, flags(feats)) +
+                      predict_cmd(run, "navdev", "dev", cb["epoch"], str(cb["steps"]), g["k"], cb["scale"]) +
+                      predict_cmd(run, "navtest", "navtest", cb["epoch"], str(cb["steps"]), g["k"], cb["scale"]))
+            r = {}
+            for split in ("navdev", "navtest"):
+                base = os.path.join(P["heads"], run, f"{split}_epoch_{cb['epoch']}", f"steps{cb['steps']}")
+                if not os.path.exists(os.path.join(os.path.dirname(base), "timing.json")):
+                    continue
+                sv = score(os.path.join(base, "single"), split)
+                if sv is not None:
+                    r[f"{split}_single_pdms"] = round(float(sv.mean()), 4)
+                b6 = best_of(sample_folders(base, cb["scale"], g["k"]), split)
+                if b6 is not None:
+                    r[f"{split}_best_of_6"] = round(b6, 4)
+            if r:
+                res[run] = r
+        if res:
+            write_json(os.path.join(P["heads"], "choices", "A_series_best_seeds.json"),
+                       {"best": best, "runs": res, "rule": "docs/HEADS_PLAN.md R17"})
 
 
 #
