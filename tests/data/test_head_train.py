@@ -48,13 +48,16 @@ def test_train_resume_predict(tmp_path, kind, extra):
     make_split(cache / "navtest", 6, targets=False, seed=2)
     out = tmp_path / "run"
     common = ["--cache", str(cache), "--out", str(out), "--kind", kind, "--width", "32", "--depth", "2",
-              "--heads", "4", "--batch", "8", "--warmup", "2", "--workers", "1", *extra]
+              "--heads", "4", "--batch", "8", "--warmup", "2", "--workers", "1", "--log-every", "2", *extra]
     run("train_head.py", *common, "--epochs", "1")
     run("train_head.py", *common, "--epochs", "2", "--resume")
     for f in ("epoch_1.pt", "epoch_2.pt", "final.pt", "checkpoint.pt", "run.json", "log.jsonl"):
         assert (out / f).exists(), f
     log = [json.loads(l) for l in (out / "log.jsonl").read_text().splitlines()]
     assert [r["epoch"] for r in log if "dev_ade" in r] == [1, 2]
+    # 3 steps per epoch, a line every 2 steps: each line is the mean of the steps since the last line or the epoch's
+    # start (an epoch's first line once averaged a partial window over the full 50)
+    assert [(r["step"], r["window"]) for r in log if "window" in r] == [(2, 2), (4, 1), (6, 2)]
     run("predict_head.py", "--run", str(out), "--cache", str(cache / "navtest"), "--steps", "1,2", "--k", "3")
     for steps in (1, 2):
         for name in ("single", "sample_0", "sample_2"):

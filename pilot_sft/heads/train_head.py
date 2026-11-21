@@ -128,6 +128,7 @@ def main() -> None:
     p.add_argument("--workers", type=int, default=8, help="threads reading features ahead of the GPU")
     p.add_argument("--limit", type=int, default=None, help="only the first N train rows (timing runs)")
     p.add_argument("--max-steps", type=int, default=None, help="stop early (timing runs)")
+    p.add_argument("--log-every", type=int, default=50, help="training steps per log line (their mean)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--drive-half", type=int, choices=(0, 1), default=None,
                    help="phase 6 cross-fitting: train only on the rows of this half of the training drives "
@@ -200,7 +201,7 @@ def main() -> None:
     epoch = epoch0 - 1
     for epoch in range(epoch0, args.epochs):
         order = random.Random(args.seed * 1000 + epoch).sample(rows, len(rows))
-        t_epoch, acc = time.time(), {}
+        t_epoch, acc, n_acc = time.time(), {}, 0
         for b in batches(train, order, args.batch, args.workers):
             t = to_torch(b, device)
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device == "cuda"):
@@ -214,14 +215,15 @@ def main() -> None:
             seen += len(t["xy"])
             for k, v in out.items():
                 acc[k] = acc.get(k, 0.0) + float(v)
-            if step % 50 == 0:
+            n_acc += 1
+            if step % args.log_every == 0:  # the mean over the steps since the last line or the epoch's start
                 rec = {"step": step, "epoch": round(epoch + (step - epoch * steps_per_epoch) / steps_per_epoch, 3),
-                       **{k: round(v / 50, 5) for k, v in acc.items()}, "grad_norm": round(float(gn), 3),
+                       **{k: round(v / n_acc, 5) for k, v in acc.items()}, "window": n_acc, "grad_norm": round(float(gn), 3),
                        "lr": sched.get_last_lr()[0], "rows_per_s": round(seen / (time.time() - start), 1)}
                 log.write(json.dumps(rec) + "\n")
                 log.flush()
                 print(json.dumps(rec), flush=True)
-                acc = {}
+                acc, n_acc = {}, 0
             if args.max_steps and step >= args.max_steps:
                 break
         ev = evaluate(head, dev, device, args.batch, cfg.steps)
