@@ -516,8 +516,8 @@ rc=$?
 pkill -f "pdm_server.py serve --cache $NC"
 [ $rc -eq 0 ] || exit $rc
 for u in {' '.join(map(str, checkpoints))}; do
-  taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $OUT --weights rl_$u --split navdev --cache $C/dev \\
-    --steps {c['steps']} --k {k} {sc}
+  [ -f $OUT/navdev_rl_$u/timing.json ] || taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $OUT --weights rl_$u \\
+    --split navdev --cache $C/dev --steps {c['steps']} --k {k} {sc}
 done
 """
 
@@ -549,16 +549,10 @@ def queue_rl(method: str, lc: dict, start: dict, recipe: int, base: Optional[int
                   rl_body(lc, sft, rl_name(sft, recipe, base), start["epoch"], s, recipe, RL_CHECKPOINTS))
 
 
-def rl_choose(rl: str, lc: dict, sft: str, epoch: int, checkpoints, navtest: bool = True) -> Optional[dict]:
-    """R11/R12: among update 0 (the start, no RL) and the saved checkpoints, the one with the highest navdev
-    single-path PDMS (a tie goes to the earlier one). Queues its navtest paths when ``navtest``."""
+def checkpoint_scores(rl: str, lc: dict, sft: str, epoch: int, checkpoints) -> Optional[tuple]:
+    """navdev single-path PDMS and best-of-6 at update 0 (the start, no RL) and each saved checkpoint, as
+    ({update: value}, {update: value}); None until every one is predicted and scored."""
     rd = os.path.join(P["heads"], rl)
-    out = os.path.join(rd, "choices_navdev.json")
-    if os.path.exists(out):
-        res = read_json(out)
-        for k in ("single_by_checkpoint", "best_of_6_by_checkpoint"):  # JSON keys are strings; callers use updates
-            res[k] = {int(u): v for u, v in res[k].items()}
-        return res
     c, g = lc["choice"], GRID[lc["kind"]]
     single, b6 = {}, {}
     for u in (0,) + tuple(checkpoints):
@@ -571,12 +565,37 @@ def rl_choose(rl: str, lc: dict, sft: str, epoch: int, checkpoints, navtest: boo
         if s is None or (c["scale"] is not None and b is None):
             return None
         single[u], b6[u] = round(float(s.mean()), 4), (round(b, 4) if b is not None else None)
-    u = max(single, key=lambda x: (single[x], -x))
+    return single, b6
+
+
+def best_update(single: dict) -> int:
+    """R11's rule: the highest navdev single-path PDMS; a tie goes to the earlier update."""
+    return max(single, key=lambda x: (single[x], -x))
+
+
+def rl_choose(rl: str, lc: dict, sft: str, epoch: int, checkpoints, navtest: bool = True,
+              extra: Optional[dict] = None) -> Optional[dict]:
+    """R11/R12: among update 0 (the start, no RL) and the saved checkpoints, the one with the highest navdev
+    single-path PDMS (a tie goes to the earlier one). Queues its navtest paths when ``navtest``. ``extra`` adds keys
+    to the written choice (and may replace its rule)."""
+    rd = os.path.join(P["heads"], rl)
+    out = os.path.join(rd, "choices_navdev.json")
+    if os.path.exists(out):
+        res = read_json(out)
+        for k in ("single_by_checkpoint", "best_of_6_by_checkpoint"):  # JSON keys are strings; callers use updates
+            res[k] = {int(u): v for u, v in res[k].items()}
+        return res
+    c = lc["choice"]
+    sc = checkpoint_scores(rl, lc, sft, epoch, checkpoints)
+    if sc is None:
+        return None
+    single, b6 = sc
+    u = best_update(single)
     res = {"run": rl, "start": {"run": sft, "weights": f"epoch_{epoch}"},
            "checkpoint": "start" if u == 0 else f"rl_{u}", "updates": u, "steps": c["steps"], "scale": c["scale"],
            "navdev_single_pdms": single[u], "navdev_best_of_6": b6[u], "single_by_checkpoint": single,
            "best_of_6_by_checkpoint": b6, "rule": "docs/HEADS_PLAN.md R11, R12 (update 0 allowed)",
-           "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
+           "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}", **(extra or {})}
     write_json(out, res)
     log(f"{rl}: RL checkpoint {res['checkpoint']} (navdev single {single[u]}; by checkpoint {single})")
     if navtest:
@@ -929,6 +948,32 @@ R15_TUNING = {  # R15: 4 runs over each method's own main settings (A: its phase
 R15_READY: set = {"B", "C", "D"}  # methods whose R15 training flags exist in train_head.py
 
 
+FULL_RL_ROUND = 5000  # R18: the full RL stage runs in rounds of 5,000 updates ...
+FULL_RL_ROUNDS = 4  # ... and continues while a round's last save is R11's choice, up to 20,000 updates
+
+
+def full_rl_stage(method: str, recipe: int, run: str, tlc: dict, start: int, rl: str) -> Optional[dict]:
+    """R15 with R18: the full RL stage of ``run`` in rounds of 5,000 updates, saved every 500, each round resuming
+    the last (jobs ``47{m}{r}_`` then ``47{m}{r}r{k}_``). After each round R11's rule chooses among update 0 and every
+    save so far; the stage continues only while that choice is the round's last save, up to 4 rounds. Returns the
+    final choice (also written as the run's choices_navdev.json), or None while a round runs or is scored."""
+    if os.path.exists(os.path.join(P["heads"], rl, "choices_navdev.json")):
+        return rl_choose(rl, tlc, run, start, (), navtest=False)  # chosen before: read back
+    for k in range(1, FULL_RL_ROUNDS + 1):
+        cps = tuple(range(FULL_RL_EVERY, FULL_RL_ROUND * k + 1, FULL_RL_EVERY))
+        queue_job(f"47{method.lower()}{recipe}{'' if k == 1 else f'r{k}'}_rlfull{recipe}-{run}",
+                  f"phase 6 (R16, R15, R18): full RL stage, RL{recipe}, of {run} from epoch {start}, round {k}: "
+                  f"to {cps[-1]:,} updates", rl_body(tlc, run, rl, start, 0, recipe, cps))
+        sc = checkpoint_scores(rl, tlc, run, start, cps)
+        if sc is None:
+            return None
+        if best_update(sc[0]) == cps[-1] and k < FULL_RL_ROUNDS:
+            continue  # navdev still rising at the round's last save: the next round (logged once, when queued)
+        return rl_choose(rl, tlc, run, start, cps, navtest=False,
+                         extra={"rounds": k, "rule": "docs/HEADS_PLAN.md R11, R15, R18 (update 0 allowed)"})
+    return None
+
+
 R16_CONTENDERS = (("A", 4), ("A", 6), ("D", 4), ("D", 6))  # R16: at least A and D, each under RL4 and RL6
 
 
@@ -1072,12 +1117,10 @@ def phase6(status: dict) -> None:
                              "navdev_best_of_6_by_epoch": b6, "rule": "docs/HEADS_PLAN.md R11 via R15"})
         start = read_json(out)["epoch"]
         rl = f"{tuned['run']}-rlfull{recipe}"
-        queue_job(f"47{method.lower()}{recipe}_rlfull{recipe}-{tuned['run']}",
-                  f"phase 6 (R16, R15): full RL stage, RL{recipe}, of {tuned['run']} from epoch {start}, 5,000 updates",
-                  rl_body(tlc, tuned["run"], rl, start, 0, recipe, FULL_RL_CHECKPOINTS))
-        ch = rl_choose(rl, tlc, tuned["run"], start, FULL_RL_CHECKPOINTS, navtest=False)
+        ch = full_rl_stage(method, recipe, tuned["run"], tlc, start, rl)
         if not ch:
             continue
+        st["rounds"] = ch.get("rounds", 1)
         st["checkpoint"] = ch["checkpoint"]
         spec = os.path.join(P["heads"], "choices", f"selector_spec_{x}.json")
         if not os.path.exists(spec):

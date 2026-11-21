@@ -3,6 +3,7 @@ queued once and only when its inputs exist: the half generators and in-fold cand
 (~/queue2), the selectors, adoption on navdev by the point estimate, and one navtest evaluation."""
 
 import json
+import re
 import os
 import sys
 from pathlib import Path
@@ -253,6 +254,76 @@ def test_phase6_takes_a_under_both_recipes_through_full_rl_to_the_selector_specs
         assert (spec["recipe"], spec["steps"], spec["scale"], spec["k"], spec["rl_start_epoch"]) == (r, 4, 1.5, 6, 15)
         assert status["phase6_full"][f"A{r}"]["checkpoint"] == "rl_3000"
     assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("350_navtest-a1")]  # no navtest yet (R16)
+
+
+def rl_outputs(rd, steps, scale, updates, k=6):
+    """navdev paths of the given saves of a full RL stage."""
+    for u in updates:
+        base = rd / f"navdev_rl_{u}" / f"steps{steps}"
+        for n in ["single"] + [os.path.basename(f) for f in driver.sample_folders(str(base), scale, k)]:
+            (base / n).mkdir(parents=True, exist_ok=True)
+            (base / n / "shard_000_of_001.jsonl").write_text("{}\n")
+        (rd / f"navdev_rl_{u}" / "timing.json").write_text("{}")
+
+
+def peak_at(peak):
+    """A scorer whose navdev single path rises with the update count up to ``peak`` and falls after it."""
+    def scorer(folder, split, exp_name, **kw):
+        fake_scorer(folder, split, exp_name, **kw)
+        m = re.search(r"navdev_rl_(\d+)", folder)
+        if m:
+            u = int(m.group(1))
+            f = Path(driver.P["exp"]) / exp_name / "run" / "scores.csv"
+            d = pd.read_csv(f)
+            d["score"] = d["score"] + 0.01 * (u if u <= peak else 2 * peak - u) / 1000
+            d.to_csv(f, index=False)
+    return scorer
+
+
+def phase6_a_only(tree, monkeypatch):  # noqa: F811
+    for run in ("a1-l24", "a1-l12-18-24", "a0-l12-18-24", "a2-l12-18-24", "a3-l12-18-24", "a4-l12-18-24"):
+        make_run(run, "masked")
+    choices = Path(driver.P["heads"]) / "choices"
+    choices.mkdir(parents=True, exist_ok=True)
+    (choices / "rl_recipe.json").write_text(json.dumps({"recipe": 4}))
+    monkeypatch.setattr(driver, "contenders", lambda: [("A", 4)])
+    return choices, Path(driver.P["heads"]) / "a1-l12-18-24-rlfull4"
+
+
+def test_the_full_rl_stage_continues_while_its_last_save_is_the_best(tree, monkeypatch):  # noqa: F811
+    choices, rd = phase6_a_only(tree, monkeypatch)
+    monkeypatch.setattr(driver, "SCORER", peak_at(7500))
+    driver.phase6({})
+    rl_outputs(rd, 4, 1.5, range(500, 5001, 500))
+    driver.phase6({})  # round 1: the best save is its last (5,000), so round 2 is queued and nothing is chosen
+    assert not (rd / "choices_navdev.json").exists() and not (choices / "selector_spec_A4.json").exists()
+    j2 = (Path(driver.P["queue"]) / "47a4r2_rlfull4-a1-l12-18-24.sh").read_text()
+    assert "--updates 10000 --save-every 500 --resume" in j2 and "for u in 500 1000" in j2 and " 10000; do" in j2
+    assert "[ -f $OUT/navdev_rl_$u/timing.json ] ||" in j2  # the saves predicted in round 1 are not predicted again
+    rl_outputs(rd, 4, 1.5, range(5500, 10001, 500))
+    status = {}
+    driver.phase6(status)  # round 2 peaks at 7,500: the stage ends there
+    ch = json.loads((rd / "choices_navdev.json").read_text())
+    assert (ch["checkpoint"], ch["updates"], ch["rounds"]) == ("rl_7500", 7500, 2) and "R18" in ch["rule"]
+    spec = json.loads((choices / "selector_spec_A4.json").read_text())
+    assert (spec["deployed_weights"], spec["updates"]) == ("rl_7500", 7500)  # the half generators run 7,500 updates
+    assert status["phase6_full"]["A4"]["rounds"] == 2
+    assert not [j for j in os.listdir(driver.P["queue"]) if j.startswith("47a4r3")]
+
+
+def test_the_full_rl_stage_stops_after_four_rounds(tree, monkeypatch):  # noqa: F811
+    choices, rd = phase6_a_only(tree, monkeypatch)
+    monkeypatch.setattr(driver, "SCORER", peak_at(10 ** 6))  # still rising at every save
+    for k in range(1, 5):
+        driver.phase6({})
+        rl_outputs(rd, 4, 1.5, range(500, 5000 * k + 1, 500))
+    driver.phase6({})
+    ch = json.loads((rd / "choices_navdev.json").read_text())
+    assert (ch["checkpoint"], ch["rounds"]) == ("rl_20000", 4)
+    jobs = sorted(j for j in os.listdir(driver.P["queue"]) if j.startswith("47a4"))
+    assert jobs == ["47a4_rlfull4-a1-l12-18-24.sh", "47a4r2_rlfull4-a1-l12-18-24.sh", "47a4r3_rlfull4-a1-l12-18-24.sh",
+                    "47a4r4_rlfull4-a1-l12-18-24.sh"]
+    assert "--updates 20000" in (Path(driver.P["queue"]) / "47a4r4_rlfull4-a1-l12-18-24.sh").read_text()
 
 
 def test_phase6_queues_tuning_runs_and_holds_methods_without_their_flags(tree, monkeypatch):  # noqa: F811

@@ -336,6 +336,15 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
   - Each phase-6 contender takes about 16 GPU hours: about 3.5 h for the full RL stage, about 4.5 h for each half generator, and about 4 h for the selectors. That is about 64 h for A and D, and about 64 h more if B and C join.
   - The researcher: "we have excess in the week".
 
+**R18. The full RL stage continues while navdev still rises** (committed 2026-11-21 07:44, before any full RL stage or phase-4 run had started). The researcher, 2026-11-19: "if we are doing RL and we can recursively improve then we should do so even if [it breaks the] schedule"; the standing direction since: quality over schedule, iterate RL past the dates. R15's full RL stage stops at 5,000 updates even when its last save is its best, which would leave a still-rising RL stage unfinished.
+- **Rounds.** The full RL stage runs in rounds of 5,000 updates, saved every 500. After each round, R11's rule chooses among update 0 and every save so far, by navdev single-path PDMS, a tie going to the earlier one.
+  - If the choice is the round's last save, the stage continues from it for another round: the same recipe, settings, seed and scene order (`rl_head.py --resume`; jobs `47{m}{r}r{k}_`).
+  - Otherwise, or after 4 rounds (20,000 updates), the stage ends, and the choice is the deployed path generator.
+- **Equal treatment.** Every contender follows the rule on its own navdev curve. Its selector chain's half generators then run its deployed update count (R16).
+- **Phase 4 is unchanged.** Its 1,500 updates are the matched comparison between methods.
+- **Selection noise.** More saves make the navdev maximum more optimistic. navtest stays untouched until the final system is chosen (R16), so the headline number is not biased by it.
+- **Cost** [D]: each extra round is about 3.1 h of RL for the contender plus 10 navdev path sets, and about 2 × 3.1 h more for its two half generators: about 9 GPU hours. At most 3 extra rounds per contender, about 28 h.
+
 **R14. The selector's design** (committed 2026-11-20 11:38, before any selector result and before its code runs on real data). Evidence: `docs/research/heads/notes/selector_design.md`, a review of about 25 published NAVSIM selectors.
 - **The score it predicts, checked on our files:** NAVSIM v1.1's PDMS is NC × DAC × (5·TTC + 5·EP + 2·C)/12.
   - On one of our navtest score files (12,146 scenes), this formula equals the official score exactly.
