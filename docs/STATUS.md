@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 08:47: R's two seeds, and empty phase-2 and phase-4 sections ready for their results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 09:18 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 09:44 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,8 +14,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 08:48). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 09:11):
-  - **Running: the rehearsal's half-1 path generator** (`0_60rehearsalh1`, since 08:52): A1's configuration on drive half 1 (80 drives), then its candidates for half 0's 39,683 RL scenes and its navdev paths. Epoch 6.7 of 20 at 09:11, so it ends about 09:55.
+- **4090 desktop, GPU queue** (one job at a time; read 09:41):
+  - **Running: the rehearsal's half-1 path generator** (`0_60rehearsalh1`, since 08:52): A1's configuration on drive half 1 (80 drives), then its candidates for half 0's 39,683 RL scenes and its navdev paths. Epoch 17.4 of 20 at 09:41, so it ends about 09:55.
   - **Done 08:52: the rehearsal's half-0 path generator** (rc 0). Measured, the first chain job at full scale:
     - training: 118,387 scenes from 78 of the 158 training drives, 20 epochs in 61.6 min (641 rows/s, 13.8 GB peak GPU memory); dev ADE 0.771 m at epoch 19, against 0.768 for A1 on all drives;
     - out-of-fold candidates for half 1's 40,943 RL scenes: 0.8 ms per scene for the own pick and 1.3 ms for 6 samples, so about 1.5 min;
@@ -24,7 +24,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **Then:** half 0's candidates are scored on the CPU queue after the boundary set (queued 08:57), then half 1's. The two selectors are queued once both are scored, about 10:45, and run after R's seed 2, about 12:10-13:40.
   - **Done 07:49: R's seed 1** (`39r1`, rc 0). navdev single path 82.33 (seed 0: 81.58), navtest 84.88 (seed 0: 84.57). The run is on both machines with matching checksums (08:14). Paired against seed 0: +0.31 on navtest (-0.06 to +0.73). With R's two seeds, R is level with A and B on navtest's single path and above C and D ("Latest results").
   - **Queued: 25 jobs, in run order:** phase 3: R's seed 2 (`39r2`); phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
-- **Desktop CPU queue (`~/queue2`): the shared boundary set, since 06:47** (`0_57boundary_score-selector-shared-boundary`): 16 perturbations of each of the 80,626 RL scenes' logged paths, scored, then the 4 per scene that straddle the NC or DAC limit (R14). It is the first CPU job of the chain at full scale; every later chain reuses it. At 09:11: 60,864 scenes of 80,626 (75%), 118 paths/s, 0 errors, so it ends about 09:55.
+- **Desktop CPU queue (`~/queue2`): the shared boundary set, since 06:47** (`0_57boundary_score-selector-shared-boundary`): 16 perturbations of each of the 80,626 RL scenes' logged paths, scored, then the 4 per scene that straddle the NC or DAC limit (R14). It is the first CPU job of the chain at full scale; every later chain reuses it. At 09:41: 73,664 scenes of 80,626 (91%), 118 paths/s, 0 errors, so it ends about 09:58.
 - **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
   - Phases 2-4 and D's tuning: about 50-62 h. The full RL stages would start about Mon Nov 23 08:00-20:00.
   - Phase 6 for the four contenders A4, A6, D4, D6 (a full RL stage and a selector chain each, about 11-17 h): about 44-68 h, ending about Wed Nov 25 04:00 to Thu Nov 26 16:00.
@@ -267,6 +267,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - 2 new tests; 129 heads tests pass. `rl_choose` was split into `checkpoint_scores` and `best_update`, with the same behaviour.
     - **Done 08:46 (Nov 21): training-log fix** (683e005). An epoch's first training-loss line divided a partial window by 50, so the logged loss swung in a sawtooth (A1's ran 0.02-1.08). It looked like the rehearsal's half-0 loss had risen from 0.26 to 1.14; it had not (its dev ADE tracks A1's). Lines now average the steps they cover (logged as `window`). Training never read these numbers, so no result changes.
     - **Done 09:18 (Nov 21): the selectors in the aggregate and the report, before the first one is trained** (ab215d8). The aggregate now has every trained selector's held-out choice, training and R14's measures on navdev. The report gets a phase-6 section per chain: the adoption verdict, selected minus own pick per variant with its drive interval, and the switches and failures behind it. The rehearsal's two selectors will fill it first (about 13:40).
+    - **Done 09:44 (Nov 21): R4's confirmatory tests, their wording fixed before any phase-4 run** (`docs/HEADS_PLAN.md` R4, implementation note; code 0a1184d).
+      - R16 came after R4, so two phrases needed a fixed reading. "After the RL stage" is phase 4 under the registered recipe (RL4, each seed at its R11 checkpoint); RL6 is reported beside it, not tested. "The navdev-chosen method" is R5's leader under RL4.
+      - C1 A minus D after RL; C2 the chosen method after RL minus H1; C3 the chosen method before RL minus R; C4 the chosen method after minus before RL, seed-paired. All on navtest's single path, by R3's hierarchical bootstrap, with two-sided p-values and Holm's correction at family-wise 0.05.
+      - `pilot_sft/heads/confirmatory.py` runs them once every input exists. 2 new tests.
     - **Next:**
       - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49), C's (Nov 21 02:43) and D's (Nov 21 06:42); R's are training (seed 1 since 05:55).
       - the rehearsal of the selector chain (its two half generators after R's seed 1, about 07:55-10:30; then scoring and its two selectors): any failure fixed for every chain before a contender's chain runs.
