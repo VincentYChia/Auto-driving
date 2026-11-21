@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed 13:12 with C's navtest results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 00:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 01:13 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -101,6 +101,17 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - R loses about 1.5 PDMS to H1 at turns, against 0.8 going straight.
       - A stays about 1 point behind H1 in every command.
     - Turns are where a selector that predicts DAC per candidate has the most room.
+  - **Method pairs with seed noise** (Nov 21 01:13; `pilot_sft/heads/method_seeds.py`, `docs/navsim_eval/results/heads_method_seeds_2026-11-21.json`).
+    - Method: R5's hierarchical bootstrap over drives and seeds, with every scored seed at seed 0's choices. Methods with one seed get the larger between-seed SD of the three-seed methods: 0.50 single path, 0.35 best-of-6.
+    - navtest, single path (seeds in brackets):
+      - A - B +0.06 (-0.56 to +0.68) [3 vs 3];
+      - A - C +0.75 (-0.16 to +1.69) [3 vs 2];
+      - B - C +0.69 (-0.03 to +1.47) [3 vs 2];
+      - A - R +0.12 (-1.01 to +1.24) [3 vs 1];
+      - A - D +1.77 (+0.42 to +3.06) [3 vs 1];
+      - D - R -1.65 (-3.20 to -0.07).
+    - navtest, best-of-6: A - D -1.81 (-2.64 to -0.98); C - D -2.15 (-3.09 to -1.12).
+    - So with seed noise counted, A, B, C and R still cannot be told apart. D's own pick is still lower and its candidates still better. The intervals are about twice as wide as the drive-only ones.
   - **Seed spread: A1's three seeds (19:12; phase 3; `docs/navsim_eval/results/heads_seed_pairs_2026-11-20.json`).** At seed 0's choices, layers 12/18/24:
     - navtest single path 84.67, 84.20, 85.20: mean 84.69, between-seed SD 0.50. Paired against seed 0: seed 1 -0.47 (-0.72 to -0.19), seed 2 +0.53 (+0.20 to +0.90).
     - navtest best-of-6 91.77, 91.55, 92.24: mean 91.85, SD 0.35.
