@@ -314,6 +314,11 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
 - **Phase 6 contenders:**
   - A and D, each under RL4 and under RL6: four path generators.
   - B and C join, under both recipes, if after phase 4 either is not clearly below the best of A and D under its better recipe (by point estimate). The test is navdev single path or best-of-6: the paired drive interval of the difference must reach 0 or above. They queue after A's and D's.
+- **Amendment (21:42, before any phase-4 run had started): the B and C gate uses every phase-4 seed.**
+  - It uses R5's hierarchical bootstrap, resampling drives and seeds; a single-seed method gets the larger of A's and D's between-seed SDs as an added normal draw.
+  - It is computed on navdev single path and best-of-6, at each run's chosen checkpoint, under each method's better recipe (point estimate).
+  - B or C joins if the interval of (the best of A and D) minus it includes 0 on either measure, or if it leads.
+  - Reason: A1's three seeds differ by up to 1.0 point on navtest (measured 19:11), so a seed-0-only comparison could admit or exclude a method on seed luck.
 - **Each contender gets:**
   - R15's post-decision tuning of its method, shared by its two recipes;
   - the full RL stage with its own recipe (5,000 updates, saved every 500, R11's checkpoint rule);
