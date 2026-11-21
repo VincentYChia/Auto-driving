@@ -4,21 +4,21 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 08:47: R's two seeds, and empty phase-2 and phase-4 sections ready for their results): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 08:46 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 08:48 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 06:55). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 08:48). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 08:41):
-  - **Running: the rehearsal's half-0 path generator** (`0_60rehearsalh0`, since 07:49): A1's configuration trained on drive half 0 (78 drives), then its candidates for half 1's 40,943 RL scenes and its navdev paths. Epoch 17 of 20 at 08:41 (dev ADE 0.80 m at epoch 7, as A1's full run had), so training ends about 08:52. Half 1 follows (about 1.2 h).
+- **4090 desktop, GPU queue** (one job at a time; read 08:47):
+  - **Running: the rehearsal's half-0 path generator** (`0_60rehearsalh0`, since 07:49): A1's configuration trained on drive half 0 (78 drives), then its candidates for half 1's 40,943 RL scenes and its navdev paths. Epoch 20 of 20 at 08:47; dev ADE 0.771 m at epoch 19, against 0.768 for A1's full run at the same epoch. Its candidates and navdev paths follow, then half 1 (about 1.2 h).
   - **Done 07:49: R's seed 1** (`39r1`, rc 0). navdev single path 82.33 (seed 0: 81.58), navtest 84.88 (seed 0: 84.57). The run is on both machines with matching checksums (08:14). Paired against seed 0: +0.31 on navtest (-0.06 to +0.73). With R's two seeds, R is level with A and B on navtest's single path and above C and D ("Latest results").
   - **Queued: 26 jobs, in run order:** the rehearsal's half-1 generator; phase 3: R's seed 2 (`39r2`); phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
-- **Desktop CPU queue (`~/queue2`): the shared boundary set, since 06:47** (`0_57boundary_score-selector-shared-boundary`): 16 perturbations of each of the 80,626 RL scenes' logged paths, scored, then the 4 per scene that straddle the NC or DAC limit (R14). It is the first CPU job of the chain at full scale; every later chain reuses it. At 08:41: 48,064 scenes of 80,626 (60%), 118 paths/s, 0 errors, so it ends about 09:55.
+- **Desktop CPU queue (`~/queue2`): the shared boundary set, since 06:47** (`0_57boundary_score-selector-shared-boundary`): 16 perturbations of each of the 80,626 RL scenes' logged paths, scored, then the 4 per scene that straddle the NC or DAC limit (R14). It is the first CPU job of the chain at full scale; every later chain reuses it. At 08:47: 51,264 scenes of 80,626 (64%), 118 paths/s, 0 errors, so it ends about 09:55.
 - **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
   - Phases 2-4 and D's tuning: about 50-62 h. The full RL stages would start about Mon Nov 23 08:00-20:00.
   - Phase 6 for the four contenders A4, A6, D4, D6 (a full RL stage and a selector chain each, about 11-17 h): about 44-68 h, ending about Wed Nov 25 04:00 to Thu Nov 26 16:00.
@@ -26,7 +26,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - If that happens, the plan's cut order applies (`docs/HEADS_PLAN.md`, "Schedule risks"): phase 6 is not shortened. The estimate will be redone from measured run lengths when the gate decides.
   - R18 (07:44) can lengthen phase 6: each extra full-RL round costs a contender about 9 GPU hours (its RL plus its two half generators), at most 28 h. That follows your direction to iterate RL past the dates.
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on fbeee12 (R18's code) at 08:11; its first pass was OK, with no failed passes. Both queue runners are up.
-- **Anvil:** nothing running (06:48). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
+- **Anvil:** nothing running (08:48). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
 
 ## Latest results
 - **Phase 3 is complete for A, B, C and D (Nov 21 06:42): three seeds each.** With every seed, D has the best candidates of any method (navtest best-of-6 93.47, against 91.35-91.99; each pair's interval excludes 0) and the worst own pick (82.20, against 83.85-84.69). A and B cannot be told apart; C is below both on the single path. R, the regression control with one path, is level with A and B on navtest's single path and above C and D, now with two seeds (A - R -0.04, -0.62 to +0.55; C - R -0.88, -1.45 to -0.25; D - R -2.53, -3.50 to -1.53); its seed 2 is queued. Intervals below ("Phase 3 is complete for A-D").
@@ -273,6 +273,9 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - A and D, each under both recipes, go into phase 6. B and C join if phase 4 shows they are not clearly below. Each contender gets its tuning (R15), the full RL stage with its own recipe, and the cross-fitted selector (R14).
   - The final system is the contender with the highest navdev generator-plus-selector score. Then every contender is scored once on navtest.
   - Compute: "we have excess in the week". The queue is reordered or cut when a result is pertinent.
+- **For your information (Nov 21): two calls made under your standing directions, each registered before any result it touches.** Say if you want either changed.
+  - **The selector chain's rehearsal, ahead of the queue** (05:55, a note in R14): the whole chain at full scale on A1 without RL, about 4 GPU-hours, used for no choice. It tests the least-tested part of the final system about two days before the first contender's chain.
+  - **R18** (07:44): phase 6's full RL stage continues in rounds of 5,000 updates while a round's last save is the best on navdev, up to 20,000 updates, for every contender alike. It follows "iterate RL past the dates"; each extra round costs a contender about 9 GPU hours.
 - **Your three questions at 13:27:** answered in the session (last push, `docs/CHAT.md`, the report's private link at the top of this page).
 - **For your information: R13, a second RL recipe round, added under your "improve RL round after round" clarification.** R12's recipes all lowered the navdev single path so far, and the sub-scores point to the advantage normalisation, the missing imitation term and D's step size. R13 tests the published remedies, on A and D, before phase 4. It took about 2.3 h of GPU time (7 runs of 17-20 min; I first wrote 3.5 h). Two of its recipes helped (RL4, RL6), so phase 4 started by rule.
 - **The plan (`docs/HEADS_PLAN.md`, revision 2) was approved 2026-11-19 ~21:00, and the HOLD is lifted.** Two clarifications are in the plan's header:
