@@ -4,32 +4,28 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 06:46: phase 3 complete for A-D, and method pairs with every seed): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 06:45 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 06:55 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read 14:51). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 06:55). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 06:42):
-  - **Running:** seed 1 of R at layers 12/18/24 (`39r1`, since 05:55; epoch 8 of 20 at 06:42, so it ends about 07:55).
-  - **Next, ahead of the queue: the rehearsal of the selector chain** (registered in `docs/HEADS_PLAN.md`, R14, at 05:55). Its spec was written at 06:41: A1 at its R11 starting epoch (20), 8 steps, 6 samples at setting 1.5, without RL. The driver queues its jobs on its next pass. Its two half generators (about 1.2 h each) run after R's seed 1, their candidates are scored on the CPU queue, then its two selectors run. It is no contender and its numbers are used for no choice.
-  - **Queued: 25 jobs, in run order:**
-    - phase 3: R's seed 2 (`39r2`);
-    - phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`). The leave-one-out, bin-size and R17 seed runs follow once the series' best is known;
-    - phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 (`45b0`, `45b0r6`, `45c0`, `45c0r6`) and D's three seeds (`45d*`, queued 06:25);
-    - phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
+- **4090 desktop, GPU queue** (one job at a time; read 06:47):
+  - **Running:** seed 1 of R at layers 12/18/24 (`39r1`, since 05:55; epoch 9.1 of 20 at 06:47, so it ends about 07:55).
+  - **Next, ahead of the queue: the rehearsal of the selector chain** (registered in `docs/HEADS_PLAN.md`, R14, at 05:55; spec written 06:41). The driver queued its two half generators at 06:46 (`0_60rehearsalh0`, `0_60rehearsalh1`; about 1.2 h each). The drive halves hold 78 and 80 training drives, with 39,683 and 40,943 RL scenes. Their candidates are scored on the CPU queue, then its two selectors run. It is no contender and its numbers are used for no choice.
+  - **Queued: 27 jobs, in run order:** the rehearsal's two half generators; phase 3: R's seed 2 (`39r2`); phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
+- **Desktop CPU queue (`~/queue2`): the shared boundary set, since 06:47** (`0_57boundary_score-selector-shared-boundary`): 16 perturbations of each of the 80,626 RL scenes' logged paths, scored, then the 4 per scene that straddle the NC or DAC limit (R14). It is the first CPU job of the chain at full scale; every later chain reuses it. About 3 h [D].
 - **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
   - Phases 2-4 and D's tuning: about 50-62 h. The full RL stages would start about Mon Nov 23 08:00-20:00.
   - Phase 6 for the four contenders A4, A6, D4, D6 (a full RL stage and a selector chain each, about 11-17 h): about 44-68 h, ending about Wed Nov 25 04:00 to Thu Nov 26 16:00.
   - If the gate admits B and C, their tuning, full RL stages and chains add about 63-87 h, ending about Sat Nov 28 19:00 to Mon Nov 30 07:00.
   - If that happens, the plan's cut order applies (`docs/HEADS_PLAN.md`, "Schedule risks"): phase 6 is not shortened. The estimate will be redone from measured run lengths when the gate decides.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on bad4139 at 06:41 (the rehearsal's spec options); its first pass, 06:41, was OK, with no failed passes.
-- **Desktop CPU queue (`~/queue2`):** idle until the rehearsal's scoring.
-- **Anvil:** nothing running.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): on bad4139 since 06:41; last pass 06:46, OK, no failed passes. Both queue runners are up.
+- **Anvil:** nothing running (06:48). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
 
 ## Latest results
 - **Phase 3 is complete for A, B, C and D (Nov 21 06:42): three seeds each.** With every seed, D has the best candidates of any method (navtest best-of-6 93.47, against 91.35-91.99; each pair's interval excludes 0) and the worst own pick (82.20, against 83.85-84.69). A and B cannot be told apart; C is below both on the single path. R's seeds are running. Intervals below ("Phase 3 is complete for A-D").
@@ -245,6 +241,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
       - **What:** the chain as phase 6 runs it, on A's phase-1 configuration (seed 0) without RL, at its R11 starting epoch: both half generators, out-of-fold candidates for every RL scene, their PDM scores, the shared boundary set (kept for every later chain), the cross-fitted seed-0 selector and its boundary ablation, and navdev evaluation.
       - **Role:** no contender and used for no choice; a failure it finds is fixed for every chain. Cost [D]: about 4 GPU-hours and 3-4 CPU-hours.
       - **How:** `queue_job(first=True)` names a job `0_<name>.sh`, which the runners take first, and a spec may name its selector variants (`pilot_sft/heads/rehearsal_spec.py`). 4 new tests; 120 heads tests pass.
+    - **Done 06:55 (Nov 21): phase 2's reading (R17), before any continuity-series result** (57303f5).
+      - `collect_results.py` now writes a `series` section: each continuity-series, leave-one-out and bin-size run minus A1, each at its own navdev choices, paired on the same scenes, with R17's test (more than 1.4 points and a drive interval excluding 0; R17's call is on navtest's single path).
+      - `method_seeds.py` compares the series' best with A1 over three seeds each, once its seeds 1 and 2 are scored (R17).
+      - The report has a phase-2 section: a chart, a table with R17's verdict, and the three-seed table.
+      - 4 new tests; 126 heads tests pass.
     - **Next:**
       - each phase-3 seed result as it lands, paired against seed 0 (`seed_pairs.py`). A1's are done (19:11), B's (22:49), C's (Nov 21 02:43) and D's (Nov 21 06:42); R's are training (seed 1 since 05:55).
       - the rehearsal of the selector chain (its two half generators after R's seed 1, about 07:55-10:30; then scoring and its two selectors): any failure fixed for every chain before a contender's chain runs.
