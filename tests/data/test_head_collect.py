@@ -150,6 +150,30 @@ def test_the_continuity_series_is_read_against_a1_with_r17s_test(tree):
     assert b["navdev_best_of_6"]["beyond_seed_noise"] is True  # every measure carries the test, for reporting
 
 
+def test_selectors_carry_their_choice_training_and_navdev_measures(tree):
+    exp, cache = tree
+    heads = exp / "heads"
+    d = heads / "selector-rehearsal-xfit-s0"
+    (d / "navdev").mkdir(parents=True)
+    (d / "choice.json").write_text(json.dumps({"epoch": 12, "weights": "epoch_12", "delta": 0.02,
+                                               "heldout_selected_pdms": 0.851, "epochs_done": 20, "history": []}))
+    (d / "run.json").write_text(json.dumps({"params": 7200000, "scenes": {"train": 70000, "heldout": 10626},
+                                            "elapsed_s": 2400.0, "peak_gpu_gb": 6.1, "candidates_per_scene": 7,
+                                            "extra_candidates_per_scene": 0}))
+    (d / "navdev" / "report.json").write_text(json.dumps({"scenes": 2000, "weights": "epoch_12", "delta": 0.02, "report": {
+        "scenes": 743, "candidates": 7, "selected_pdms": 0.83, "own_pick_pdms": 0.8186, "selected_minus_own": 0.0114,
+        "selected_minus_own_ci": [0.002, 0.02], "best_of_k_pdms": 0.90, "switch_rate": 0.12, "not_kept": 1}}))
+    (heads / "selector-rehearsal-gen-half0").mkdir()  # a half generator, not a selector
+    out = cr.Results(str(exp), str(cache)).collect()["selectors"]
+    assert set(out) == {"selector-rehearsal-xfit-s0"}
+    r = out["selector-rehearsal-xfit-s0"]
+    assert (r["chain"], r["variant"]) == ("rehearsal", "xfit-s0")
+    assert r["heldout"] == {"epoch": 12, "delta": 0.02, "heldout_selected_pdms": 0.851, "epochs_done": 20}
+    assert r["train"]["elapsed_s"] == 2400.0 and r["train"]["scenes"]["train"] == 70000
+    assert r["navdev"]["selected_minus_own_ci"] == [0.002, 0.02] and r["navdev"]["scenes"] == 743
+    assert "not_kept" not in r["navdev"] and "navtest" not in r
+
+
 def test_cli(tree, tmp_path):
     exp, cache = tree
     import subprocess

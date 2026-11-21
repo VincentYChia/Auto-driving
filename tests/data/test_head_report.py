@@ -67,3 +67,23 @@ def test_phase4_rows_per_split_and_recipe():
     assert r["pairs"][0]["pair"] == "A-B" and r["pairs"][0]["single"]["seeds"] == [3, 1]
     assert "navdev" not in data["phase4"]
     assert 'id="ph4"' in report_html.build({}, {"title": "t"}, {"navtest": {"pairs": {}, "phase4": p4}})
+
+
+def test_selector_rows_per_chain_with_adoption():
+    nav = {"scenes": 743, "candidates": 7, "selected_pdms": 0.83, "own_pick_pdms": 0.8186, "selected_minus_own": 0.0114,
+           "selected_minus_own_ci": [0.002, 0.02], "best_of_k_pdms": 0.9, "switch_rate": 0.12,
+           "switches": {"wins": 50, "losses": 30, "ties": 9}, "picks_failing_nc_or_dac": {"selected": 40, "own_pick": 52}}
+    agg = {"selectors": {
+        "selector-rehearsal-xfit-boundary": {"chain": "rehearsal", "variant": "xfit-boundary", "heldout": {"epoch": 9}, "navdev": nav},
+        "selector-rehearsal-xfit-s0": {"chain": "rehearsal", "variant": "xfit-s0", "heldout": {"epoch": 12, "delta": 0.02},
+                                       "train": {"elapsed_s": 2400.0}, "navdev": nav},
+        "selector-a4-xfit-s0": {"chain": "a4", "variant": "xfit-s0", "heldout": {}}},
+        "methods": {"selector_rehearsal_adoption": {"adopted": True, "gain_claimed": True, "role": "rehearsal", "x": 1}}}
+    rows = report_html.page_data(agg)["selectors"]
+    assert [r["chain"] for r in rows] == ["a4", "rehearsal"]  # contenders first, the rehearsal last
+    rh = rows[1]
+    assert [v["variant"] for v in rh["variants"]] == ["xfit-s0", "xfit-boundary"]  # R14's order
+    assert rh["variants"][0]["navdev"]["gain"] == {"x": 1.14, "lo": 0.2, "hi": 2.0} and rh["variants"][0]["navdev"]["own"] == 81.86
+    assert rh["adoption"] == {"adopted": True, "gain_claimed": True, "role": "rehearsal"}
+    assert "navdev" not in rows[0]["variants"][0]  # trained, not yet applied to navdev
+    assert 'id="sel"' in report_html.build(agg, {"title": "t"})

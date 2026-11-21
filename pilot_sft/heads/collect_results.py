@@ -19,6 +19,8 @@ Sections:
   - plus the training curve in blocks of 50 updates.
 - ``series``: phase 2 (R17): A's continuity series, leave-one-out and bin-size runs, each minus A1 at its own
   choices, paired, with R17's test (more than 1.4 points and a drive interval excluding 0).
+- ``selectors``: phase 6 (R14): every trained selector's held-out choice, training, and R14's measures on navdev
+  (and navtest once run).
 - ``methods``: the choice files the driver wrote (layer choices, RL starts, the R12 recipe, decisions).
 
 Intervals resample drives: 10,000 resamples, seed 0. Runs on the desktop with the score CSVs (pilot env).
@@ -48,6 +50,10 @@ REF = {"navdev": "h1-text_navdev_v1", "navtest": "deskcheck-h1_navtest_v1"}
 CV = {"navdev": "cv_navdev_v1", "navtest": "cv_navtest_v1"}
 SUBS = ("no_at_fault_collisions", "drivable_area_compliance", "driving_direction_compliance", "ego_progress",
         "time_to_collision_within_bound", "comfort")
+SELECTOR_KEYS = ("scenes", "candidates", "drives", "selected_pdms", "own_pick_pdms", "selected_minus_own",
+                 "selected_minus_own_ci", "best_of_k_pdms", "random_pick_pdms", "mean_candidate_pdms",
+                 "share_of_best_of_k_gap_closed", "switch_rate", "switches", "picks_failing_nc_or_dac", "top1_exact",
+                 "top1_tie_aware")  # R14's measures, from selector.report
 R17_THRESHOLD = 0.014  # 1.4 PDMS points: two seed SDs of a single-seed difference (docs/HEADS_PLAN.md R17)
 CURVE = ("reward", "best_of_g", "equal_reward_groups", "kl", "grad_norm", "no_at_fault_collisions",
          "drivable_area_compliance", "time_to_collision_within_bound", "ego_progress", "paths_per_s", "bc")
@@ -249,6 +255,35 @@ class Results:
             out[run] = rec
         return out
 
+    def selectors(self) -> dict:
+        """Phase 6 (R14): every trained selector (``selector-<chain>-<variant>``, the chain being a contender such as
+        a4 or the rehearsal): its held-out choice (epoch and own-pick margin), its training, and R14's measures on
+        navdev, and on navtest once run. The adoption and final-system files are in ``methods``."""
+        out = {}
+        for cf in sorted(glob.glob(os.path.join(self.heads, "selector-*", "choice.json"))):
+            d = os.path.dirname(cf)
+            chain, _, variant = os.path.basename(d)[len("selector-"):].partition("-")
+            if not variant.startswith(("xfit", "infold")):
+                continue
+            ch = json.load(open(cf))
+            rec = {"chain": chain, "variant": variant,
+                   "heldout": {k: ch.get(k) for k in ("epoch", "delta", "heldout_selected_pdms", "epochs_done")}}
+            rj = os.path.join(d, "run.json")
+            if os.path.exists(rj):
+                r = json.load(open(rj))
+                rec["train"] = {"params": r.get("params"), "scenes": r.get("scenes"), "elapsed_s": r.get("elapsed_s"),
+                                "peak_gpu_gb": r.get("peak_gpu_gb"), "candidates_per_scene": r.get("candidates_per_scene"),
+                                "extra_candidates_per_scene": r.get("extra_candidates_per_scene")}
+            for sp in SPLITS:
+                f = os.path.join(d, sp, "report.json")
+                if os.path.exists(f):
+                    s = json.load(open(f))
+                    rep = s.get("report", {})
+                    rec[sp] = {"scenes_selected": s.get("scenes"), "weights": s.get("weights"), "delta": s.get("delta"),
+                               **{k: rep[k] for k in SELECTOR_KEYS if k in rep}}
+            out[os.path.basename(d)] = rec
+        return out
+
     def comparisons(self, methods: Dict[str, dict]) -> dict:
         chosen = {m: f["run"] for m, f in methods.items() if "run" in f and "choice" in f}
         return {f"{m1}-{m2}": {"runs": [chosen[m1], chosen[m2]], **self.pair(chosen[m1], chosen[m2])}
@@ -313,7 +348,7 @@ class Results:
                                                           "ci_drives": drive_ci(s.values, g),
                                                           "scenes": int(len(s)), "subscores": self.subscores(d)}
         out.update(runs=self.runs(), layer_tests=self.layer_tests(methods), comparisons=self.comparisons(methods),
-                   series=self.series(methods), rl=self.rl(), methods=methods)
+                   series=self.series(methods), rl=self.rl(), selectors=self.selectors(), methods=methods)
         return out
 
 

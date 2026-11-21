@@ -14,7 +14,7 @@ import argparse
 import html
 import json
 import re
-from typing import Optional
+from typing import Dict, Optional
 
 METHOD_NAMES = {"A": "A, masked diffusion", "B": "B, DDIM", "C": "C, flow", "D": "D, anchored", "R": "R, regression"}
 ORDER = ["A", "B", "C", "D", "R"]
@@ -113,9 +113,41 @@ def page_data(agg: dict, ms: Optional[dict] = None) -> dict:
                 vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
         seeds.append({"method": m, "run": lc["run"], "values": vals})
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
-            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
+            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "selectors": selector_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
                                                                                     (ms or {}).items() if r.get("series_best_vs_a1")},
             "generated": agg.get("generated"), "names": METHOD_NAMES}
+
+
+SEL_ORDER = ("xfit-s0", "xfit-s1", "infold-s0", "xfit-pdms", "xfit-listwise", "xfit-imitation", "xfit-boundary")
+
+
+def selector_rows(agg: dict) -> list:
+    """Phase 6 (R14): per chain (a contender, or the rehearsal last), each selector variant's navdev measures in points
+    (selected minus own pick with its drive interval) and the chain's adoption."""
+    pct = lambda x: None if x is None else round(100 * x, 2)  # noqa: E731
+    chains: Dict[str, dict] = {}
+    for name, r in agg.get("selectors", {}).items():
+        row = {"name": name, "variant": r["variant"], "heldout": r.get("heldout", {}), "train": r.get("train", {})}
+        for sp in ("navdev", "navtest"):
+            n = r.get(sp)
+            if n and "selected_minus_own" in n:
+                ci = n.get("selected_minus_own_ci") or [None, None]
+                row[sp] = {"selected": pct(n.get("selected_pdms")), "own": pct(n.get("own_pick_pdms")),
+                           "best": pct(n.get("best_of_k_pdms")), "gain": {"x": pct(n["selected_minus_own"]),
+                                                                          "lo": pct(ci[0]), "hi": pct(ci[1])},
+                           "share": n.get("share_of_best_of_k_gap_closed"), "switch": n.get("switch_rate"),
+                           "switches": n.get("switches"), "fail": n.get("picks_failing_nc_or_dac"),
+                           "top1": n.get("top1_tie_aware"), "scenes": n.get("scenes"), "candidates": n.get("candidates")}
+        chains.setdefault(r["chain"], {"chain": r["chain"], "variants": []})["variants"].append(row)
+    out = []
+    for x in sorted(chains, key=lambda c: (c == "rehearsal", c)):
+        ch = chains[x]
+        ch["variants"].sort(key=lambda v: SEL_ORDER.index(v["variant"]) if v["variant"] in SEL_ORDER else 99)
+        ad = agg.get("methods", {}).get(f"selector_{x}_adoption")
+        if isinstance(ad, dict):
+            ch["adoption"] = {k: ad.get(k) for k in ("adopted", "gain_claimed", "role")}
+        out.append(ch)
+    return out
 
 
 def phase4_rows(ms: Optional[dict]) -> dict:
@@ -460,7 +492,32 @@ function notes() {
 document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
   SPLIT = b.dataset.split; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x.dataset.split === SPLIT)); drawPhase1();
 }));
-function drawAll() { drawPhase1(); drawRL(); }
+function drawSel() {
+  const box = document.getElementById('sel'); box.innerHTML = '';
+  const chains = D.selectors || [];
+  if (!chains.length) { box.innerHTML = '<p class="small">No selector is trained yet.</p>'; return; }
+  const f2 = x => x == null ? '–' : x.toFixed(2);
+  chains.forEach(ch => {
+    const h = document.createElement('h3');
+    h.textContent = ch.chain === 'rehearsal' ? 'Rehearsal: A1 without RL (no contender; used for no choice)' : `Contender ${ch.chain.toUpperCase()}`;
+    box.appendChild(h);
+    if (ch.adoption) { const p = document.createElement('p'); p.className = 'small';
+      p.innerHTML = `Adoption on navdev (R14, the cross-fitted seed-0 selector): ${ch.adoption.adopted ? '<b>adopted</b>' : 'not adopted'}; a gain is ${ch.adoption.gain_claimed ? 'claimed (its drive interval excludes 0)' : 'not claimed'}.`;
+      box.appendChild(p); }
+    const c = document.createElement('div'); c.className = 'chart'; box.appendChild(c);
+    const rows = ch.variants.filter(v => v.navdev).map(v => ({label: v.variant, color: 'var(--ink-2)', marks: [{...v.navdev.gain, kind: 'solid',
+      tip: `<b>${esc(v.name)}</b><br>selected minus own pick, navdev: ${dvs(v.navdev.gain)}`}]}));
+    if (rows.length) forest(c, rows, {zero: true, signed: true, aria: 'Selected path minus own pick, navdev'});
+    const tb = document.createElement('div'); box.appendChild(tb);
+    table(tb, ['Variant', 'Selected · own pick · best', 'Gap closed', 'Switches (wins / losses)', 'Fail NC or DAC (selected / own)', 'Held-out epoch, margin · training'],
+      ch.variants.map(v => { const n = v.navdev || {};
+        return [esc(v.variant), `${f2(n.selected)} · ${f2(n.own)} · ${f2(n.best)}`, n.share == null ? '–' : (100 * n.share).toFixed(0) + '%',
+          n.switches ? `${(100 * n.switch).toFixed(1)}% (${n.switches.wins} / ${n.switches.losses})` : '–',
+          n.fail ? `${n.fail.selected} / ${n.fail.own_pick}` : '–',
+          `${v.heldout.epoch ?? '–'}, ${v.heldout.delta ?? '–'} · ${v.train && v.train.elapsed_s ? Math.round(v.train.elapsed_s / 60) + ' min' : '–'}`]; }));
+  });
+}
+function drawAll() { drawPhase1(); drawRL(); drawSel(); }
 notes(); tiles(); drawAll();
 let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
 """
@@ -526,6 +583,14 @@ BODY = """
   <div class="mult" id="ch-rl"></div>
   <details><summary>Table: every RL checkpoint on navdev, with sub-scores</summary><div id="tb-rl"></div></details>
   <details><summary>Table: RL training curves on the training scenes (blocks of 50 updates)</summary><div id="tb-curve"></div></details>
+</section>
+<section>
+  <h2>Phase 6: the selector, per chain (navdev)</h2>
+  <p class="sub">A selector scores each of a path generator's candidates (its own pick and 6 samples) and keeps the own pick unless
+  another is predicted better by a margin set on held-out training drives (R14). Each mark is the selected path minus the own pick on
+  navdev, with its drive interval. The cross-fitted seed-0 selector decides adoption; the other variants are its second seed, the
+  in-fold control and the ablations. navtest comes once per contender, after the final system is chosen (R16).</p>
+  <div id="sel"></div>
 </section>
 <section><h2>What this means</h2><ul class="points" id="n-meaning"></ul></section>
 <section><h2>Problems and fixes</h2><ul class="points" id="n-problems"></ul></section>
