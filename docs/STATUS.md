@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 06:46: phase 3 complete for A-D, and method pairs with every seed): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 07:48 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 08:15 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,18 +14,18 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 06:55). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 07:41):
-  - **Running:** seed 1 of R at layers 12/18/24 (`39r1`, since 05:55; epoch 18.7 of 20 at 07:41, so it ends about 08:00 with its paths).
-  - **Next, ahead of the queue: the rehearsal of the selector chain** (registered in `docs/HEADS_PLAN.md`, R14, at 05:55; spec written 06:41). The driver queued its two half generators at 06:46 (`0_60rehearsalh0`, `0_60rehearsalh1`; about 1.2 h each). The drive halves hold 78 and 80 training drives, with 39,683 and 40,943 RL scenes. Their candidates are scored on the CPU queue, then its two selectors run. It is no contender and its numbers are used for no choice.
-  - **Queued: 27 jobs, in run order:** the rehearsal's two half generators; phase 3: R's seed 2 (`39r2`); phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
-- **Desktop CPU queue (`~/queue2`): the shared boundary set, since 06:47** (`0_57boundary_score-selector-shared-boundary`): 16 perturbations of each of the 80,626 RL scenes' logged paths, scored, then the 4 per scene that straddle the NC or DAC limit (R14). It is the first CPU job of the chain at full scale; every later chain reuses it. At 07:41: 22,464 scenes of 80,626 (28%), 119 paths/s, 0 errors, so it ends about 09:50.
+- **4090 desktop, GPU queue** (one job at a time; read 08:11):
+  - **Running: the rehearsal's half-0 path generator** (`0_60rehearsalh0`, since 07:49): A1's configuration trained on drive half 0 (78 drives), then its candidates for half 1's 40,943 RL scenes and its navdev paths. Epoch 7 of 20 at 08:11, 3 min per epoch, so training ends about 08:50. Half 1 follows (about 1.2 h).
+  - **Done 07:49: R's seed 1** (`39r1`, rc 0). navdev single path 82.33 (seed 0: 81.58), navtest 84.88 (seed 0: 84.57). The run is on both machines with matching checksums (08:14). The paired seed comparison and the method pairs with R's two seeds come at the next check.
+  - **Queued: 26 jobs, in run order:** the rehearsal's half-1 generator; phase 3: R's seed 2 (`39r2`); phase 2: A's continuity series A0, A2, A3, A4 (`400`-`403`), then its leave-one-out, bin-size and R17 seed runs once the series' best is known; phase 4: RL4 and RL6 for A's three seeds (`45a*`), B's and C's seed 0 and D's three seeds (`45d*`); phase 6 (R15): D's four tuning runs (`46d0`-`46d3`).
+- **Desktop CPU queue (`~/queue2`): the shared boundary set, since 06:47** (`0_57boundary_score-selector-shared-boundary`): 16 perturbations of each of the 80,626 RL scenes' logged paths, scored, then the 4 per scene that straddle the NC or DAC limit (R14). It is the first CPU job of the chain at full scale; every later chain reuses it. At 08:11: 35,264 scenes of 80,626 (44%), 118 paths/s, 0 errors, so it ends about 09:55.
 - **Time to Mon Nov 30, an estimate [D]:** from measured run lengths: a supervised training run with its navdev grid about 2.3 h, a phase-4 RL run about 1 h, 5,000 RL updates about 3.1 h.
   - Phases 2-4 and D's tuning: about 50-62 h. The full RL stages would start about Mon Nov 23 08:00-20:00.
   - Phase 6 for the four contenders A4, A6, D4, D6 (a full RL stage and a selector chain each, about 11-17 h): about 44-68 h, ending about Wed Nov 25 04:00 to Thu Nov 26 16:00.
   - If the gate admits B and C, their tuning, full RL stages and chains add about 63-87 h, ending about Sat Nov 28 19:00 to Mon Nov 30 07:00.
   - If that happens, the plan's cut order applies (`docs/HEADS_PLAN.md`, "Schedule risks"): phase 6 is not shortened. The estimate will be redone from measured run lengths when the gate decides.
   - R18 (07:44) can lengthen phase 6: each extra full-RL round costs a contender about 9 GPU hours (its RL plus its two half generators), at most 28 h. That follows your direction to iterate RL past the dates.
-- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): on bad4139 since 06:41; last pass 07:37, OK, no failed passes. Both queue runners are up. It restarts on a4288cc (R18) at the next check when it is not scoring; R18 acts only at phase 6.
+- **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on fbeee12 (R18's code) at 08:11; its first pass was OK, with no failed passes. Both queue runners are up.
 - **Anvil:** nothing running (06:48). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
 
 ## Latest results
@@ -175,7 +175,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 7. ~~Phase 1: navdev and navtest paths and scores for all 10 runs, and each method's layer choice.~~ **Done 14:47** (R's navtest at 12/18/24 landed 16:40). Layer choices: 12/18/24 for every method (A, B, C, D, R).
 8. **RL recipe rounds: done.** R12 and R13 are complete, and the driver chose RL4 at 10:17 (`choices/rl_recipe.json` on the desktop). Phase 4 runs RL4 on every method, after phases 2-3: B's seed-0 job is queued (45b0); A's and D's 3 seeds each follow their supervised seeds 1-2; C's follows its layer choice.
 9. ~~Report at 12:00 Fri Nov 20.~~ **Done 11:18, refreshed 11:45** (the work set out phase by phase; R14 added): `navsim_demo_renders/heads_report_2026-11-20.html` on the home PC (charts with drive intervals, R12 and R13, problems and fixes, next steps, the two questions below). Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`, and the headline numbers are on this page.
-10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). `c-l12-18-24` and `r-l24` too, with matching checksums (12:53), and `r-l12-18-24` (14:51): all 10 phase-1 training runs are on both machines. Phase 3: `a1-l12-18-24-s1` (16:54), `a1-l12-18-24-s2` (18:44), `b-l12-18-24-s1` (20:44), `b-l12-18-24-s2` (22:44), `c-l12-18-24-s1` (Nov 21 00:14), `c-l12-18-24-s2` (Nov 21 02:14), `d-l12-18-24-s1` (Nov 21 04:14), `d-l12-18-24-s2` (Nov 21 06:16).
+10. ~~Copy the R12 recipe runs to Anvil and add their rows to `pilot_sft/MODELS.md`.~~ **Done:** all 15 R12 and R13 recipe runs and `c-l24`, on both machines with matching checksums (last copy 10:49). `c-l12-18-24` and `r-l24` too, with matching checksums (12:53), and `r-l12-18-24` (14:51): all 10 phase-1 training runs are on both machines. Phase 3: `a1-l12-18-24-s1` (16:54), `a1-l12-18-24-s2` (18:44), `b-l12-18-24-s1` (20:44), `b-l12-18-24-s2` (22:44), `c-l12-18-24-s1` (Nov 21 00:14), `c-l12-18-24-s2` (Nov 21 02:14), `d-l12-18-24-s1` (Nov 21 04:14), `d-l12-18-24-s2` (Nov 21 06:16), `r-l12-18-24-s1` (Nov 21 08:14).
 
 11. **Phase 6 code, written while the GPU trains** (needed after phase 5):
     - **Done:** training on one half of the training drives (`train_head.py --drive-half`, 9531c27); each half's RL-scene tokens and out-of-fold predictions (`drive_map.py halves`, `predict_head.py --only-tokens`, 5de57e2); scoring every candidate with the PDM scoring service (`score_candidates.py`, 332d20c). 85 heads tests pass.
