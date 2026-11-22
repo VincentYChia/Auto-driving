@@ -1,0 +1,79 @@
+{
+ "tests": {
+  "C1": {
+   "what": "A minus D after RL (primary)",
+   "difference": 5.79,
+   "ci": [
+    4.22,
+    7.46
+   ],
+   "seeds": [
+    3,
+    3
+   ],
+   "scenes": 12146,
+   "p": 0.0,
+   "p_holm": 0.0,
+   "threshold": 0.0125,
+   "rejected": true
+  },
+  "C2": {
+   "what": "A after RL minus H1's text output",
+   "difference": 2.28,
+   "ci": [
+    1.0,
+    3.62
+   ],
+   "seeds": [
+    3,
+    1
+   ],
+   "scenes": 12146,
+   "p": 0.0,
+   "p_holm": 0.0,
+   "threshold": 0.0167,
+   "rejected": true
+  },
+  "C3": {
+   "what": "A before RL minus R: does generation help?",
+   "difference": 0.05,
+   "ci": [
+    -0.53,
+    0.63
+   ],
+   "seeds": [
+    3,
+    3
+   ],
+   "scenes": 12146,
+   "p": 0.8728,
+   "p_holm": 0.8728,
+   "threshold": 0.05,
+   "rejected": false
+  },
+  "C4": {
+   "what": "A after minus before RL: does RL help?",
+   "difference": 3.19,
+   "ci": [
+    1.69,
+    4.88
+   ],
+   "seeds": 3,
+   "scenes": 12146,
+   "p": 0.0,
+   "p_holm": 0.0,
+   "threshold": 0.025,
+   "rejected": true
+  }
+ },
+ "chosen_method": "A",
+ "recipe": "RL4",
+ "measure": "navtest single-path PDMS, points",
+ "alpha_family": 0.05,
+ "seed_sd_added": {
+  "after_rl": 1.18,
+  "before_rl": 0.67
+ },
+ "rule": "docs/HEADS_PLAN.md R4 (and its implementation note), R3",
+ "run": "2026-11-22 18:11 on the desktop (confirmatory.py at 0176f3a), after D's seed 2 under RL4 was scored on navtest"
+}
