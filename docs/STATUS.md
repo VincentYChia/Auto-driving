@@ -4,17 +4,17 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 16:52, version 24: phase 4 decided, B and C admitted, phase 4 on navtest for A, B and C): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 17:15 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 17:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 17:15). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 17:42). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 17:11 Nov 22):
+- **4090 desktop, GPU queue** (one job at a time; read 17:42 Nov 22):
   - **Running: phase 6 (R15), B's first tuning run** (`46b0`: `--target eps`, since 17:10; about 2.3 h). Then B's three others, C's four (`46c*`), D's last two (`46d2`, `46d3`), A3's full RL stages (`47a4`, `47a6`) and phase 2's follow-up runs: 17 jobs pending, about 23 h of tuning before the first full RL stage.
   - **Done 17:09: D's second tuning run** (`46d1`, 40 anchors, 2 h 10 min, rc 0), kept twice with its MODELS row. Also done: the navtest paths of D's seed 2 under RL6 and of D's first tuning run.
   - **D's first tuning run is scored on navdev (16:54):** 10 anchors choose epoch 10, single path 77.44 and best-of-6 91.34, against 78.41 and 92.17 for D's main configuration (20 anchors) at its own choices: fewer anchors score lower (point estimates; R15 picks among the five by navdev single path once all are scored).
@@ -46,6 +46,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Latest results
 - **Phase 4 is decided (16:42): R16's gate admits B and C, so phase 6 has eight contenders** (A, B, C and D, each under RL4 and RL6). On navdev, B's intervals against the best of A and D include 0 on both measures, and C is level with A on the single path and leads D on best-of-6 (`choices/phase6_gate_bc.json`). **R5, reported only:** A leads navdev under both recipes with no clear winner; under RL6, A - C +0.10 (-2.14 to +2.46), A - B +2.41 (-0.46 to +4.82), A - D +7.84 (+6.14 to +10.22).
+- **D's seed 1 under RL4 on navtest (17:24): 80.74 single path, 92.22 best-of-6**, against 82.08 and 93.24 for the same seed before RL (-1.34, -1.02). RL4 lowers D on both measures here; seed 2 under RL4 (about 17:55) and under RL6 (about 18:20) complete phase 4 on navtest, then R4's confirmatory tests C1-C4 run.
 - **Phase 4 on navtest, A, B and C complete** (16:47, `method_seeds.py`; A three seeds, B and C one; D's last three runs are scored tonight):
 
   | navtest after RL | A | B | C |
