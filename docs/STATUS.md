@@ -4,14 +4,14 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 13:48: phase 4 on navtest for A, with RL6 against RL4): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 15:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 16:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 15:44). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 16:12). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time; read 14:51 Nov 22):
@@ -58,7 +58,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **RL6 keeps the candidates better than RL4 wherever it is measured with an interval:** RL6 - RL4 on best-of-6 is +2.58 (+0.68 to +4.52) for D on navdev (three seeds), +1.82 (+1.15 to +2.57) for A on navtest (three seeds), +1.08 (+0.26 to +1.96) for C on navdev (one seed). RL4 costs D -2.72 (-5.09 to -0.47) of best-of-6 against phase 3; RL6 -0.14 (-1.57 to +0.95).
   - **D after RL6 has candidates as good as any method on navdev** (best-of-6 A - D -0.87, -1.95 to +0.80; C - D +0.01, -1.99 to +2.73) and an own pick 7.8 points below A's (+6.12 to +10.23).
   - **R16's gate for B and C** reads these navdev numbers: on best-of-6, C (RL6 91.69) is level with the best of A and D (D under RL6, 91.68) and B's interval against it includes 0, so both look set to join phase 6. The driver decides after B's and C's navtest scoring, about 16:50.
-- **B after RL4 on navtest (15:26): 87.02 single path, 92.65 best-of-6**, against 84.56 and 91.87 for the same seed before RL: +2.46 (+1.51 to +3.35) and +0.78 (+0.08 to +1.41), one seed, so drive intervals only. B under RL6, then C, follow.
+- **B after RL4 on navtest (15:26): 87.02 single path, 92.65 best-of-6**, against 84.56 and 91.87 for the same seed before RL: +2.46 (+1.51 to +3.35) and +0.78 (+0.08 to +1.41), one seed, so drive intervals only. **B after RL6 (15:51): 87.37 single path, 92.90 best-of-6** (+2.81 and +1.03 over the same seed before RL). So on navtest, as on navdev, RL lifts B by about 2.5-3 points on the single path, and RL6 keeps its candidates a little better than RL4. C is being scored (RL4 about 16:20, RL6 about 16:46), then R16's gate.
 - **A on navtest after RL, with every seed (13:43, `method_seeds.py`; intervals redraw drives and seeds):**
 
   | A on navtest | Single path | Best-of-6 |
