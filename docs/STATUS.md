@@ -4,14 +4,14 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 13:48: phase 4 on navtest for A, with RL6 against RL4): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 15:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 15:44 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 15:14). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 15:44). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time; read 14:51 Nov 22):
@@ -45,6 +45,19 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Anvil** (Nov 22 14:51): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 697 pending and 56 running jobs (15 nodes partly in use, 1 out of service); ai 340 and 40. Our wait statistics are unchanged: gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,058,912, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from login01, 0 control sockets, 0 local ssh). The navtrain cache job finished Nov 20; the navdev cache job was cancelled Nov 19 (the desktop built it).
 
 ## Latest results
+- **Phase 4 on navdev is complete: every method under both recipes, every seed (15:44, `method_seeds.py`).** Mean of the seeds at R11's checkpoints (A and D three seeds, B and C one):
+
+  | navdev after RL | A | B | C | D |
+  |---|---|---|---|---|
+  | RL4, single path | 86.37 | 85.07 | 86.36 | 76.68 |
+  | RL6, single path | 86.62 | 84.21 | 86.52 | 78.78 |
+  | RL4, best-of-6 | 89.43 | 91.00 | 90.61 | 89.11 |
+  | RL6, best-of-6 | 90.82 | 91.20 | 91.69 | 91.68 |
+
+  - **RL6 keeps the candidates better than RL4 wherever it is measured with an interval:** RL6 - RL4 on best-of-6 is +2.58 (+0.68 to +4.52) for D on navdev (three seeds), +1.82 (+1.15 to +2.57) for A on navtest (three seeds), +1.08 (+0.26 to +1.96) for C on navdev (one seed). RL4 costs D -2.72 (-5.09 to -0.47) of best-of-6 against phase 3; RL6 -0.14 (-1.57 to +0.95).
+  - **D after RL6 has candidates as good as any method on navdev** (best-of-6 A - D -0.87, -1.95 to +0.80; C - D +0.01, -1.99 to +2.73) and an own pick 7.8 points below A's (+6.12 to +10.23).
+  - **R16's gate for B and C** reads these navdev numbers: on best-of-6, C (RL6 91.69) is level with the best of A and D (D under RL6, 91.68) and B's interval against it includes 0, so both look set to join phase 6. The driver decides after B's and C's navtest scoring, about 16:50.
+- **B after RL4 on navtest (15:26): 87.02 single path, 92.65 best-of-6**, against 84.56 and 91.87 for the same seed before RL: +2.46 (+1.51 to +3.35) and +0.78 (+0.08 to +1.41), one seed, so drive intervals only. B under RL6, then C, follow.
 - **A on navtest after RL, with every seed (13:43, `method_seeds.py`; intervals redraw drives and seeds):**
 
   | A on navtest | Single path | Best-of-6 |
