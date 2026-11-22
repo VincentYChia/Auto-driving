@@ -426,12 +426,14 @@ function drawPhase1() {
     v.change.forEach(o => meas.forEach(([k, name, kind]) => { if (o[k]) rowsC.push({label: `${o.method} · ${name}`, color: C(o.method),
       marks: [{...o[k], kind, tip: `<b>${o.method}, ${rec}</b>: ${name} after minus before, ${SPLIT}<br>${dvs(o[k])} (${o[k].seeds} seed${o[k].seeds > 1 ? 's' : ''})`}]}); }));
     if (rowsC.length) forest(c1, rowsC, {zero: true, signed: true, aria: `${rec}: change from phase 3`});
-    const h3 = document.createElement('h3'); h3.textContent = `${rec}: method pairs after RL, seed-averaged, drives and seeds resampled`; p4box.appendChild(h3);
-    const c2 = document.createElement('div'); c2.className = 'chart'; p4box.appendChild(c2);
     const rowsP4 = [];
     v.pairs.forEach(o => meas.forEach(([k, name, kind]) => { if (o[k]) rowsP4.push({label: `${o.pair.replace('-', ' − ')} · ${name}`, color: 'var(--ink-2)',
       marks: [{...o[k], kind, tip: `<b>${esc(o.pair.replace('-', ' − '))}, ${rec}</b><br>${name}, ${SPLIT}: ${dvs(o[k])}`}]}); }));
-    if (rowsP4.length) forest(c2, rowsP4, {zero: true, signed: true, aria: `${rec}: method pairs after RL`});
+    if (rowsP4.length) {  // one method so far: no pairs, so no empty heading
+      const h3 = document.createElement('h3'); h3.textContent = `${rec}: method pairs after RL, seed-averaged, drives and seeds resampled`; p4box.appendChild(h3);
+      const c2 = document.createElement('div'); c2.className = 'chart'; p4box.appendChild(c2);
+      forest(c2, rowsP4, {zero: true, signed: true, aria: `${rec}: method pairs after RL`});
+    }
   });
   const rcs = (D.recipeChange || {})[SPLIT] || {};
   Object.keys(rcs).forEach(rc => {
@@ -489,12 +491,20 @@ function tiles() {
   const best = (k) => D.runs.filter(r => r['navtest_' + k]).sort((a, b) => b['navtest_' + k].x - a['navtest_' + k].x)[0];
   const h1 = D.refs.h1_text_navtest;
   const bs = best('single'), bb = best('best_of_6');
+  // After RL (phase 4 on navtest): the best seed-averaged mean of any method under any recipe
+  const p4t = (D.phase4 || {}).navtest || {}, after = {};
+  Object.keys(p4t).forEach(rec => (p4t[rec].methods || []).forEach(o => ['single', 'best_of_6'].forEach(k => {
+    if (o[k] && (!after[k] || o[k].mean > after[k].mean)) after[k] = {rec, method: o.method, mean: o[k].mean, n: o[k].seeds.length};
+  })));
+  const aText = a => `${a.method} under ${a.rec}, navtest, mean of ${a.n} seed${a.n > 1 ? 's' : ''}`;
   if (h1) out.push(['H1, text output', f1(h1.x), 'navtest PDMS, the reference']);
-  if (bs) out.push(['Best single path', f1(bs.navtest_single.x), `${esc(bs.run)}, navtest; vs H1 ${dvs(bs.navtest_single.vsH1)}`]);
-  if (bb) out.push(['Best best-of-6', f1(bb.navtest_best_of_6.x), `${esc(bb.run)}, navtest (oracle pick)`]);
+  if (bs) out.push([after.single ? 'Best single path before RL' : 'Best single path', f1(bs.navtest_single.x), `${esc(bs.run)}, navtest; vs H1 ${dvs(bs.navtest_single.vsH1)}`]);
+  if (after.single) out.push(['Best single path after RL', f1(after.single.mean), aText(after.single) + (h1 ? `; ${sgn(after.single.mean - h1.x)} over H1 (point estimate)` : '')]);
+  if (bb) out.push(['Best best-of-6', f1(bb.navtest_best_of_6.x), `${esc(bb.run)}, navtest (oracle pick)` + (after.best_of_6 ? `; after RL: ${f1(after.best_of_6.mean)}, ${aText(after.best_of_6)}` : '')]);
   const rr = D.methods.rl_recipe;
   const nRec = D.rl.filter(r => r.recipe && r.recipe.startsWith('RL')).length;
-  if (rr && rr.every_recipe_lowers_both_methods)
+  if (after.single) {}  // phase 4 has results: the after-RL tile replaces the recipe stage's (R16 runs both recipes)
+  else if (rr && rr.every_recipe_lowers_both_methods)
     out.push(['RL recipe (R12, R13)', 'none helps', `best: RL${rr.recipe}, mean navdev change ${sgn(100 * rr.mean_gain_navdev_single[rr.recipe])}; phase 4 waits for the researcher`]);
   else
     out.push(['RL recipe (R12, R13)', rr ? 'RL' + rr.recipe : 'pending', rr ? `mean navdev gain ${sgn(100 * rr.mean_gain_navdev_single[rr.recipe])}`
