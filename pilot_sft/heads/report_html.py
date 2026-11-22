@@ -574,13 +574,14 @@ function drawConfirm() {
   const box = document.getElementById('r4'); if (!box) return; box.innerHTML = '';
   const c = D.confirm;
   if (!c) { box.innerHTML = '<p class="small">Runs once every phase-4 navtest score under the registered recipe is in.</p>'; return; }
+  const pv = x => x < 1e-4 ? '&lt; 0.0001' : x.toFixed(4);  // 10,000 resamples: no finer resolution
   const ch = document.createElement('div'); ch.className = 'chart'; box.appendChild(ch);
   forest(ch, c.rows.map(r => ({label: r.key, color: 'var(--ink-2)', marks: [{x: r.x, lo: r.lo, hi: r.hi, kind: 'solid',
-    tip: `<b>${esc(r.key)}</b>: ${esc(r.what)}<br>${dvs(r)}; p ${r.p.toFixed(4)}, Holm-adjusted ${r.p_holm.toFixed(4)}`}]})),
+    tip: `<b>${esc(r.key)}</b>: ${esc(r.what)}<br>${dvs(r)}; p ${pv(r.p)}, Holm-adjusted ${pv(r.p_holm)}`}]})),
     {zero: true, signed: true, aria: 'R4: the confirmatory tests on navtest'});
   const tb = document.createElement('div'); box.appendChild(tb);
   table(tb, ['Test', 'What (navtest single path, ' + esc(c.recipe || '') + ')', 'Difference (points)', 'p', 'Holm-adjusted p', `Rejected at ${c.alpha ?? 0.05}?`],
-    c.rows.map(r => [esc(r.key), esc(r.what), dvs(r), r.p.toFixed(4), r.p_holm.toFixed(4), r.rejected ? '<b>yes</b>' : 'no']));
+    c.rows.map(r => [esc(r.key), esc(r.what), dvs(r), pv(r.p), pv(r.p_holm), r.rejected ? '<b>yes</b>' : 'no']));
 }
 function drawAll() { drawPhase1(); drawRL(); drawSel(); drawConfirm(); }
 notes(); tiles(); drawAll();
