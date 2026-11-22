@@ -75,7 +75,7 @@ def diff(d: dict) -> dict:
             "hi": round(d["ci_drives"][1] * 100, 2)}
 
 
-def page_data(agg: dict, ms: Optional[dict] = None) -> dict:
+def page_data(agg: dict, ms: Optional[dict] = None, conf: Optional[dict] = None) -> dict:
     refs = {k: iv(v) for k, v in agg.get("references", {}).items()}
     runs = []
     for run, r in agg.get("runs", {}).items():
@@ -113,7 +113,7 @@ def page_data(agg: dict, ms: Optional[dict] = None) -> dict:
                 vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
         seeds.append({"method": m, "run": lc["run"], "values": vals})
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
-            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "recipeChange": recipe_change_rows(ms), "selectors": selector_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
+            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "recipeChange": recipe_change_rows(ms), "confirm": confirm_rows(conf), "selectors": selector_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
                                                                                     (ms or {}).items() if r.get("series_best_vs_a1")},
             "generated": agg.get("generated"), "names": METHOD_NAMES}
 
@@ -165,6 +165,18 @@ def phase4_rows(ms: Optional[dict]) -> dict:
                            for m, cv in sorted(v.get("change_from_phase3", {}).items())],
                 "pairs": [{"pair": p, **{k: iv_(c) for k, c in pv.items()}} for p, pv in v.get("pairs", {}).items()]}
     return out
+
+
+def confirm_rows(conf: Optional[dict]) -> Optional[dict]:
+    """R4's confirmatory tests (confirmatory.py's output): each difference in points with its interval, p-value and
+    Holm's decision. None until the tests have run."""
+    if not conf or not conf.get("tests"):
+        return None
+    rows = [{"key": k, "what": t["what"], "x": t["difference"], "lo": t["ci"][0], "hi": t["ci"][1], "p": t["p"],
+             "p_holm": t["p_holm"], "threshold": t["threshold"], "rejected": t["rejected"]}
+            for k, t in sorted(conf["tests"].items())]
+    return {"recipe": conf.get("recipe"), "chosen": conf.get("chosen_method"), "alpha": conf.get("alpha_family"),
+            "rows": rows}
 
 
 def recipe_change_rows(ms: Optional[dict]) -> dict:
@@ -558,7 +570,19 @@ function drawSel() {
           `epoch ${v.heldout.epoch ?? '–'}, margin ${v.heldout.delta ?? '–'} · ${v.train && v.train.elapsed_s ? Math.round(v.train.elapsed_s / 60) + ' min' : '–'}`]; }));
   });
 }
-function drawAll() { drawPhase1(); drawRL(); drawSel(); }
+function drawConfirm() {
+  const box = document.getElementById('r4'); if (!box) return; box.innerHTML = '';
+  const c = D.confirm;
+  if (!c) { box.innerHTML = '<p class="small">Runs once every phase-4 navtest score under the registered recipe is in.</p>'; return; }
+  const ch = document.createElement('div'); ch.className = 'chart'; box.appendChild(ch);
+  forest(ch, c.rows.map(r => ({label: r.key, color: 'var(--ink-2)', marks: [{x: r.x, lo: r.lo, hi: r.hi, kind: 'solid',
+    tip: `<b>${esc(r.key)}</b>: ${esc(r.what)}<br>${dvs(r)}; p ${r.p.toFixed(4)}, Holm-adjusted ${r.p_holm.toFixed(4)}`}]})),
+    {zero: true, signed: true, aria: 'R4: the confirmatory tests on navtest'});
+  const tb = document.createElement('div'); box.appendChild(tb);
+  table(tb, ['Test', 'What (navtest single path, ' + esc(c.recipe || '') + ')', 'Difference (points)', 'p', 'Holm-adjusted p', `Rejected at ${c.alpha ?? 0.05}?`],
+    c.rows.map(r => [esc(r.key), esc(r.what), dvs(r), r.p.toFixed(4), r.p_holm.toFixed(4), r.rejected ? '<b>yes</b>' : 'no']));
+}
+function drawAll() { drawPhase1(); drawRL(); drawSel(); drawConfirm(); }
 notes(); tiles(); drawAll();
 let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
 """
@@ -616,6 +640,14 @@ BODY = """
   <div id="ph4"></div>
 </section>
 <section>
+  <h2>R4: the confirmatory tests on navtest</h2>
+  <p class="sub">Run once, after phase 4 under the registered recipe (RL4): C1 (primary) A minus D after RL; C2 the navdev-chosen
+  method after RL minus H1's text output; C3 that method before RL minus the regression control R; C4 that method after RL minus
+  before. Each uses navtest's single path with R3's interval (drives and seeds resampled; a one-seed path generator gets the larger of
+  A's and D's between-seed SDs). Holm's procedure keeps the family-wise error at 0.05.</p>
+  <div id="r4"></div>
+</section>
+<section>
   <h2>RL: change from the starting point on navdev</h2>
   <p class="sub">Each RL run starts from its method's R11 starting epoch. The marks show the paired change in navdev PDMS from that start,
   after the given number of updates. R12 and R13 pick the recipe with the best mean single-path gain over A and D; if every
@@ -644,8 +676,8 @@ BODY = """
 """
 
 
-def build(agg: dict, notes: dict, ms: Optional[dict] = None) -> str:
-    data = json.dumps(page_data(agg, ms)).replace("</", "<\\/")
+def build(agg: dict, notes: dict, ms: Optional[dict] = None, conf: Optional[dict] = None) -> str:
+    data = json.dumps(page_data(agg, ms, conf)).replace("</", "<\\/")
     nj = json.dumps(notes).replace("</", "<\\/")
     title = html.escape(notes.get("title", "Path-generator progress"))
     body = BODY.replace('<span id="gen"></span>', html.escape(str(agg.get("generated", ""))))
@@ -661,12 +693,14 @@ def main() -> None:
     p.add_argument("--notes", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--method-seeds", default=None, help="method_seeds.py's output: method pairs with every seed")
+    p.add_argument("--confirmatory", default=None, help="confirmatory.py's output: R4's tests C1-C4")
     a = p.parse_args()
     agg = json.load(open(a.aggregate, encoding="utf-8"))
     notes = json.load(open(a.notes, encoding="utf-8"))
     ms = json.load(open(a.method_seeds, encoding="utf-8")) if a.method_seeds else None
+    conf = json.load(open(a.confirmatory, encoding="utf-8")) if a.confirmatory else None
     with open(a.out, "w", encoding="utf-8") as f:
-        f.write(build(agg, notes, ms))
+        f.write(build(agg, notes, ms, conf))
     print(f"wrote {a.out}")
 
 

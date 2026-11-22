@@ -105,6 +105,27 @@ def test_selector_rows_per_chain_with_adoption():
     assert [r["chain"] for r in rows] == ["a4", "d4", "rehearsal"] and rows[2]["candidates"]["oof_half0"]["scenes"] == 40943
 
 
+
+def test_confirm_rows_show_r4_with_holm():
+    conf = {"tests": {
+        "C2": {"what": "A after RL minus H1's text output", "difference": 2.28, "ci": [1.2, 3.3], "seeds": [3, 1],
+               "scenes": 12146, "p": 0.0002, "p_holm": 0.0006, "threshold": 0.0167, "rejected": True},
+        "C1": {"what": "A minus D after RL (primary)", "difference": 5.5, "ci": [4.0, 7.0], "seeds": [3, 3],
+               "scenes": 12146, "p": 0.0001, "p_holm": 0.0004, "threshold": 0.0125, "rejected": True},
+        "C3": {"what": "A before RL minus R: does generation help?", "difference": 0.05, "ci": [-0.53, 0.63],
+               "seeds": [3, 3], "scenes": 12146, "p": 0.86, "p_holm": 0.86, "threshold": 0.05, "rejected": False}},
+        "chosen_method": "A", "recipe": "RL4", "alpha_family": 0.05}
+    r = report_html.confirm_rows(conf)
+    assert [x["key"] for x in r["rows"]] == ["C1", "C2", "C3"] and r["recipe"] == "RL4" and r["chosen"] == "A"
+    assert r["rows"][0] == {"key": "C1", "what": "A minus D after RL (primary)", "x": 5.5, "lo": 4.0, "hi": 7.0,
+                            "p": 0.0001, "p_holm": 0.0004, "threshold": 0.0125, "rejected": True}
+    assert report_html.confirm_rows(None) is None and report_html.confirm_rows({"tests": {}}) is None
+    data = report_html.page_data({}, MS, conf)
+    assert data["confirm"]["rows"][2]["rejected"] is False
+    html = report_html.build({}, {"title": "t"}, MS, conf)
+    assert 'id="r4"' in html and "C1 (primary) A minus D after RL" in html
+    assert report_html.page_data({}, MS)["confirm"] is None  # not yet run: the section says so
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 def test_report_script_parses(tmp_path):
     html = report_html.build({}, {"title": "t"}, MS)
