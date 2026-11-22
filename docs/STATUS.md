@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 09:36: phase 4 on navdev, phase 2 complete): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 09:29 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 10:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,9 +14,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 09:29). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 09:27 Nov 22):
-  - **Running: phase 4, D's seed 1 under RL4** (`45d1`, since 09:06; about 55 min).
-  - **Next:** the 13 phase-4 navtest path jobs (`350_navtest-*`, about 2 min each), then D's seed 2 under RL6 and RL4, then D's four tuning runs (R15), then A3's full RL stages (`47a4`, `47a6`, R18 rounds). Phase 2's follow-up runs (`z_*`) wait until nothing else does.
+- **4090 desktop, GPU queue** (one job at a time; read 10:11 Nov 22):
+  - **Running: phase 4, D's seed 2 under RL6** (`45d2r6`, since 10:08; about 55 min), then its RL4 run. R16's gate for B and C decides once both are chosen, about 12:30.
+  - **Done 10:09: phase 4's 13 navtest path jobs** (about 15 s each). The driver scores them, 7 path sets per RL run at about 220 s each, so phase 4's navtest results arrive over about 5 h.
+  - **Done about 10:05: D's seed 1 under RL4** (`45d1`). Its checkpoint is chosen on the driver's next pass.
+  - **Then:** D's four tuning runs (R15), then A3's full RL stages (`47a4`, `47a6`, R18 rounds), then phase 2's follow-up runs (`z_*`).
   - **Done since Nov 21 20:11:** A4 (21:08) and phase 2's navtest paths; phase 4's RL runs for A (all 6), B and C (both recipes), D's seed 0 (both) and seed 1 under RL6. Every job ended rc 0.
   - **No checks ran from Nov 21 20:11 to Nov 22 09:12** (13 h); the desktop automation carried the work, apart from the navtest bug above.
 - **Desktop CPU queue (`~/queue2`):** idle since 11:24, when the rehearsal's candidates were all scored.
@@ -191,7 +193,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates):
-1. **Phase 2: A's continuity series** A0 (since 12:51), A2, A3, A4 (about 2.3 h each), read by R17. Its leave-one-out, bin-size and R17 seed runs go last (after phase 6 or in its gaps).
+1. **Phase 4:** D's seed 2 (both recipes), the navtest scores of all 16 RL runs, then R16's gate for B and C and R5's ranking (reported only). Phase 2 is complete; its follow-up runs go last.
 2. **Phase 4:** RL4 and RL6 on every method (16 runs of 1,500 updates). Then R16's gate for B and C, and R5's ranking (reported only).
 3. **Phase 6:** D's four tuning runs (R15), then each contender's full RL stage (rounds of 5,000 updates, R18) and selector chain (R14); the final system on navdev (R16), one navtest score per contender, and R4's confirmatory tests.
 4. **The report after each result** (the private link at the top of this page).
