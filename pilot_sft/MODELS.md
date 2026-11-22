@@ -100,6 +100,7 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `a0-l12-18-24` | A0 (phase 2: plain bins, no notion of distance) | 12, 18, 24 | 0 | 20 | 42.4M | 1 h 55 min | 4.0 | `78d702da529bd222` | yes | yes |
 | `a2-l12-18-24` | A2 (phase 2: A1 plus soft labels) | 12, 18, 24 | 0 | 20 | 41.9M | 1 h 50 min | 3.9 | `dfc01c8e9f19811d` | yes | yes |
 | `a3-l12-18-24` | A3 (phase 2: A2 plus the position-error loss and the averaged readout) | 12, 18, 24 | 0 | 20 | 41.9M | 2 h 16 min | 4.0 | `f5106da50c3d7c46` | yes | yes |
+| `a4-l12-18-24` | A4 (phase 2: A3 plus the continuous offset within the bin) | 12, 18, 24 | 0 | 20 | 41.9M | 2 h 5 min | 4.1 | `de6e237b596c9be5` | yes | yes |
 
 ### RL runs
 
@@ -123,6 +124,18 @@ An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update
 | `d-l12-18-24-rlrecipe5` | `d-l12-18-24` epoch 5 | R13 RL5: GRPO advantage + BC term (weight 2.65), 0.1 SD floor | 80,626 | 250, 500 | 0.80 | rl_250 `481a28237eef9ea4`, rl_500 `4bc232f0e86ff9de` | yes | yes |
 | `d-l12-18-24-rlrecipe6` | `d-l12-18-24` epoch 5 | R13 RL6: Dr. GRPO + BC term (weight 0.40), 0.1 SD floor | 80,626 | 250, 500 | 0.80 | rl_250 `1761e0354ad043d7`, rl_500 `ab9406c8ac13819c` | yes | yes |
 | `d-l12-18-24-rlrecipe7` | `d-l12-18-24` epoch 5 | R13 RL7: the 0.1 SD floor only (GRPO advantage, no BC) | 80,626 | 250, 500 | 0.80 | rl_250 `378bb7bf97407aa2`, rl_500 `b9ef42b11ea34470` | yes | yes |
+| `a1-l12-18-24-rl` | `a1-l12-18-24` epoch 20 | phase 4 (R16), RL4; navdev choice rl_1250 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1250 `5f739333b3f76e60`, rl_1500 `d3a706b03b71df77` | yes | yes |
+| `a1-l12-18-24-s1-rl` | `a1-l12-18-24-s1` epoch 20 | phase 4 (R16), RL4; navdev choice rl_1500 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1500 `eda77894a526c5e5` | yes | yes |
+| `a1-l12-18-24-s2-rl` | `a1-l12-18-24-s2` epoch 20 | phase 4 (R16), RL4; navdev choice rl_750 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_750 `250520dfabfb6429`, rl_1500 `ba135a5df5c7f91f` | yes | yes |
+| `a1-l12-18-24-rl6` | `a1-l12-18-24` epoch 20 | phase 4 (R16), RL6; navdev choice rl_1500 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1500 `bcd4cbb164009611` | yes | yes |
+| `a1-l12-18-24-s1-rl6` | `a1-l12-18-24-s1` epoch 20 | phase 4 (R16), RL6; navdev choice rl_1250 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1250 `10d112a6bbe74b96`, rl_1500 `548bc08c6254119e` | yes | yes |
+| `a1-l12-18-24-s2-rl6` | `a1-l12-18-24-s2` epoch 20 | phase 4 (R16), RL6; navdev choice rl_1500 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1500 `26e60263948585f0` | yes | yes |
+| `b-l12-18-24-rl` | `b-l12-18-24` epoch 10 | phase 4 (R16), RL4; navdev choice rl_750 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_750 `4d7df9eb8e1328b6`, rl_1500 `750d4a0f39cd4a2e` | yes | yes |
+| `b-l12-18-24-rl6` | `b-l12-18-24` epoch 10 | phase 4 (R16), RL6; navdev choice rl_1250 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1250 `17689ea421f9a446`, rl_1500 `51cd4db3ccb65d5d` | yes | yes |
+| `c-l12-18-24-rl` | `c-l12-18-24` epoch 10 | phase 4 (R16), RL4; navdev choice rl_750 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_750 `d7641cac3c6372e4`, rl_1500 `4ea9ab6fdf911db2` | yes | yes |
+| `c-l12-18-24-rl6` | `c-l12-18-24` epoch 10 | phase 4 (R16), RL6; navdev choice rl_1250 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1250 `8ae2c4d567d97d92`, rl_1500 `c5f9af9a413797da` | yes | yes |
+| `d-l12-18-24-rl` | `d-l12-18-24` epoch 5 | phase 4 (R16), RL4; navdev choice rl_1000 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1000 `6fc70cbaab1ed06d`, rl_1500 `032f93092f183ce2` | yes | yes |
+| `d-l12-18-24-rl6` | `d-l12-18-24` epoch 5 | phase 4 (R16), RL6; navdev choice rl_1500 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1500 `14aef4ae40630ae8` | yes | yes |
 
 A's RL7 is the same run as its RL0 (A's steps are not Gaussian, so the SD floor does nothing). All R12 and R13 recipe runs are on both machines with matching checksums (2026-11-20 10:49).
 
