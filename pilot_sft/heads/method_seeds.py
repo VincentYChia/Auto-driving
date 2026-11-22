@@ -10,7 +10,8 @@ R17: once phase 2's series' best (choices/A_series.json) is not A1 and its seeds
 choices, ``series_best_vs_a1`` compares it with A1 over three seeds each, the same way.
 
 Phase 4 (``phase4``, per recipe, once a method's RL seeds are all chosen and scored): each method after RL, the method
-pairs after RL, and each method's change from phase 3 (seed-paired). Prints JSON.
+pairs after RL, and each method's change from phase 3 (seed-paired). ``recipe_change``: each method's RL6 - RL4,
+seed-paired by the supervised seed both started from (reported only; R16 keeps both recipes). Prints JSON.
 """
 import glob
 import json
@@ -164,6 +165,33 @@ def phase4(exp: str, heads: str, lcs: dict, split: str, drives: dict) -> Optiona
     return res or None
 
 
+def recipe_change(exp: str, heads: str, lcs: dict, split: str, drives: dict) -> Optional[dict]:
+    """R16's two recipes against each other, reported only: per method, the second recipe minus the registered one
+    (RL6 - RL4). Each pair of RL seeds is paired by the supervised seed both started from, so the shared start cancels
+    and the interval holds the two RL stages' own noise. One seed (B, C): drives only. A method enters once both
+    recipes have all its seeds chosen and scored."""
+    rf = os.path.join(heads, "choices", "rl_recipe.json")
+    if not os.path.exists(rf):
+        return None
+    base = json.load(open(rf))["recipe"]
+    res = {}
+    for other in (r for r in PHASE4_RECIPES if r != base):
+        rr = {}
+        for m in ("A", "B", "C", "D"):
+            if m not in lcs:
+                continue
+            a = rl_seeds(exp, heads, lcs[m], m, other, base, split)
+            b = rl_seeds(exp, heads, lcs[m], m, base, base, split) if a is not None else None
+            if b is None:
+                continue
+            for meas in ("single", "best_of_6"):
+                if a[meas] and len(a[meas]) == len(b[meas]):
+                    rr.setdefault(m, {})[meas] = hier_paired(a[meas], b[meas], drives)
+        if rr:
+            res[f"RL{other} - RL{base}"] = rr
+    return res or None
+
+
 def series_best_vs_a1(exp: str, heads: str, a1: dict, split: str, drives: dict) -> Optional[dict]:
     """R17: the continuity series' best (if not A1) against A1, three seeds each, each at its own choices."""
     sf = os.path.join(heads, "choices", "A_series.json")
@@ -219,6 +247,9 @@ def main(exp: str = EXP, cache_root: str = CACHE_ROOT) -> dict:
         p4 = phase4(exp, heads, lcs, split, drives)
         if p4:
             res["phase4"] = p4
+        rc = recipe_change(exp, heads, lcs, split, drives)
+        if rc:
+            res["phase4_recipe_change"] = rc
         out[split] = res
     return out
 

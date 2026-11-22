@@ -1,8 +1,13 @@
 """``pilot_sft/heads/report_html.py``: method pairs with every seed (method_seeds.py's output) on the report page."""
 
 import json
+import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "pilot_sft" / "heads"))
@@ -67,6 +72,14 @@ def test_phase4_rows_per_split_and_recipe():
     assert r["pairs"][0]["pair"] == "A-B" and r["pairs"][0]["single"]["seeds"] == [3, 1]
     assert "navdev" not in data["phase4"]
     assert 'id="ph4"' in report_html.build({}, {"title": "t"}, {"navtest": {"pairs": {}, "phase4": p4}})
+    assert data["recipeChange"] == {}  # no recipe comparison yet
+    rc = {"RL6 - RL4": {"A": {"single": {"difference": 0.75, "ci": [-0.4, 1.9], "seeds": 3, "scenes": 12},
+                              "best_of_6": {"difference": 1.81, "ci": [0.9, 2.6], "seeds": 3, "scenes": 12}}}}
+    data = report_html.page_data({}, {"navtest": {"pairs": {}, "phase4": p4, "phase4_recipe_change": rc}})
+    assert data["recipeChange"]["navtest"]["RL6 - RL4"] == [
+        {"method": "A", "single": {"x": 0.75, "lo": -0.4, "hi": 1.9, "seeds": 3},
+         "best_of_6": {"x": 1.81, "lo": 0.9, "hi": 2.6, "seeds": 3}}]
+    assert set(data["phase4"]["navtest"]) == {"RL4"}  # the comparison is not drawn as a third recipe
 
 
 def test_selector_rows_per_chain_with_adoption():
@@ -90,3 +103,14 @@ def test_selector_rows_per_chain_with_adoption():
     agg["selector_candidates"] = {"rehearsal": {"oof_half0": {"scenes": 40943, "own_pick_pdms": 89.06}}, "d4": {"oof_half0": {}}}
     rows = report_html.page_data(agg)["selectors"]
     assert [r["chain"] for r in rows] == ["a4", "d4", "rehearsal"] and rows[2]["candidates"]["oof_half0"]["scenes"] == 40943
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_report_script_parses(tmp_path):
+    html = report_html.build({}, {"title": "t"}, MS)
+    scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
+    assert scripts
+    for i, js in enumerate(scripts):
+        f = tmp_path / f"page{i}.js"
+        f.write_text(js, encoding="utf-8")
+        subprocess.run(["node", "--check", str(f)], check=True)

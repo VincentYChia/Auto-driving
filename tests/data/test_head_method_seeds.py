@@ -107,3 +107,30 @@ def test_phase4_compares_methods_after_rl_and_each_methods_change_seed_by_seed(t
     assert ch["B"]["single"]["difference"] == 3.0 and ch["B"]["single"]["ci"] == [3.0, 3.0]  # one seed: drives only
     assert p4["RL4"]["pairs"]["A-B"]["single"]["difference"] == 1.33
     assert p4["RL4"]["methods"]["B"]["best_of_6"]["seeds"] == [84.55]
+
+
+def test_recipe_change_pairs_each_rl6_seed_with_the_rl4_seed_from_the_same_start(tree):
+    exp, cache = tree
+    heads = exp / "heads"
+    (heads / "choices" / "rl_recipe.json").write_text(json.dumps({"recipe": 4}))
+    for sp in ("navdev", "navtest"):
+        for s, sft, r4, r6 in ((0, "a1-l12-18-24", 0.86, 0.87), (1, "a1-l12-18-24-s1", 0.84, 0.86),
+                               (2, "a1-l12-18-24-s2", 0.85, 0.88)):
+            rl = f"{sft}-rl"
+            rl_choice(heads, rl, sft, "rl_1500")
+            write(exp, rl, sp, r4, "rl_1500")
+            if s < 2 or sp == "navdev":  # A's RL6 seed 2 not scored on navtest yet
+                rl_choice(heads, f"{sft}-rl6", sft, "rl_1250")
+                write(exp, f"{sft}-rl6", sp, r6, "rl_1250")
+        rl_choice(heads, "b-l12-18-24-rl", "b-l12-18-24", "rl_750")
+        write(exp, "b-l12-18-24-rl", sp, 0.83, "rl_750")
+    out = ms.main(str(exp), str(cache))
+    assert "phase4_recipe_change" not in out["navtest"]  # A needs all three RL6 seeds; B has no RL6 run yet
+    rc = out["navdev"]["phase4_recipe_change"]
+    assert set(rc) == {"RL6 - RL4"} and set(rc["RL6 - RL4"]) == {"A"}
+    a = rc["RL6 - RL4"]["A"]["single"]
+    assert a["difference"] == 2.0 and a["seeds"] == 3  # +1, +2, +3 seed by seed
+    assert a["ci"][0] < 2.0 < a["ci"][1]  # the seed-to-seed spread is in the interval
+    assert rc["RL6 - RL4"]["A"]["best_of_6"]["difference"] == 2.0
+    write(exp, "a1-l12-18-24-s2-rl6", "navtest", 0.88, "rl_1250")
+    assert ms.main(str(exp), str(cache))["navtest"]["phase4_recipe_change"]["RL6 - RL4"]["A"]["single"]["difference"] == 2.0

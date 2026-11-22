@@ -113,7 +113,7 @@ def page_data(agg: dict, ms: Optional[dict] = None) -> dict:
                 vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
         seeds.append({"method": m, "run": lc["run"], "values": vals})
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
-            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "selectors": selector_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
+            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "recipeChange": recipe_change_rows(ms), "selectors": selector_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
                                                                                     (ms or {}).items() if r.get("series_best_vs_a1")},
             "generated": agg.get("generated"), "names": METHOD_NAMES}
 
@@ -165,6 +165,15 @@ def phase4_rows(ms: Optional[dict]) -> dict:
                            for m, cv in sorted(v.get("change_from_phase3", {}).items())],
                 "pairs": [{"pair": p, **{k: iv_(c) for k, c in pv.items()}} for p, pv in v.get("pairs", {}).items()]}
     return out
+
+
+def recipe_change_rows(ms: Optional[dict]) -> dict:
+    """R16's two recipes against each other (method_seeds.py's ``phase4_recipe_change``), per split: each method's
+    RL6 - RL4, seed-paired, in points with its interval."""
+    iv_ = lambda c: {"x": c["difference"], "lo": c["ci"][0], "hi": c["ci"][1], "seeds": c["seeds"]}  # noqa: E731
+    return {sp: {rc: [{"method": m, **{k: iv_(c) for k, c in mv.items()}} for m, mv in sorted(v.items())]
+                 for rc, v in r["phase4_recipe_change"].items()}
+            for sp, r in (ms or {}).items() if r.get("phase4_recipe_change")}
 
 
 SERIES_LABELS = {"a0": "A0: plain bins, no notion of distance", "a2": "A2: A1 + soft labels",
@@ -423,6 +432,15 @@ function drawPhase1() {
     v.pairs.forEach(o => meas.forEach(([k, name, kind]) => { if (o[k]) rowsP4.push({label: `${o.pair.replace('-', ' − ')} · ${name}`, color: 'var(--ink-2)',
       marks: [{...o[k], kind, tip: `<b>${esc(o.pair.replace('-', ' − '))}, ${rec}</b><br>${name}, ${SPLIT}: ${dvs(o[k])}`}]}); }));
     if (rowsP4.length) forest(c2, rowsP4, {zero: true, signed: true, aria: `${rec}: method pairs after RL`});
+  });
+  const rcs = (D.recipeChange || {})[SPLIT] || {};
+  Object.keys(rcs).forEach(rc => {
+    const h = document.createElement('h3'); h.textContent = `${rc.replace(' - ', ' − ')}: the two recipes against each other (each RL6 seed against the RL4 seed from the same start; reported only)`; p4box.appendChild(h);
+    const c = document.createElement('div'); c.className = 'chart'; p4box.appendChild(c);
+    const rowsR = [];
+    rcs[rc].forEach(o => meas.forEach(([k, name, kind]) => { if (o[k]) rowsR.push({label: `${o.method} · ${name}`, color: C(o.method),
+      marks: [{...o[k], kind, tip: `<b>${o.method}, ${esc(rc.replace(' - ', ' − '))}</b><br>${name}, ${SPLIT}: ${dvs(o[k])} (${o[k].seeds} seed${o[k].seeds > 1 ? 's' : ''})`}]}); }));
+    if (rowsR.length) forest(c, rowsR, {zero: true, signed: true, aria: `${rc}: the two recipes`});
   });
   const sb = (D.seriesBest || {})[SPLIT];
   document.getElementById('tb-seriesbest').innerHTML = sb ? '' : '<p class="small">Only if the series\' best is not A1: its seeds 1 and 2, then this comparison.</p>';
