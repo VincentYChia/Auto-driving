@@ -99,6 +99,7 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `selector-rehearsal-gen-half1` | A1 on drive half 1 (80 of 158 drives, 117,746 scenes), the selector chain's rehearsal (R14; used for no choice) | 12, 18, 24 | 0 | 20 | 41.9M | 56 min | 3.8 | `b208c5241ddb36a2` | yes | yes |
 | `a0-l12-18-24` | A0 (phase 2: plain bins, no notion of distance) | 12, 18, 24 | 0 | 20 | 42.4M | 1 h 55 min | 4.0 | `78d702da529bd222` | yes | yes |
 | `a2-l12-18-24` | A2 (phase 2: A1 plus soft labels) | 12, 18, 24 | 0 | 20 | 41.9M | 1 h 50 min | 3.9 | `dfc01c8e9f19811d` | yes | yes |
+| `a3-l12-18-24` | A3 (phase 2: A2 plus the position-error loss and the averaged readout) | 12, 18, 24 | 0 | 20 | 41.9M | 2 h 16 min | 4.0 | `f5106da50c3d7c46` | yes | yes |
 
 ### RL runs
 
