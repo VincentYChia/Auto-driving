@@ -879,13 +879,21 @@ def variant_needs(v: str) -> List[str]:
     return (["half0", "half1"] if data == "xfit" else ["infold"]) + (["boundary"] if extra == ["boundary"] else [])
 
 
-def chain_job(x: str, step: str, rest: str, first: bool) -> str:
-    """A selector-chain GPU job's file name. A contender's chain sorts ahead of every full RL stage (``47...``), so a
-    contender whose full RL is done gets its selector before more full RL runs (reorder of 2026-11-22): the first
-    complete generator-plus-selector system arrives about a day sooner, and the chain's first run after RL (half
-    generators with RL, never run at scale) shows any fault early. Every contender still gets the same chain, and the
-    tuning runs (``46...``) still go first. The rehearsal (``first``) keeps the names its finished jobs carry."""
-    return f"{step}{x}{rest}" if first else f"470{x}-{step}{rest}"
+ADOPTED_VARIANT = "xfit-s0"  # R14: the selector whose navdev result decides adoption, and so R16's final system
+
+
+def chain_job(x: str, step: str, rest: str, first: bool, decisive: bool = True) -> str:
+    """A selector-chain GPU job's file name (reorders of 2026-11-22; every contender still gets every job).
+    - A contender's decisive jobs (the half generators and the ``ADOPTED_VARIANT`` selector) sort ahead of every full
+      RL stage (``47...``), so a contender whose full RL is done gets its adoption next: the first complete
+      generator-plus-selector system arrives about a day sooner, and the chain's first run after RL (half generators
+      with RL, never run at scale) shows any fault early. The tuning runs (``46...``) still go first.
+    - Its other jobs (the in-fold control, seed 1 and the ablations: R14 reports them, no choice reads them) sort
+      after every full RL stage (``48...``), so they fill the GPU's gaps and wait for no decision.
+    - The rehearsal (``first``) keeps the names its finished jobs carry."""
+    if first:
+        return f"{step}{x}{rest}"
+    return f"470{x}-{step}{rest}" if decisive else f"48{x}-{step}{rest}"
 
 
 def selector_chain(x: str, spec: dict) -> dict:
@@ -914,7 +922,7 @@ def selector_chain(x: str, spec: dict) -> dict:
         sets[f"half{h}"] = (oof[h], os.path.join(H, f"selector-{x}", f"candidates_oof_half{h}.jsonl"))
     dep = os.path.join(H, spec["deployed_run"], f"navtrain_{spec['deployed_weights']}", S)
     if "infold" in needed:
-        queue_job(chain_job(x, "61", f"_selector-{x}-infold", first),
+        queue_job(chain_job(x, "61", f"_selector-{x}-infold", first, decisive=False),
                   f"phase 6 (R14): selector {x}, in-fold candidates of the deployed generator",
                   f"taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $HOME/navsim_workspace/exp/heads/"
                   f"{spec['deployed_run']} --weights {spec['deployed_weights']} --split navtrain --cache $C/train "
@@ -948,7 +956,8 @@ def selector_chain(x: str, spec: dict) -> dict:
             continue
         cands = " ".join(f"--candidates {sets[n][0]} {sets[n][1]}" for n in need if n != "boundary")
         out = f"$HOME/navsim_workspace/exp/heads/selector-{x}-{v}"
-        queue_job(chain_job(x, "62", f"{list(SEL_VARIANTS).index(v)}_selector-{x}-{v}", first),
+        queue_job(chain_job(x, "62", f"{list(SEL_VARIANTS).index(v)}_selector-{x}-{v}", first,
+                            decisive=v == ADOPTED_VARIANT),
                   f"phase 6 (R14): selector {x}, {v}",
                   f"taskset -c 16-31 $PY pilot_sft/heads/train_selector.py --cache $C/train --generator {gen_w} {cands} "
                   f"--scale {spec['scale']:g} --k {spec['k']} --seed {seed} {' '.join(extra)} --out {out} --resume\n"

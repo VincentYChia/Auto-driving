@@ -64,7 +64,7 @@ def test_selector_chain_from_spec_to_navtest(chain, monkeypatch):
     halves = H / "halves"
     assert (halves / "rl_tokens_all.txt").read_text().split() == \
         (halves / "rl_tokens_half0.txt").read_text().split() + (halves / "rl_tokens_half1.txt").read_text().split()
-    assert gpu_jobs() == ["470a-60h0_selector-a-gen-half0.sh", "470a-60h1_selector-a-gen-half1.sh", "470a-61_selector-a-infold.sh"]
+    assert gpu_jobs() == ["470a-60h0_selector-a-gen-half0.sh", "470a-60h1_selector-a-gen-half1.sh", "48a-61_selector-a-infold.sh"]
     assert cpu_jobs() == ["57boundary_score-selector-shared-boundary.sh"]  # generator-independent: one shared set
     h0 = (Path(driver.P["queue"]) / "470a-60h0_selector-a-gen-half0.sh").read_text()
     assert "--soft-sigma 1 --drive-half 0" in h0 and "--weights epoch_20" in h0 and "--updates 1500" in h0
@@ -84,19 +84,19 @@ def test_selector_chain_from_spec_to_navtest(chain, monkeypatch):
     driver.selectors({})
     assert cpu_jobs() == ["57ahalf0_score-selector-a-half0.sh", "57ahalf1_score-selector-a-half1.sh",
                           "57boundary_score-selector-shared-boundary.sh"]
-    assert not [j for j in gpu_jobs() if j.startswith("470a-62")]  # no selector before its candidates are scored
+    assert not [j for j in gpu_jobs() if "-62" in j]  # no selector before its candidates are scored
 
     # cross-fitted candidates scored: the cross-fitted selectors and the 3 plain ablations, not the in-fold control
     for h in (0, 1):
         (H / "selector-a" / f"candidates_oof_half{h}.jsonl.done").write_text("")
     driver.selectors({})
-    sel = [j for j in gpu_jobs() if j.startswith("470a-62")]
-    assert sel == ["470a-620_selector-a-xfit-s0.sh", "470a-621_selector-a-xfit-s1.sh", "470a-623_selector-a-xfit-pdms.sh",
-                   "470a-624_selector-a-xfit-listwise.sh", "470a-625_selector-a-xfit-imitation.sh"]
+    sel = [j for j in gpu_jobs() if "-62" in j]
+    assert sel == ["470a-620_selector-a-xfit-s0.sh", "48a-621_selector-a-xfit-s1.sh", "48a-623_selector-a-xfit-pdms.sh",
+                   "48a-624_selector-a-xfit-listwise.sh", "48a-625_selector-a-xfit-imitation.sh"]
     s0 = (Path(driver.P["queue"]) / "470a-620_selector-a-xfit-s0.sh").read_text()
     assert s0.count("--candidates") == 2 and "--seed 0" in s0 and os.path.join("a1-l12-18-24-rl", "rl_1500.pt") in s0
     assert "apply_selector.py" in s0 and os.path.join("navdev_rl_1500", "steps8") in s0 and "drives_navdev.json" in s0
-    assert "--target pdms" in (Path(driver.P["queue"]) / "470a-623_selector-a-xfit-pdms.sh").read_text()
+    assert "--target pdms" in (Path(driver.P["queue"]) / "48a-623_selector-a-xfit-pdms.sh").read_text()
 
     # in-fold and boundary scored: the control and the boundary ablation
     written(H / "a1-l12-18-24-rl" / "navtrain_rl_1500")
@@ -105,9 +105,9 @@ def test_selector_chain_from_spec_to_navtest(chain, monkeypatch):
     (H / "selector-a" / "candidates_infold.jsonl.done").write_text("")
     (H / "selector-shared" / "perturbed.jsonl.done").write_text("")
     driver.selectors({})
-    inf = (Path(driver.P["queue"]) / "470a-622_selector-a-infold-s0.sh").read_text()
+    inf = (Path(driver.P["queue"]) / "48a-622_selector-a-infold-s0.sh").read_text()
     assert inf.count("--candidates") == 1 and "candidates_infold.jsonl" in inf
-    b = (Path(driver.P["queue"]) / "470a-626_selector-a-xfit-boundary.sh").read_text()
+    b = (Path(driver.P["queue"]) / "48a-626_selector-a-xfit-boundary.sh").read_text()
     assert "--extra-candidates" in b and os.path.join("boundary", "scores.jsonl") in b and b.count("--candidates") == 2
 
     # adoption by the point estimate; the gain is not claimed while the interval includes 0
@@ -168,7 +168,7 @@ def test_a_rehearsal_spec_runs_only_its_variants_ahead_of_the_queue(chain):
     # a contender's chain later reuses the shared boundary set: not queued again under its plain name
     driver.selector_chain("a", SPEC)
     assert "57boundary_score-selector-shared-boundary.sh" not in cpu_jobs()
-    assert "470a-61_selector-a-infold.sh" in gpu_jobs() and "470a-60h0_selector-a-gen-half0.sh" in gpu_jobs()  # all of R14's sets
+    assert "48a-61_selector-a-infold.sh" in gpu_jobs() and "470a-60h0_selector-a-gen-half0.sh" in gpu_jobs()  # all of R14's sets
     # its adoption record says what it is; the final system reads only the contenders' specs (R16)
     rep = H / "selector-rehearsal-xfit-s0" / "navdev"
     rep.mkdir(parents=True)
@@ -462,13 +462,31 @@ def test_the_final_system_is_chosen_on_navdev_before_any_navtest_score(tree, mon
 
 
 def test_a_contenders_chain_runs_before_more_full_rl_but_after_tuning(chain):
-    """The reorder of 2026-11-22: a contender's chain jobs sort ahead of every full RL stage and behind the tuning
-    runs, so a contender whose full RL is done gets its selector next; the rehearsal keeps its old names."""
+    """The reorders of 2026-11-22: a contender's decisive chain jobs (half generators, the adopted variant) sort
+    ahead of every full RL stage and behind the tuning runs; its in-fold control, seed 1 and ablations sort after
+    every full RL stage and before phase 2's follow-ups. The rehearsal keeps its old names."""
+    H = Path(driver.P["heads"])
     driver.selector_chain("a", SPEC)
-    names = sorted(gpu_jobs() + ["46d1_train-d-r151-l12-18-24.sh", "47a6_rlfull6-a3-l12-18-24.sh",
-                                 "47d4r2_rlfull4-d-r150-l12-18-24.sh", "350_navtest-x.sh", "z_431_train-a3-l12-18-24-s1.sh"])
+    written(H / "selector-a-gen-half0-rl" / "navtrain_rl_1500")
+    written(H / "selector-a-gen-half1-rl" / "navtrain_rl_1500")
+    written(H / "a1-l12-18-24-rl" / "navtrain_rl_1500")
+    for f in ("candidates_oof_half0", "candidates_oof_half1", "candidates_infold"):
+        (H / "selector-a").mkdir(parents=True, exist_ok=True)
+        (H / "selector-a" / f"{f}.jsonl.done").write_text("")
+    (H / "selector-shared").mkdir(parents=True, exist_ok=True)
+    (H / "selector-shared" / "perturbed.jsonl.done").write_text("")
+    driver.selector_chain("a", SPEC)
+    others = ["46d1_train-d-r151-l12-18-24.sh", "47a6_rlfull6-a3-l12-18-24.sh", "47d4r2_rlfull4-d-r150-l12-18-24.sh",
+              "350_navtest-x.sh", "z_431_train-a3-l12-18-24-s1.sh"]
+    names = sorted(gpu_jobs() + others)
     assert names == ["350_navtest-x.sh", "46d1_train-d-r151-l12-18-24.sh", "470a-60h0_selector-a-gen-half0.sh",
-                     "470a-60h1_selector-a-gen-half1.sh", "470a-61_selector-a-infold.sh", "47a6_rlfull6-a3-l12-18-24.sh",
-                     "47d4r2_rlfull4-d-r150-l12-18-24.sh", "z_431_train-a3-l12-18-24-s1.sh"]
+                     "470a-60h1_selector-a-gen-half1.sh", "470a-620_selector-a-xfit-s0.sh",
+                     "47a6_rlfull6-a3-l12-18-24.sh", "47d4r2_rlfull4-d-r150-l12-18-24.sh",
+                     "48a-61_selector-a-infold.sh", "48a-621_selector-a-xfit-s1.sh",
+                     "48a-622_selector-a-infold-s0.sh", "48a-623_selector-a-xfit-pdms.sh",
+                     "48a-624_selector-a-xfit-listwise.sh", "48a-625_selector-a-xfit-imitation.sh",
+                     "48a-626_selector-a-xfit-boundary.sh", "z_431_train-a3-l12-18-24-s1.sh"]
+    assert driver.ADOPTED_VARIANT in driver.SEL_VARIANTS
     assert driver.chain_job("rehearsal", "60", "h0_selector-rehearsal-gen-half0", True) == "60rehearsalh0_selector-rehearsal-gen-half0"
+    assert driver.chain_job("rehearsal", "62", "6_x", True, decisive=False) == "62rehearsal6_x"  # the rehearsal: unchanged
     assert driver.chain_job("a4", "62", "0_selector-a4-xfit-s0", False) < driver.chain_job("a6", "60", "h0_x", False)

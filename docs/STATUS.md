@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 13:48: phase 4 on navtest for A, with RL6 against RL4): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 15:44 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 15:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -28,6 +28,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Queue reordered (14:49, phase 6): each contender's selector chain now runs right after its own full RL stage**, ahead of other contenders' full RL stages (job names `470<x>-6...`, which sort before `47...`; `pilot_sft/heads/driver.py` `chain_job`, with a test).
   - **Why:** R16's gate will very likely admit B and C, which makes phase 6 eight contenders. Before, every chain waited for all eight full RL stages, so the first generator-plus-selector system came about a day later, and the chain's one part never run at scale (half generators with RL; the rehearsal's halves had no RL) would first run near the end.
   - **What does not change:** every contender gets the same tuning, full RL stage and chain; the tuning runs still go first; the final system is still chosen only when every contender's selector is decided (R16). The total GPU time is the same.
+  - **Second step (15:49): the decisive part of each chain first, the rest later.** Adoption, and so R16's final system, reads only the cross-fitted seed-0 selector (R14). The in-fold control, the seed-1 selector and the four ablations are reported, and no choice reads them, so their jobs (`48<x>-...`) now sort after every full RL stage and fill the GPU's gaps. With eight contenders that is about 1.4 days less GPU work before the final system [D: 8 x (6 selectors x about 40 min + the in-fold candidates)]. Every contender still gets all of them before the report. If you want the boundary selector to compete for adoption (the question below), its jobs move up again.
   - The rehearsal's finished jobs keep their names, so nothing is queued twice. The driver picks the change up at its next restart, when it is not scoring; no chain job can be queued before A's full RL ends (about a day away).
 - **Queue reordered (14:16, 266b83e): phase 2's follow-up runs now go last.** The leave-one-out, bin-size and R17 seed runs of A's continuity series (up to 7 training runs, about 16 GPU hours) are queued as `z_<name>.sh`, so they run only when nothing else waits.
   - **Why:** they feed no choice. A's tuned configuration reads the series alone (R15), and R4 calls them exploratory. The rehearsal has shown the selector chain works at full scale, so the final system is limited only by compute. Phase 4, D's tuning and phase 6 now come about 16 GPU hours earlier.
