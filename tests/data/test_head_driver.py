@@ -286,6 +286,38 @@ def test_phase_4_runs_the_recipe_that_helps(tree, monkeypatch):
     assert "--adv dr --bc-balance 1 --lp-sd-floor 0.1" in (Path(driver.P["queue"]) / "45d1_rl-d-l24-s1.sh").read_text()
 
 
+def test_a_phase4_choice_queues_its_navtest_paths_even_when_made_in_an_earlier_pass(tree, monkeypatch):
+    def scorer(folder, split, exp_name, **kw):  # RL6 helps, so phase 4 starts (as in the test above)
+        fake_scorer(folder, split, exp_name, **kw)
+        if "rlrecipe6" in folder:
+            f = Path(driver.P["exp"]) / exp_name / "run" / "scores.csv"
+            df = pd.read_csv(f)
+            df["score"] = (df["score"] + 0.08).clip(upper=1.0)
+            df.to_csv(f, index=False)
+
+    monkeypatch.setattr(driver, "SCORER", scorer)
+    la, ld, finish, status = recipe_setup()
+    for r in driver.RECIPES:
+        finish(r)
+    driver.phase4(status)
+    rec = json.loads((Path(driver.P["heads"]) / "choices" / "rl_recipe.json").read_text())["recipe"]
+    rl = Path(driver.P["heads"]) / driver.rl_name(la["run"], rec, rec)
+    c, g = la["choice"], driver.GRID["masked"]
+    for u in driver.RL_CHECKPOINTS:  # seed 0's phase-4 run is done and its navdev paths are written
+        base = rl / f"navdev_rl_{u}" / f"steps{c['steps']}"
+        for n in ["single"] + [os.path.basename(f) for f in driver.sample_folders(str(base), c["scale"], g["k"])]:
+            (base / n).mkdir(parents=True, exist_ok=True)
+            (base / n / "shard_000_of_001.jsonl").write_text("{}" + chr(10))
+        (rl / f"navdev_rl_{u}" / "timing.json").write_text("{}")
+    driver.phase4(status)  # the checkpoint is chosen and its navtest paths are queued in the same pass
+    job = Path(driver.P["queue"]) / f"350_navtest-{rl.name}.sh"
+    assert (rl / "choices_navdev.json").exists() and job.exists()
+    assert "--split navtest" in job.read_text() and "--k 6" in job.read_text()
+    job.unlink()  # a pass that stopped right after choosing (as on Nov 21-22): the next pass queues it from the saved choice
+    driver.phase4(status)
+    assert job.exists()
+
+
 def test_decision_needs_a_gap_beyond_drive_and_seed_noise():
     rng = np.random.default_rng(0)
     tokens = [f"t{i}" for i in range(220)]

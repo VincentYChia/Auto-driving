@@ -603,29 +603,36 @@ def rl_choose(rl: str, lc: dict, sft: str, epoch: int, checkpoints, navtest: boo
         res = read_json(out)
         for k in ("single_by_checkpoint", "best_of_6_by_checkpoint"):  # JSON keys are strings; callers use updates
             res[k] = {int(u): v for u, v in res[k].items()}
-        return res
-    c = lc["choice"]
-    sc = checkpoint_scores(rl, lc, sft, epoch, checkpoints)
-    if sc is None:
-        return None
-    single, b6 = sc
-    u = best_update(single)
-    res = {"run": rl, "start": {"run": sft, "weights": f"epoch_{epoch}"},
-           "checkpoint": "start" if u == 0 else f"rl_{u}", "updates": u, "steps": c["steps"], "scale": c["scale"],
-           "navdev_single_pdms": single[u], "navdev_best_of_6": b6[u], "single_by_checkpoint": single,
-           "best_of_6_by_checkpoint": b6, "rule": "docs/HEADS_PLAN.md R11, R12 (update 0 allowed)",
-           "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}", **(extra or {})}
-    write_json(out, res)
-    log(f"{rl}: RL checkpoint {res['checkpoint']} (navdev single {single[u]}; by checkpoint {single})")
-    if navtest:
-        run_dir, weights = (sft, f"epoch_{epoch}") if u == 0 else (rl, f"rl_{u}")
-        if not os.path.exists(os.path.join(P["heads"], run_dir, f"navtest_{weights}", "timing.json")):
-            k = g["k"] if c["scale"] is not None else 0
-            sc = f"--scales {c['scale']:g}" if k else ""
-            queue_job(f"350_navtest-{rl}", f"navtest paths of {rl} at its navdev checkpoint {res['checkpoint']}",
-                      f"taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $HOME/navsim_workspace/exp/heads/{run_dir} "
-                      f"--weights {weights} --split navtest --cache $C/navtest --steps {c['steps']} --k {k} {sc}\n")
+    else:
+        c = lc["choice"]
+        sc = checkpoint_scores(rl, lc, sft, epoch, checkpoints)
+        if sc is None:
+            return None
+        single, b6 = sc
+        u = best_update(single)
+        res = {"run": rl, "start": {"run": sft, "weights": f"epoch_{epoch}"},
+               "checkpoint": "start" if u == 0 else f"rl_{u}", "updates": u, "steps": c["steps"], "scale": c["scale"],
+               "navdev_single_pdms": single[u], "navdev_best_of_6": b6[u], "single_by_checkpoint": single,
+               "best_of_6_by_checkpoint": b6, "rule": "docs/HEADS_PLAN.md R11, R12 (update 0 allowed)",
+               "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}", **(extra or {})}
+        write_json(out, res)
+        log(f"{rl}: RL checkpoint {res['checkpoint']} (navdev single {single[u]}; by checkpoint {single})")
+    if navtest:  # also for a choice made in an earlier pass, so a pass that stopped after choosing loses nothing
+        queue_rl_navtest(res, lc)
     return res
+
+
+def queue_rl_navtest(ch: dict, lc: dict) -> None:
+    """Queue the navtest paths of an RL run's chosen checkpoint (update 0 means its start), once; reporting (R1)."""
+    run_dir, weights = ((ch["start"]["run"], ch["start"]["weights"]) if ch["checkpoint"] == "start"
+                        else (ch["run"], ch["checkpoint"]))
+    if os.path.exists(os.path.join(P["heads"], run_dir, f"navtest_{weights}", "timing.json")):
+        return
+    k = GRID[lc["kind"]]["k"] if ch["scale"] is not None else 0
+    sc = f"--scales {ch['scale']:g}" if k else ""
+    queue_job(f"350_navtest-{ch['run']}", f"navtest paths of {ch['run']} at its navdev checkpoint {ch['checkpoint']}",
+              f"taskset -c 16-31 $PY pilot_sft/heads/predict_head.py --run $HOME/navsim_workspace/exp/heads/{run_dir} "
+              f"--weights {weights} --split navtest --cache $C/navtest --steps {ch['steps']} --k {k} {sc}\n")
 
 
 def chosen_paths(ch: dict, split: str) -> str:
