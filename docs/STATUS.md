@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 21 18:13: phase 2's readings with A0's navtest best-of-6): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-21 19:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-21 19:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,7 +14,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 21 18:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 19:11):
+- **4090 desktop, GPU queue** (one job at a time; read 19:41):
   - **Running: phase 2, A4** (`403`, since 19:00): A3 plus the continuous offset within the bin, the series' last run. About 2.3 h with its navdev grid. Then phase 4 starts.
   - **Done 18:59: A3** (`402`, 2 h 16 min; on both machines with matching checksums, 19:14). The driver is scoring its navdev grid.
   - **Done 19:00: A2's navtest paths** (`350_navtest-a2`); the driver scores them next, then R17 reads A2 against A1.
@@ -53,7 +53,9 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Latest results
 - **Phase 2, how continuous: R17's first readings** (Nov 21 17:11; each run minus A1, both at their own navdev choices, paired; R17 calls an effect measured only above 1.4 points with its drive interval excluding 0, on navtest's single path).
   - **A0, plain bins with no notion of distance:** navtest single path 84.94 against A1's 84.67: **+0.27 (-0.10 to +0.63), within seed noise.** Its navtest best-of-6 is 91.09 against A1's 91.77: **-0.69 (-0.94 to -0.43)**, an interval excluding 0 but below R17's 1.4 points. So A1's distance-aware embeddings may make slightly better candidates while leaving the own pick unchanged (one seed each). navdev: single path -0.05 (-1.86 to +0.87), best-of-6 -1.07 (-1.94 to +0.08). So far the distance-aware bin embeddings of A1 do not measurably help the own pick; they may help the candidates (best-of-6), but not beyond noise yet.
-  - **A2, A1 plus soft labels (navdev only so far):** single path 82.36 against 81.86, +0.50 (-0.21 to +0.93); best-of-6 90.68 against 89.65, +1.03 (+0.13 to +1.97). The best-of-6 interval excludes 0 but stays below R17's 1.4 points. Its navtest paths run after A3.
+  - **A2, A1 plus soft labels:** navtest single path 85.19 against A1's 84.67: **+0.51 (+0.20 to +0.85)**, an interval excluding 0 but below R17's 1.4 points, so within seed noise (A1's own seeds span 84.20-85.20). navdev: single path +0.50 (-0.21 to +0.93), best-of-6 +1.03 (+0.13 to +1.97). Its navtest best-of-6 is being scored.
+  - **A3, A2 plus the position-error loss and the averaged readout (navdev only so far):** its choices are epoch 5, 2 steps, setting 1.0; single path 82.79, +0.93 against A1 (+0.34 to +2.35); best-of-6 90.29, +0.65 (-0.68 to +2.49). Its navtest paths run after A4.
+  - **So far:** each step toward continuous values looks slightly better on the single path (A0 +0.27, A2 +0.51 on navtest; A3 +0.93 on navdev), but none is beyond R17's seed-noise threshold yet. A4 (the continuous offset) trains now.
 - **The selector works at full scale (the rehearsal, 12:09; no contender, used for no choice).** On A1 without RL, the cross-fitted selector (seed 0) lifts navdev from the own pick's 81.43 to **82.77: +1.35 (+0.48 to +3.65), the interval excluding 0.**
   - It closes 14% of the gap to the best of the 7 candidates (90.81). It switches in 38% of scenes: 145 wins, 84 losses, 56 ties. Its picks fail NC or DAC in 72 scenes, against 79 for the own pick.
   - Held-out training drives (10 drives, 9,737 scenes) chose epoch 10 and margin 0.02: selected 91.01 against the own pick's 89.28 there.
