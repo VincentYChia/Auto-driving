@@ -397,6 +397,30 @@ def scored(args) -> None:
 
 # ----------------------------------------------------------------------------------------------- page
 
+FAIL_TEXT = {"collision": "a collision", "left the road": "off the drivable area"}
+
+
+def pair_label(label: str, scene: Optional[dict], names: List[str]) -> str:
+    """The drive's label with its t = 0 note rewritten from this pair's NAVSIM scores. drives.json's labels carry a
+    note on who fails NAVSIM at t = 0 for the pair the drives were chosen with, so a page for another pair must not
+    reuse it. ``names`` are the short names for the note, in the page's model order."""
+    if scene is None:
+        return label
+    base = label.split(" (", 1)[0]
+    failed = []
+    for name, m in zip(names, scene["models"]):
+        why = m["score"].get("zeroed_by")
+        if why:
+            failed.append((name, " and ".join(FAIL_TEXT.get(w.strip(), w.strip()) for w in why.split(","))))
+    if not failed:
+        return base
+    if len(failed) == 1:
+        return f"{base} ({failed[0][0]} fails NAVSIM here at t = 0: {failed[0][1]})"
+    if len({why for _, why in failed}) == 1:
+        return f"{base} (both models fail NAVSIM here at t = 0: {failed[0][1]})"
+    return f"{base} (both models fail NAVSIM here at t = 0: " + "; ".join(f"{n} {w}" for n, w in failed) + ")"
+
+
 def page(args) -> None:
     import base64
 
@@ -448,6 +472,9 @@ def page(args) -> None:
         drives.append(drive_payload(d, preds, cams, compare))
         if navsim_t0 is not None:
             drives[-1]["navsim"] = navsim_t0["scenes"].get(d["token"])
+            short = [args.short_name or navsim_t0["models"][0]] + (
+                [args.compare_short_name or navsim_t0["models"][1]] if compare is not None else [])
+            drives[-1]["label"] = d["label"] = pair_label(d["label"], drives[-1]["navsim"], short)
         fr = drives[-1]["frames"]
 
         def metres(v: Optional[float]) -> str:
@@ -493,6 +520,9 @@ def main() -> None:
     g.add_argument("--compare-name", default=None, help="the second model's name on the page")
     g.add_argument("--compare-pdms", type=float, default=None, help="the second model's full-navtest PDMS")
     g.add_argument("--navsim", default=None, help="the scored step's navsim_t0.json: NAVSIM's view of t = 0")
+    g.add_argument("--short-name", default=None,
+                   help="the model's name in the drive labels' t = 0 note (default: its name in --navsim)")
+    g.add_argument("--compare-short-name", default=None, help="the second model's name there")
     g.add_argument("--html", required=True)
     g.add_argument("--cam-px", type=int, default=640)
     g.add_argument("--cam-quality", type=int, default=75)

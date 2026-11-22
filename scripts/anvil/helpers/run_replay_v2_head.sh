@@ -25,5 +25,6 @@ python navsim_eval/replay_demo.py page --drives $E/replay/v2 \
   --predictions $REPLAY --name "$NAME" --navtest-pdms $PDMS \
   --compare-predictions $E/pilot_sft/$H1/replay_v2_predictions \
   --compare-name "H1: 0.8B, v1-hard, vision trained, 4 epochs (text output)" --compare-pdms 0.856 \
+  --short-name "the path generator" --compare-short-name H1 \
   --navsim $E/replay/v2/navsim_t0_${TAG}_vs_h1.json --html $E/demo_renders/replay_v2_${TAG}_vs_h1.html
 ls -la $E/demo_renders/replay_v2_${TAG}_vs_h1.html

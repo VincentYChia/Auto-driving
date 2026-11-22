@@ -171,6 +171,29 @@ def test_drive_payload_adds_a_second_model_beside_the_first():
     assert "missing_compare_plans" not in rd.drive_payload(d, first, {})
 
 
+def test_pair_label_writes_the_t0_note_from_this_pairs_scores():
+    def scene(*why):
+        return {"models": [{"name": f"m{i}", "score": {"pdms": 0.0 if w else 0.98, "zeroed_by": w}}
+                           for i, w in enumerate(why)]}
+
+    names = ["the path generator", "H1"]
+    stored = "right turn (both models fail NAVSIM here at t = 0: off the drivable area)"
+    # The case that prompted it: the stored note named both models, but this pair's first model passes.
+    assert rd.pair_label(stored, scene(None, "left the road"), names) == \
+        "right turn (H1 fails NAVSIM here at t = 0: off the drivable area)"
+    assert rd.pair_label(stored, scene(None, None), names) == "right turn"
+    assert rd.pair_label("brake", scene("collision", None), names) == \
+        "brake (the path generator fails NAVSIM here at t = 0: a collision)"
+    assert rd.pair_label("brake", scene("left the road", "left the road"), names) == \
+        "brake (both models fail NAVSIM here at t = 0: off the drivable area)"
+    assert rd.pair_label("brake", scene("collision", "collision, left the road"), names) == \
+        "brake (both models fail NAVSIM here at t = 0: the path generator a collision; " \
+        "H1 a collision and off the drivable area)"
+    assert rd.pair_label(stored, None, names) == stored  # no NAVSIM view of t = 0: the label stays as stored
+    assert rd.pair_label("left turn", scene("collision"), ["A"]) == \
+        "left turn (A fails NAVSIM here at t = 0: a collision)"  # one model on the page
+
+
 def test_mean_of_skips_missing_values():
     assert rd.mean_of([1.0, None, 3.0]) == pytest.approx(2.0)
     assert rd.mean_of([None, None]) is None
