@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 09:36: phase 4 on navdev, phase 2 complete): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 12:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 12:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -14,8 +14,9 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 10:48). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 12:11 Nov 22):
-  - **Running: phase 4, D's seed 2 under RL4** (`45d2`, since 11:17; its RL6 run ended 11:17). Then D's four tuning runs.
+- **4090 desktop, GPU queue** (one job at a time; read 12:41 Nov 22):
+  - **Running: phase 6 (R15), D's first tuning run** (`46d0`: 10 anchors, since 12:24; about 2.3 h). Three more follow.
+  - **Done 12:24: phase 4's last RL run** (D's seed 2 under RL4). All 16 phase-4 RL runs are trained.
   - **The driver's current pass started 10:02 and scores phase 4's navtest paths one set at a time** (about 220 s each), so D's last checkpoint is chosen, and R16's gate for B and C decided, on its next pass, about 16:00. The GPU stays busy meanwhile.
   - **Done 10:09: phase 4's 13 navtest path jobs** (about 15 s each). The driver scores them, 7 path sets per RL run at about 220 s each, so phase 4's navtest results arrive over about 5 h.
   - **Done about 10:05: D's seed 1 under RL4** (`45d1`). Its checkpoint is chosen on the driver's next pass.
@@ -40,7 +41,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Anvil:** nothing running (Nov 22 10:47). One desktop connection from login07, 22 s old: the overnight watcher's 10-minute check (its control socket closes 60 s after use), as expected. The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
 
 ## Latest results
-- **Path generators above H1 on navtest (Nov 22): A after RL4 scores 87.27, 89.05 and 87.33 on navtest's single path (seeds 0-2; mean 87.88)**, against H1's text output at 85.6. Best-of-6: 90.62, 91.56, 91.33. **Under RL6, seed 0 scores 88.92 single path and 93.09 best-of-6** (12:11; seeds 1-2 follow): RL6 keeps the candidates good on navtest too. The paired interval and the other 12 phase-4 runs follow as their navtest scores land (about 5 h). The 20 s replay page for phase 4's best run is prepared (a4751e2: `scripts/desk/replay_head_predict.sh`, `scripts/anvil/helpers/run_replay_v2_head.sh`) and gets built once all of phase 4 is scored.
+- **Path generators above H1 on navtest (Nov 22): A after RL4 scores 87.27, 89.05 and 87.33 on navtest's single path (seeds 0-2; mean 87.88)**, against H1's text output at 85.6. Best-of-6: 90.62, 91.56, 91.33. **Under RL6: 88.92, 88.73, 88.24 (mean 88.63) single path, and 93.09, 93.05, 92.81 (mean 92.98) best-of-6** (12:41). So on navtest A after RL6 is ahead of A after RL4 on both measures (single path 88.63 against 87.88; best-of-6 92.98 against 91.17), and 3.0 above H1. The seed-aware intervals come once B, C and D are scored. The paired interval and the other 12 phase-4 runs follow as their navtest scores land (about 5 h). The 20 s replay page for phase 4's best run is prepared (a4751e2: `scripts/desk/replay_head_predict.sh`, `scripts/anvil/helpers/run_replay_v2_head.sh`) and gets built once all of phase 4 is scored.
 - **Phase 4 on navdev (Nov 22 09:12; 13 of its 16 RL runs, D's still running): RL lifts A, B and C by 2.8-5.8 points, and flow matching (C) catches up with masked diffusion (A).** navdev single path after RL, each seed at its R11 checkpoint, and the change from phase 3 with every RL seed paired with the supervised seed it started from (`method_seeds.py`):
 
   | Method | RL4: after (change) | RL6: after (change) |
