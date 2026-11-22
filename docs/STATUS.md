@@ -4,14 +4,14 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 09:36: phase 4 on navdev, phase 2 complete): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 12:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 12:56 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 10:48). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 12:56). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time; read 12:41 Nov 22):
@@ -38,10 +38,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **Phase 2's follow-up runs** (now last): about 16 h after that, or earlier in gaps.
   - The plan's cut order still applies if time runs short (`docs/HEADS_PLAN.md`, "Schedule risks"); phase 6 is not shortened.
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on 6c341e1 (navtest for every configuration) at 15:41; its first pass was OK, with no failed passes. Both queue runners are up.
-- **Anvil:** nothing running (Nov 22 10:47). One desktop connection from login07, 22 s old: the overnight watcher's 10-minute check (its control socket closes 60 s after use), as expected. The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
+- **Anvil:** nothing of ours running or queued (Nov 22 12:56); the GPU work stays on the desktop. The gpu partition holds 700 pending and 56 running jobs. Our wait statistics are unchanged: 36 gpu jobs started, median wait 42.5 h (12.3-133.4 h); shared 45 started, median wait 0.3 h. No desktop connections open from Anvil (the overnight watcher's 10-minute check closes its socket 60 s after use).
 
 ## Latest results
-- **Path generators above H1 on navtest (Nov 22): A after RL4 scores 87.27, 89.05 and 87.33 on navtest's single path (seeds 0-2; mean 87.88)**, against H1's text output at 85.6. Best-of-6: 90.62, 91.56, 91.33. **Under RL6: 88.92, 88.73, 88.24 (mean 88.63) single path, and 93.09, 93.05, 92.81 (mean 92.98) best-of-6** (12:41). So on navtest A after RL6 is ahead of A after RL4 on both measures (single path 88.63 against 87.88; best-of-6 92.98 against 91.17), and 3.0 above H1. The seed-aware intervals come once B, C and D are scored. The paired interval and the other 12 phase-4 runs follow as their navtest scores land (about 5 h). The 20 s replay page for phase 4's best run is prepared (a4751e2: `scripts/desk/replay_head_predict.sh`, `scripts/anvil/helpers/run_replay_v2_head.sh`) and gets built once all of phase 4 is scored.
+- **Path generators above H1 on navtest (Nov 22): A after RL4 scores 87.27, 89.05 and 87.33 on navtest's single path (seeds 0-2; mean 87.88)**, against H1's text output at 85.6. Best-of-6: 90.62, 91.56, 91.33. **Under RL6: 88.92, 88.73, 88.24 (mean 88.63) single path, and 93.09, 93.05, 92.81 (mean 92.98) best-of-6** (12:41). So on navtest A after RL6 is ahead of A after RL4 on both measures (single path 88.63 against 87.88; best-of-6 92.98 against 91.17), and 3.0 above H1. The seed-aware intervals come once B, C and D are scored. The paired interval and the other 12 phase-4 runs follow as their navtest scores land (about 5 h). **The 20 s replay page for the best single path so far is built (12:55):** A after RL4, seed 1 (navtest 89.05), against H1 on the 10 replay drives. It is on the home PC at `navsim_demo_renders/replay_v2_a1s1rl4_vs_h1.html` (local only: nuPlan camera images). Of the two drives where H1 fails NAVSIM at t = 0, A passes both (1.00 at b9e84e37, where H1 collides; 0.98 at c2aa6f44, where H1 leaves the drivable area). Over the re-plans, A's plans sit farther from the human's path than H1's on every drive (per-drive means 0.36-1.83 m against 0.13-1.05 m) [V]. Whether RL caused that is not measured here: there is no page for A before RL. The stored drive labels named the wrong model at c2aa6f44 ("both models fail"), so the page now writes each drive's t = 0 note from the pair's own scores (7338233, with a test). A run that beats 89.05 gets its own page.
 - **Phase 4 on navdev (Nov 22 09:12; 13 of its 16 RL runs, D's still running): RL lifts A, B and C by 2.8-5.8 points, and flow matching (C) catches up with masked diffusion (A).** navdev single path after RL, each seed at its R11 checkpoint, and the change from phase 3 with every RL seed paired with the supervised seed it started from (`method_seeds.py`):
 
   | Method | RL4: after (change) | RL6: after (change) |
@@ -196,11 +196,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates):
-1. **Phase 4:** D's seed 2 (both recipes), the navtest scores of all 16 RL runs, then R16's gate for B and C and R5's ranking (reported only). Phase 2 is complete; its follow-up runs go last.
-2. **Phase 4:** RL4 and RL6 on every method (16 runs of 1,500 updates). Then R16's gate for B and C, and R5's ranking (reported only).
+1. **Phase 4's navtest scores** (all 16 RL runs are trained; the driver scores their paths to about 15:40), then R16's gate for B and C and R5's ranking (reported only), about 16:00. Phase 2 is complete; its follow-up runs go last.
+2. **Phase 6, started 12:24:** D's tuning runs (R15) run now, one at a time.
 3. **Phase 6:** D's four tuning runs (R15), then each contender's full RL stage (rounds of 5,000 updates, R18) and selector chain (R14); the final system on navdev (R16), one navtest score per contender, and R4's confirmatory tests.
 4. **The report after each result** (the private link at the top of this page).
-5. **The 20 s replay page for phase 4's best run** (A1 after RL4 passed H1 on navtest at 10:33; built once phase 4 is scored, with the scripts of a4751e2) (your standing rule for each new best; likely after phase 4). The replay pipeline reads `predict_head.py`'s output as it is; what it lacks is H1's stored features for the replay frames (10 drives, 41 re-plans each). They were cached already (`head_cache/h1_l12-18-24/replay_v2`: 410 rows, one per replay frame, checked 16:47), so the page can follow a new best within the hour: path-generator paths, then `replay_demo.py scored` and `page` with H1 as the comparison. Local only (nuPlan images).
+5. **A 20 s replay page for each new best** (your standing rule). A after RL4, seed 1 (89.05) has its page since 12:55 (above). A later run that beats it gets one within the hour: `scripts/desk/replay_head_predict.sh`, then `scripts/anvil/helpers/run_replay_v2_head.sh`. Local only (nuPlan images).
 
 ### Done so far (details, oldest first)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
