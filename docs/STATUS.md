@@ -4,17 +4,17 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 09:36: phase 4 on navdev, phase 2 complete): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 10:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 10:48 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 09:29). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 10:48). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 10:41 Nov 22):
+- **4090 desktop, GPU queue** (one job at a time; read 10:47 Nov 22):
   - **Running: phase 4, D's seed 2 under RL6** (`45d2r6`, since 10:08; about 55 min), then its RL4 run. R16's gate for B and C decides once both are chosen, about 12:30.
   - **Done 10:09: phase 4's 13 navtest path jobs** (about 15 s each). The driver scores them, 7 path sets per RL run at about 220 s each, so phase 4's navtest results arrive over about 5 h.
   - **Done about 10:05: D's seed 1 under RL4** (`45d1`). Its checkpoint is chosen on the driver's next pass.
@@ -36,7 +36,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **Phase 2's follow-up runs** (now last): about 16 h after that, or earlier in gaps.
   - The plan's cut order still applies if time runs short (`docs/HEADS_PLAN.md`, "Schedule risks"); phase 6 is not shortened.
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on 6c341e1 (navtest for every configuration) at 15:41; its first pass was OK, with no failed passes. Both queue runners are up.
-- **Anvil:** nothing running (Nov 22 09:35). The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
+- **Anvil:** nothing running (Nov 22 10:47). One desktop connection from login07, 22 s old: the overnight watcher's 10-minute check (its control socket closes 60 s after use), as expected. The navtrain cache job finished Nov 20; no desktop connections from any login node, none local.
 
 ## Latest results
 - **The first path generator above H1 on navtest (Nov 22 10:33): A1 after RL4, seed 0, scores 87.27 on navtest's single path** (best-of-6 90.62), against H1's text output at 85.6. The paired interval and the other 12 phase-4 runs follow as their navtest scores land (about 5 h). The 20 s replay page for phase 4's best run is prepared (a4751e2: `scripts/desk/replay_head_predict.sh`, `scripts/anvil/helpers/run_replay_v2_head.sh`) and gets built once all of phase 4 is scored.
