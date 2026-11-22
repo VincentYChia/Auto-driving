@@ -492,15 +492,23 @@ function tiles() {
   const h1 = D.refs.h1_text_navtest;
   const bs = best('single'), bb = best('best_of_6');
   // After RL (phase 4 on navtest): the best seed-averaged mean of any method under any recipe
-  const p4t = (D.phase4 || {}).navtest || {}, after = {};
-  Object.keys(p4t).forEach(rec => (p4t[rec].methods || []).forEach(o => ['single', 'best_of_6'].forEach(k => {
-    if (o[k] && (!after[k] || o[k].mean > after[k].mean)) after[k] = {rec, method: o.method, mean: o[k].mean, n: o[k].seeds.length};
-  })));
+  // A one-seed mean is noisier than a three-seed one, so beside the overall best the tile names the best among the
+  // methods with the most seeds when that is a different one.
+  const p4t = (D.phase4 || {}).navtest || {}, after = {}, full = {}, most = {};
+  const rows4 = []; Object.keys(p4t).forEach(rec => (p4t[rec].methods || []).forEach(o => rows4.push([rec, o])));
+  rows4.forEach(([rec, o]) => ['single', 'best_of_6'].forEach(k => { if (o[k]) most[k] = Math.max(most[k] || 0, o[k].seeds.length); }));
+  rows4.forEach(([rec, o]) => ['single', 'best_of_6'].forEach(k => {
+    if (!o[k]) return;
+    const a = {rec, method: o.method, mean: o[k].mean, n: o[k].seeds.length};
+    if (!after[k] || a.mean > after[k].mean) after[k] = a;
+    if (a.n === most[k] && (!full[k] || a.mean > full[k].mean)) full[k] = a;
+  }));
   const aText = a => `${a.method} under ${a.rec}, navtest, mean of ${a.n} seed${a.n > 1 ? 's' : ''}`;
+  const fText = k => (full[k] && full[k] !== after[k]) ? `; with ${full[k].n} seeds: ${full[k].method} under ${full[k].rec}, ${f1(full[k].mean)}` : '';
   if (h1) out.push(['H1, text output', f1(h1.x), 'navtest PDMS, the reference']);
   if (bs) out.push([after.single ? 'Best single path before RL' : 'Best single path', f1(bs.navtest_single.x), `${esc(bs.run)}, navtest; vs H1 ${dvs(bs.navtest_single.vsH1)}`]);
-  if (after.single) out.push(['Best single path after RL', f1(after.single.mean), aText(after.single) + (h1 ? `; ${sgn(after.single.mean - h1.x)} over H1 (point estimate)` : '')]);
-  if (bb) out.push(['Best best-of-6', f1(bb.navtest_best_of_6.x), `${esc(bb.run)}, navtest (oracle pick)` + (after.best_of_6 ? `; after RL: ${f1(after.best_of_6.mean)}, ${aText(after.best_of_6)}` : '')]);
+  if (after.single) out.push(['Best single path after RL', f1(after.single.mean), aText(after.single) + fText('single') + (h1 ? `; H1 ${f1(h1.x)} (point estimates)` : '')]);
+  if (bb) out.push(['Best best-of-6', f1(bb.navtest_best_of_6.x), `${esc(bb.run)}, navtest (oracle pick)` + (after.best_of_6 ? `; after RL: ${f1(after.best_of_6.mean)}, ${aText(after.best_of_6)}${fText('best_of_6')}` : '')]);
   const rr = D.methods.rl_recipe;
   const nRec = D.rl.filter(r => r.recipe && r.recipe.startsWith('RL')).length;
   if (after.single) {}  // phase 4 has results: the after-RL tile replaces the recipe stage's (R16 runs both recipes)
