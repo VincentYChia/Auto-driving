@@ -187,6 +187,21 @@ PDMS from NAVSIM v1.1 on all 12,146 navtest scenes. Every scene was predicted an
 - **Most of the zeros come from leaving the drivable area** (13% of scenes); at-fault collisions zero 3%.
 - **Comfort is 0.9998, not a constant:** MVLAD's raw paths score 0.75 on it, so the metric is live and the pilot's paths are smooth.
 
+### Path generators on H1's stored features, navtest (2026-11-22, V)
+Small path generators (about 41M parameters) read H1's frozen hidden states (layers 12, 18 and 24) and write the 8 waypoints directly; the study is `docs/HEADS_PLAN.md` and its terms are in `EXPERIMENTS.md`, "Definitions". PDMS from NAVSIM v1.1 on all 12,146 navtest scenes, in points (PDMS x 100; the table above uses fractions), the mean over seeds (A, D and R three seeds; B and C one after RL), each at the checkpoint and settings chosen on navdev. Before RL is phase 3; after RL is phase 4, 1,500 updates of RL4 (Dr. GRPO) or RL6 (Dr. GRPO plus a behaviour-cloning term) on navtrain's scenes with the PDM score as reward. "Change" pairs each RL seed with the supervised seed it started from; intervals redraw drives and seeds. Aggregates: `../docs/navsim_eval/results/heads_method_seeds_2026-11-21.json`.
+
+| Path generator | Before RL: single path (best-of-6) | RL4: single path (best-of-6) | RL4 change, single path | RL6: single path (best-of-6) | RL6 change, single path |
+|---|---|---|---|---|---|
+| A, masked diffusion | 84.69 (91.85) | 87.88 (91.17) | +3.19 (+1.69 to +4.88) | **88.63 (92.98)** | +3.94 (+2.95 to +4.92) |
+| B, DDIM | 84.64 (91.99) | 87.02 (92.65) | +2.46 (+1.51 to +3.35) | 87.37 (92.90) | +2.81 (+2.30 to +3.43) |
+| C, flow matching | 83.85 (91.35) | 88.84 (92.52) | +4.50 (+3.76 to +5.25) | 88.50 (93.22) | +4.16 (+3.51 to +4.88) |
+| D, anchored diffusion | 82.20 (93.47) | 82.10 (92.49) | -0.10 (-1.57 to +1.44) | 83.54 (93.65) | +1.35 (+0.37 to +2.28) |
+| R, regression (control) | 84.64 | – | – | – | – |
+
+- **H1's text output, the reference: 85.6 points (0.856 above).** After RL6, A averages 88.63 (88.92, 88.73, 88.24) and C 88.50 (one seed): about 3 points above H1. A and C cannot be told apart (A - C +0.13, -0.76 to +0.98); B is below both.
+- **R4's confirmatory tests** (named before any phase-4 run, Holm at family-wise 0.05, RL4): A - D after RL +5.79 (+4.22 to +7.46); A after RL - H1's text output +2.28 (+1.00 to +3.62); A after - before RL +3.19 (+1.69 to +4.88), all p < 0.0001; A before RL - R +0.05 (-0.53 to +0.63), p 0.87, not rejected. `../docs/navsim_eval/results/heads_confirmatory_2026-11-22.json`.
+- **RL6 keeps the candidates where RL4 loses them:** RL6 - RL4 on best-of-6, A +1.82 (+1.15 to +2.57), C +0.70, D +1.15, each interval above 0. D after RL6 has the best best-of-6 (93.65) and the weakest own pick: phase 6 adds a learned selector to every contender before the final system is chosen on navdev (R16).
+
 ### Where the NAVSIM zeros come from, and how navtest differs from our training data (2026-11-09, V)
 `../navsim_eval/failure_analysis.py` joins each scene's score with the human's recorded path and the agent input. Aggregates in `../docs/navsim_eval/results/failure_analysis_navtest_v1.json`; counts of unused training frames in `../docs/training_data/v1_xl_pool_mix_0p5s.json`. "What the human did" is read from the recorded 4 s path: a turn is a heading change over 20°, a sideways shift is over 2 m of lateral offset.
 
