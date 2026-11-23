@@ -4,14 +4,14 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 20:14, version 27: the aggregate regenerated with the R15 tuning runs and all 32 RL runs; R4; phase 4 complete): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 20:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 20:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 20:14). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 22 20:42). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time; read 20:14 Nov 22):
@@ -275,9 +275,9 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates):
-1. **Phase 4's last navtest scores:** D's seeds 1 and 2 under RL4 and seed 2 under RL6 (tonight), then R4's confirmatory tests C1-C4 (`confirmatory.py`; R5's RL4 leader is A) and the report.
-2. **Phase 6 for eight contenders:** the R15 tuning runs (D's, then B's and C's), each contender's full RL stage (R18 rounds) and decisive chain, then the final system on navdev (R16) and one navtest score per contender.
-3. **Phase 6:** D's four tuning runs (R15), then each contender's full RL stage (rounds of 5,000 updates, R18) and selector chain (R14); the final system on navdev (R16), one navtest score per contender, and R4's confirmatory tests.
+1. **Phase 6, R15 tuning (running):** B's second tuning run (`--target v`, ends about 21:35), then B's last two, C's four and D's last two, about 17 GPU hours; each is scored on navdev by the driver, and R15 picks each method's configuration by navdev single path. Done: D's 10 and 40 anchors, B's noise target (none beats its main configuration so far).
+2. **Phase 6, per contender (eight: A, B, C, D, each under RL4 and RL6):** the full RL stage from the tuned configuration (rounds of 5,000 updates while the last save is navdev's best, R18), then its decisive chain right after it: two half generators with the same RL, scoring their out-of-fold candidates, and the cross-fitted selector (R14). A's two stages (`47a4`, `47a6`) are queued; the others follow their method's tuning.
+3. **The final system on navdev (R16)**, then one navtest score per contender (about Fri Nov 27 with one RL round each [D]). After it: the in-fold controls, seed-1 selectors and ablations, then phase 2's follow-up runs.
 4. **The report after each result** (the private link at the top of this page).
 5. **A 20 s replay page for each new best** (your standing rule). A after RL4, seed 1 (89.05) has its page since 12:55 (above). A later run that beats it gets one within the hour: `scripts/desk/replay_head_predict.sh`, then `scripts/anvil/helpers/run_replay_v2_head.sh`. Local only (nuPlan images).
 
