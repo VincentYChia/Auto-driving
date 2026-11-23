@@ -4,17 +4,17 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 20:14, version 27: the aggregate regenerated with the R15 tuning runs and all 32 RL runs; R4; phase 4 complete): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-23 05:44 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-23 06:11 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 05:44). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 06:11). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 05:44 Nov 23):
+- **4090 desktop, GPU queue** (one job at a time; read 06:11 Nov 23):
   - **Running: phase 6 (R15), C's third tuning run** (`46c2`: `--time-sampling beta`, since 05:40; about 2 h). Then C's last, D's last two, then the full RL stages (A's, then B's): 13 jobs pending.
   - **Done 05:39: C's second tuning run** (`46c1`, flow sigma 1.0, 2 h 8 min, rc 0), kept twice with its MODELS row; **stable through epoch 19** (gradient norm at most 1.4 per epoch, no window above 2, loss falling to 0.068). C's first tuning run's navtest paths were made at 05:40.
   - **Done 03:29: C's first tuning run** (`46c0`, flow sigma 0.3, 1 h 52 min, rc 0), kept twice with its MODELS row; the driver scores it on navdev now. B's tuned run's navtest paths were made at 03:30.
@@ -27,7 +27,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **R15 tuning so far, navdev single path at each run's own choices (R15 picks the best of the five per method by the point estimate):**
     - **B, all five scored: the noise target with a linear schedule leads, 81.77** (best-of-6 89.35; 01:49), against B's main configuration (predicts x0, cosine schedule) 81.40, v target 81.11, linear schedule 80.63, noise target 80.33. **Decided by the driver at 02:26** (`choices/B_tuned.json`): B's phase-6 contenders start from `b-r153-l12-18-24`, and its full RL stages are queued (`47b4`, `47b6`, round 1 from epoch 10, R11's best-of-6 epoch), after A's.
     - D (two of four scored): main (20 anchors) 78.41, 40 anchors 78.14, 10 anchors 77.44.
-    - C (one of four scored): main (flow sigma 0.1) 80.77, flow sigma 0.3 80.64 (best-of-6 89.57 against 89.74; 03:43). Both chose epoch 10, before their late instability.
+    - C (two of four scored): **flow sigma 1.0 leads so far, 81.12** (epoch 5, best-of-6 88.27; 05:55), against C's main (flow sigma 0.1) 80.77 and flow sigma 0.3 80.64 (best-of-6 89.74 and 89.57; both at epoch 10, before their late instability). Beta and logit-normal time sampling follow.
   - **B's tuning runs on navtest (reporting), at their navdev choices:** noise target 84.76 single path, 92.20 best-of-6 (22:18); v target 85.19 and 92.28 (00:27); B's main configuration (seed 0) 84.56 and 91.87. Both are above B's main configuration on navtest and below it on navdev's single path; only navdev chooses (R1).
   - **D's tuning runs on navtest (reporting), at their navdev choices:** 10 anchors 81.87 single path, 93.20 best-of-6 (18:57); 40 anchors 82.15 and 90.67 (19:36); D's main configuration (20 anchors, seed 0) 82.92 and 93.67.
   - **Done 17:09: D's second tuning run** (`46d1`, 40 anchors, 2 h 10 min, rc 0), kept twice with its MODELS row. Also done: the navtest paths of D's seed 2 under RL6 and of D's first tuning run.
