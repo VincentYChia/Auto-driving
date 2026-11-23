@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 18:46, version 26: phase 4 complete on navtest, R4's confirmatory tests, B and C admitted): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-22 18:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-22 19:02 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -59,7 +59,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **D after RL6 has the best candidates of any method** (best-of-6 93.65; B - D -0.75, -1.42 to -0.03; A - D -0.66, -1.27 to +0.02) and the weakest own pick (A - D +5.09, +4.19 to +6.03): the most for a selector to gain.
   - D's seed 2 under RL6 (18:16): 83.74 single path, 93.54 best-of-6 (+2.15, +0.05 against the same seed before RL).
 - **D's second tuning run on navdev (18:28): 40 anchors choose epoch 20, single path 78.14, best-of-6 88.98**, against 78.41 and 92.17 for D's main 20 anchors and 77.44 and 91.34 for 10 anchors (point estimates). R15 picks D's configuration by navdev single path once all four tuning runs are scored.
-- **GAPS: H1, H6 and H9 are measured in full; before any of them moves to Filled, a recorded literature check runs now (18:45).** H9's entry asked for one, and the head research's notes do not record searches for H1 and H9 specifically; H6's was done Nov 21.
+- **GAPS after a recorded literature check (19:02; 27 searches, public papers only, `docs/research/heads/notes/gap_check_2026-11-22.md`):**
+  - **H9 is Filled (F2):** one RL recipe on masked and continuous path generators, same backbone and reward. Every NAVSIM RL paper read applies RL to one head type.
+  - **H1 is New in part (P5):** DriveVLA-W0 (arXiv 2510.12796) already compares discrete (autoregressive FAST tokens) and continuous decoders from one pretrained VLA on NAVSIM (query 88.4, flow 87.2, autoregressive 85.3) [V]. The masked arm, frozen features, three seeds and the matched RL stage are ours.
+  - **H6 is New in part (P6):** DriftingPlanner (arXiv 2611.01283, Bosch Research, Oct 31) compares DDIM and flow matching on one backbone on NAVSIM navtest, supervised only [R: the table came from a page summary that matches the verbatim abstract]. Frozen features, seeds and the reversal after RL are ours.
 - **R4's confirmatory tests are done (18:13; `pilot_sft/heads/confirmatory.py`, `docs/navsim_eval/results/heads_confirmatory_2026-11-22.json`).** navtest single path, the registered recipe RL4, R3's interval (drives and seeds resampled), Holm at family-wise 0.05; the navdev-chosen method (R5's RL4 leader) is A. p = 0 means below the 1e-4 resolution of 10,000 resamples.
 
   | Test | Difference (points) | p | Holm |
