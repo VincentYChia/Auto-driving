@@ -126,6 +126,29 @@ def test_confirm_rows_show_r4_with_holm():
     assert 'id="r4"' in html and "C1 (primary) A minus D after RL" in html
     assert report_html.page_data({}, MS)["confirm"] is None  # not yet run: the section says so
 
+
+def test_r15_tuning_runs_are_labelled_by_their_setting():
+    assert report_html.tuning_of("b-r150-l12-18-24") == "predicts the noise (eps)"
+    assert report_html.tuning_of("d-r151-l12-18-24") == "40 anchors"
+    assert report_html.tuning_of("c-r153-l12-18-24") == "logit-normal time sampling"
+    assert report_html.tuning_of("d-l12-18-24") is None and report_html.tuning_of("a3-l12-18-24") is None
+    data = report_html.page_data({"runs": {"b-r150-l12-18-24": {}, "b-l12-18-24": {}}})
+    assert {r["run"]: r["tuning"] for r in data["runs"]} == {"b-r150-l12-18-24": "predicts the noise (eps)",
+                                                            "b-l12-18-24": None}
+
+
+def test_r15_labels_follow_the_drivers_tuning_runs():
+    pytest.importorskip("pandas")
+    import driver
+    flags = {"--target": {"eps": "eps", "v": "v"}, "--schedule": {"linear": "linear"}, "--flow-sigma": {"0.3": "0.3", "1.0": "1.0"},
+             "--time-sampling": {"beta": "Beta", "logit-normal": "logit-normal"}, "--anchors": {"10": "10", "40": "40"},
+             "--anchor-trunc": {"0.02": "0.02", "0.1": "0.1"}}
+    for m, runs in driver.R15_TUNING.items():
+        assert len(report_html.R15_LABELS[m]) == len(runs)
+        for label, f in zip(report_html.R15_LABELS[m], runs):
+            for flag, value in zip(f[::2], f[1::2]):
+                assert flags[flag][value] in label, (m, label, f)
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 def test_report_script_parses(tmp_path):
     html = report_html.build({}, {"title": "t"}, MS)

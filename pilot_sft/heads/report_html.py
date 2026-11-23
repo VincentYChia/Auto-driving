@@ -75,12 +75,25 @@ def diff(d: dict) -> dict:
             "hi": round(d["ci_drives"][1] * 100, 2)}
 
 
+R15_LABELS = {  # driver.R15_TUNING's four runs per method, in its order (a test keeps the two in step)
+    "B": ["predicts the noise (eps)", "predicts v", "linear noise schedule", "eps and a linear schedule"],
+    "C": ["flow sigma 0.3", "flow sigma 1.0", "Beta time sampling", "logit-normal time sampling"],
+    "D": ["10 anchors", "40 anchors", "anchor truncation 0.02", "anchor truncation 0.1"],
+}
+
+
+def tuning_of(run: str) -> Optional[str]:
+    """An R15 tuning run's setting (``<m>-r15<i>-...``), else None."""
+    m = re.match(r"([bcd])-r15(\d)-", run)
+    return R15_LABELS[m.group(1).upper()][int(m.group(2))] if m else None
+
+
 def page_data(agg: dict, ms: Optional[dict] = None, conf: Optional[dict] = None) -> dict:
     refs = {k: iv(v) for k, v in agg.get("references", {}).items()}
     runs = []
     for run, r in agg.get("runs", {}).items():
         runs.append({"run": run, "method": method_of(run), "layers": layers_of(run), "choice": r.get("choice", {}),
-                     "dev_ade": r.get("dev_ade"),
+                     "dev_ade": r.get("dev_ade"), "tuning": tuning_of(run),
                      **{f"{sp}_{k}": iv(r.get(f"{sp}_{k}")) for sp in ("navdev", "navtest")
                         for k in ("single", "best_of_6")}})
     runs.sort(key=lambda r: (ORDER.index(r["method"]) if r["method"] in ORDER else 9, r["layers"] != "24", r["run"]))
@@ -362,7 +375,7 @@ function table(box, head, body) {
   box.innerHTML = '<div class="tablewrap"><table><thead><tr>' + head.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>' +
     body.map(r => '<tr>' + r.map(c => `<td>${c}</td>`).join('') + '</tr>').join('') + '</tbody></table></div>';
 }
-const runLabel = r => `${r.method} · layer${r.layers === '24' ? '' : 's'} ${r.layers}`;
+const runLabel = r => r.tuning ? `${r.method} · R15: ${r.tuning}` : `${r.method} · layer${r.layers === '24' ? '' : 's'} ${r.layers}`;
 const choiceText = c => `epoch ${c.epoch}, ${c.steps} steps${c.scale != null ? ', setting ' + c.scale : ''}`;
 let SPLIT = 'navtest';
 function drawPhase1() {
