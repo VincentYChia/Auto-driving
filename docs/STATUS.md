@@ -4,17 +4,17 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 20:14, version 27: the aggregate regenerated with the R15 tuning runs and all 32 RL runs; R4; phase 4 complete): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-23 12:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-23 12:41 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 12:14). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 12:41). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 12:14 Nov 23):
+- **4090 desktop, GPU queue** (one job at a time; read 12:41 Nov 23):
   - **Running: phase 6 (R15), D's last tuning run, the study's last** (`46d3`: `--anchor-trunc 0.1`, since 12:01; about 2.2 h). **Then the full RL stages** (R18 rounds): A's (`47a4`, `47a6`), B's (`47b4`, `47b6`), C's (`47c4`, `47c6`), and D's once its R15 choice is made. 12 jobs pending.
   - **Done 12:00: D's third tuning run** (`46d2`, anchor truncation 0.02, 2 h 12 min, rc 0), kept twice with its MODELS row; the driver scores it on navdev now. C's logit-normal run's navtest paths were made at 12:01.
   - **Done 09:47: C's last tuning run** (`46c3`, logit-normal time sampling, 1 h 52 min, rc 0, stable throughout), kept twice with its MODELS row. All four of C's tuning runs are trained and scored on navdev. C's Beta run's navtest paths were made at 09:48.
@@ -27,7 +27,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **The driver runs the reordered phase-6 code since 18:58** (97c853a): the one-shot script restarted it in its sleep between passes, as planned, and exited. Each contender's decisive chain now runs right after its full RL stage, and the in-fold controls and ablations after every full RL stage.
   - **R15 tuning so far, navdev single path at each run's own choices (R15 picks the best of the five per method by the point estimate):**
     - **B, all five scored: the noise target with a linear schedule leads, 81.77** (best-of-6 89.35; 01:49), against B's main configuration (predicts x0, cosine schedule) 81.40, v target 81.11, linear schedule 80.63, noise target 80.33. **Decided by the driver at 02:26** (`choices/B_tuned.json`): B's phase-6 contenders start from `b-r153-l12-18-24`, and its full RL stages are queued (`47b4`, `47b6`, round 1 from epoch 10, R11's best-of-6 epoch), after A's.
-    - D (two of four scored): main (20 anchors) 78.41, 40 anchors 78.14, 10 anchors 77.44.
+    - D (three of four scored): main (20 anchors, truncation 0.05) 78.41 leads; 40 anchors 78.14, 10 anchors 77.44, anchor truncation 0.02 74.32 (epoch 20, best-of-6 88.90 against 92.17; 12:12). Truncation 0.1, the last, ends about 14:15.
     - **C, all five scored: Beta time sampling leads, 81.34** (epoch 20, best-of-6 89.39), against flow sigma 1.0 81.12 (epoch 5), C's main (flow sigma 0.1, uniform time sampling) 80.77, flow sigma 0.3 80.64 (both at epoch 10, before their late instability) and logit-normal time sampling 79.61 (epoch 20; best-of-6 90.65, C's highest; 09:59). **Decided by the driver at 10:31** (`choices/C_tuned.json`): C's phase-6 contenders start from `c-r152-l12-18-24`, and its full RL stages are queued (`47c4`, `47c6`, round 1 from epoch 10), after A's and B's.
   - **C's tuning runs on navtest (reporting), at their navdev choices:** flow sigma 0.3 84.93 single path, 91.94 best-of-6 (06:27); flow sigma 1.0 84.09 and 90.54 (08:42); Beta time sampling, the tuned one, 85.25 and 91.13 (10:31); C's main configuration (seed 0) 84.34 and 91.91.
   - **B's tuning runs on navtest (reporting), at their navdev choices:** noise target 84.76 single path, 92.20 best-of-6 (22:18); v target 85.19 and 92.28 (00:27); B's main configuration (seed 0) 84.56 and 91.87. Both are above B's main configuration on navtest and below it on navdev's single path; only navdev chooses (R1).
