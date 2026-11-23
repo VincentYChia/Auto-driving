@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 23 14:51, version 28: R15 complete, phase 6's full RL running, one optional question): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-23 15:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-23 16:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 15:12). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 16:42). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 15:12 Nov 23):
-  - **Running: phase 6, the first full RL stage: A under RL4** (`47a4`, since 13:58): A3 from epoch 5 (R11's best-of-6 epoch), 5,000 updates on all 80,626 RL scenes, saved every 500. At update 2,370 (15:12; saves to 2,000 made) the training reward runs at about 0.88-0.96, against 0.885 at update 1, with 0 scorer errors; round 1 ends about 16:35. R18 then continues it while its last save is navdev's best, and its decisive chain (half generators, then the cross-fitted selector) runs right after it. All eight contenders' stages are now queued (D's at 14:54): A under RL6, then B's, C's and D's, each with its decisive chain right after it. 14 jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 16:42 Nov 23):
+  - **Running: A under RL6** (`47a6`, since 16:22): A3 from epoch 5, round 1 of 5,000 updates, about 2.4 h. 12 jobs pending: B's, C's and D's stages, then phase 2's follow-up runs.
+  - **Done 16:21: A under RL4, round 1** (`47a4`, 5,000 updates in 2 h 23 min, rc 0, 0 scorer errors), with navdev paths for all ten saves. The driver scores them now (16:41: update 2,500); then R11 picks the checkpoint and R18 decides on a second round (only if the last save, update 5,000, is navdev's best). Then A4's decisive chain: its two half generators, which run after A under RL6.
   - **Done 13:58: D's last tuning run, the study's last** (`46d3`, anchor truncation 0.1, 1 h 56 min, rc 0), kept twice with its MODELS row; the driver scores it on navdev now, then makes D's R15 choice. All twelve R15 tuning runs are trained and kept twice.
   - **Done 09:47: C's last tuning run** (`46c3`, logit-normal time sampling, 1 h 52 min, rc 0, stable throughout), kept twice with its MODELS row. All four of C's tuning runs are trained and scored on navdev. C's Beta run's navtest paths were made at 09:48.
   - **Done 03:29: C's first tuning run** (`46c0`, flow sigma 0.3, 1 h 52 min, rc 0), kept twice with its MODELS row; the driver scores it on navdev now. B's tuned run's navtest paths were made at 03:30.
