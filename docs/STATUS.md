@@ -4,19 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 23 14:51, version 28: R15 complete, phase 6's full RL running, one optional question): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-23 16:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-23 17:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 16:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 17:14). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 16:47 Nov 23):
-  - **Running: A under RL6** (`47a6`, since 16:22): A3 from epoch 5, round 1 of 5,000 updates, about 2.4 h. 12 jobs pending: B's, C's and D's stages, then phase 2's follow-up runs.
-  - **Done 16:21: A under RL4, round 1** (`47a4`, 5,000 updates in 2 h 23 min, rc 0, 0 scorer errors), with navdev paths for all ten saves. The driver scores them now (16:41: update 2,500); then R11 picks the checkpoint and R18 decides on a second round (only if the last save, update 5,000, is navdev's best). Then A4's decisive chain: its two half generators, which run after A under RL6.
+- **4090 desktop, GPU queue** (one job at a time; read 17:14 Nov 23):
+  - **Running: A under RL6** (`47a6`, since 16:22; round 1 ends about 18:45). Then A4's two half generators (`470a4-60h0`, `470a4-60h1`: each about 1 h of training on half the drives plus 5,000 RL updates, so about 3.5 h each), then B's, C's and D's stages: 15 jobs pending.
+  - **Done 16:21: A under RL4, round 1** (`47a4`, 5,000 updates in 2 h 23 min, rc 0, 0 scorer errors); chosen at 17:01 (above).
   - **Done 13:58: D's last tuning run, the study's last** (`46d3`, anchor truncation 0.1, 1 h 56 min, rc 0), kept twice with its MODELS row; the driver scores it on navdev now, then makes D's R15 choice. All twelve R15 tuning runs are trained and kept twice.
   - **Done 09:47: C's last tuning run** (`46c3`, logit-normal time sampling, 1 h 52 min, rc 0, stable throughout), kept twice with its MODELS row. All four of C's tuning runs are trained and scored on navdev. C's Beta run's navtest paths were made at 09:48.
   - **Done 03:29: C's first tuning run** (`46c0`, flow sigma 0.3, 1 h 52 min, rc 0), kept twice with its MODELS row; the driver scores it on navdev now. B's tuned run's navtest paths were made at 03:30.
@@ -60,6 +60,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Anvil** (Nov 23 16:47): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 777 pending and 58 running jobs (15 nodes partly in use, 1 out of service); ai 363 and 36. Our wait statistics are unchanged: gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,058,535, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local).
 
 ## Latest results
+- **Phase 6's first full RL stage: A under RL4 reaches 88.09 on navdev's single path** (17:01; R11's choice, update 2,500 of 5,000; A3 started at 82.79). By checkpoint: 500 84.73, 1,000 84.18, 1,500 84.15, 2,000 83.64, **2,500 88.09**, 3,000 86.31, 3,500 85.13, 4,000 84.83, 4,500 85.22, 5,000 84.92.
+  - The chosen save is not the last, so **R18 stops it after one round**.
+  - **Read 88.09 as optimistic:** it is the highest of 11 navdev readings (743 scenes, about one point of standard error each), 2-4 points above its neighbours; the saves from 3,000 on sit at 84.8-86.3. navtest comes once per contender, after the final system is chosen (R16).
+  - **A4's selector spec is written** (deployed `a3-l12-18-24-rlfull4` `rl_2500`), and its decisive chain is queued under the reordered names: the two half generators `470a4-60h0` and `470a4-60h1` ahead of B's stage, the in-fold control `48a4-61` after every full RL stage. Kept twice with its MODELS row.
 - **R15 is complete: every method's tuned configuration beats its main one on navdev's single path** (14:50; point estimates, R15's rule): A3 82.79 against A1 81.86; B with the noise target and a linear schedule 81.77 against 81.40; C with Beta time sampling 81.34 against 80.77; D with anchor truncation 0.1 (one generation step) 79.84 against 78.41. Each method's two phase-6 contenders start from its tuned configuration.
   - **Paired against the main configuration** (seed 0, the same scenes, drive intervals; main minus tuned): A navdev -0.93 (-2.35 to -0.34), navtest +0.07 (-0.82 to +1.05), best-of-6 on navtest -0.49 (-0.99 to -0.08), so A3 is no worse anywhere. **D trades candidates for its own pick:** single path -1.43 (-3.15 to -0.29) but best-of-6 **+2.66 (+1.14 to +3.89)** on navdev. **C the same, smaller, on navtest:** single path -0.91 (-1.48 to -0.35), best-of-6 +0.77 (+0.51 to +1.04). B's navtest and D's are not scored yet.
   - Why it matters: R16 judges the final system by its selected path, which the candidates bound, while R15 picks by the own pick. The question is under "Waiting on the researcher"; R15 stands as registered unless you say otherwise.
