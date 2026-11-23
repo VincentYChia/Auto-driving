@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 22 20:14, version 27: the aggregate regenerated with the R15 tuning runs and all 32 RL runs; R4; phase 4 complete): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-23 02:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-23 03:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 02:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 03:12). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 02:47 Nov 23):
+- **4090 desktop, GPU queue** (one job at a time; read 03:12 Nov 23):
   - **Running: phase 6 (R15), C's first tuning run** (`46c0`: `--flow-sigma 0.3`, since 01:36; epoch 11 at 02:41, so it ends about 03:30). Then B's tuned run's navtest paths, C's other three and D's last two tuning runs, then the full RL stages: A's (`47a4`, `47a6`) and B's (`47b4`, `47b6`). 16 jobs pending.
+  - **Watched: C's first tuning run (flow sigma 0.3) grows unstable late.** Its training loss fell to about 0.023 by epoch 12, then rose to about 0.034 while the gradient norm spiked from epoch 13 on (up to 46; 85 logged windows above 2, against 0.2-0.5 before), with the learning rate already down to 1e-5. Gradients are clipped at 1.0, and the per-epoch dev error does not diverge (dev ADE 0.72-0.84 throughout, 0.73 at epoch 16; best-of-6 ADE 0.49, its best). R10 picks its epoch on navdev from all 20, so a late decline can only cost it if a late epoch would otherwise win. Checked again on C's other three tuning runs and C's main configuration's log.
   - **Done 01:34: B's last tuning run** (`46b3`, `--target eps --schedule linear`, 1 h 54 min, rc 0), kept twice with its MODELS row. All four of B's tuning runs are trained; once the driver has scored this one on navdev, R15 picks B's configuration among the five.
   - **Done 21:28: B's second tuning run** (`46b1`, `--target v`, 2 h 22 min, rc 0), kept twice with its MODELS row. B's first tuning run's navtest paths were made at 21:29.
   - **GPU use, measured 20:47 over 60 s: mean 66%, idle (below 10%) in 7 of 30 samples**, while the job holds 14.9 of 24.6 GB. A second training job of this size would not fit in memory, so one job at a time costs little.
