@@ -4,17 +4,17 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 23 14:51, version 28: R15 complete, phase 6's full RL running, one optional question): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-23 16:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-23 16:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 16:42). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 16:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 16:42 Nov 23):
+- **4090 desktop, GPU queue** (one job at a time; read 16:47 Nov 23):
   - **Running: A under RL6** (`47a6`, since 16:22): A3 from epoch 5, round 1 of 5,000 updates, about 2.4 h. 12 jobs pending: B's, C's and D's stages, then phase 2's follow-up runs.
   - **Done 16:21: A under RL4, round 1** (`47a4`, 5,000 updates in 2 h 23 min, rc 0, 0 scorer errors), with navdev paths for all ten saves. The driver scores them now (16:41: update 2,500); then R11 picks the checkpoint and R18 decides on a second round (only if the last save, update 5,000, is navdev's best). Then A4's decisive chain: its two half generators, which run after A under RL6.
   - **Done 13:58: D's last tuning run, the study's last** (`46d3`, anchor truncation 0.1, 1 h 56 min, rc 0), kept twice with its MODELS row; the driver scores it on navdev now, then makes D's R15 choice. All twelve R15 tuning runs are trained and kept twice.
@@ -57,7 +57,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - So the final system is about Fri Nov 27 17:00 if every stage stops after one round. R18 adds about 9.3 h for each extra round a contender takes (its full stage and both halves). Then each contender's navtest score.
   - After it: the in-fold controls, seed-1 selectors and ablations (about 36 h), then phase 2's follow-up runs (about 16 h). Phase 6 is not shortened (HEADS_PLAN, "Schedule risks"); quality over schedule.
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on 6c341e1 (navtest for every configuration) at 15:41; its first pass was OK, with no failed passes. Both queue runners are up.
-- **Anvil** (Nov 23 14:50): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 766 pending and 60 running jobs (15 nodes partly in use, 1 out of service); ai 363 and 36. Our wait statistics are unchanged: gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,058,791, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local).
+- **Anvil** (Nov 23 16:47): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 777 pending and 58 running jobs (15 nodes partly in use, 1 out of service); ai 363 and 36. Our wait statistics are unchanged: gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,058,535, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local).
 
 ## Latest results
 - **R15 is complete: every method's tuned configuration beats its main one on navdev's single path** (14:50; point estimates, R15's rule): A3 82.79 against A1 81.86; B with the noise target and a linear schedule 81.77 against 81.40; C with Beta time sampling 81.34 against 80.77; D with anchor truncation 0.1 (one generation step) 79.84 against 78.41. Each method's two phase-6 contenders start from its tuned configuration.
