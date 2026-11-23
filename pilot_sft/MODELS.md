@@ -104,6 +104,7 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `d-r150-l12-18-24` | D, R15 tuning run 0 (phase 6): 10 anchors | 12, 18, 24 | 0 | 20 | 41.1M | 2 h 33 min | 3.8 | `ef3ae700c843d6fb` | yes | yes |
 | `d-r151-l12-18-24` | D, R15 tuning run 1 (phase 6): 40 anchors | 12, 18, 24 | 0 | 20 | 41.1M | 2 h 10 min | 3.8 | `513e96ecfc97fda2` | yes | yes |
 | `d-r152-l12-18-24` | D, R15 tuning run 2 (phase 6): anchor truncation 0.02 (`--anchor-trunc 0.02`) | 12, 18, 24 | 0 | 20 | 41.1M | 2 h 12 min | 3.8 | `d0e2f65e7a06d177` | yes | yes |
+| `d-r153-l12-18-24` | D, R15 tuning run 3 (phase 6): anchor truncation 0.1 (`--anchor-trunc 0.1`) | 12, 18, 24 | 0 | 20 | 41.1M | 1 h 56 min | 3.8 | `c53276f9051b0955` | yes | yes |
 | `b-r150-l12-18-24` | B, R15 tuning run 0 (phase 6): predicts the noise (`--target eps`) | 12, 18, 24 | 0 | 20 | 41.0M | 1 h 51 min | 3.9 | `20808865328ae87a` | yes | yes |
 | `b-r151-l12-18-24` | B, R15 tuning run 1 (phase 6): predicts v (`--target v`) | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 22 min | 3.9 | `8a0a188cf4c133e7` | yes | yes |
 | `b-r152-l12-18-24` | B, R15 tuning run 2 (phase 6): linear noise schedule (`--schedule linear`) | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 7 min | 3.9 | `4bf8427e0e358139` | yes | yes |
