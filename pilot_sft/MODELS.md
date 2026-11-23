@@ -109,6 +109,7 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `b-r153-l12-18-24` | B, R15 tuning run 3 (phase 6): noise target and linear schedule (`--target eps --schedule linear`) | 12, 18, 24 | 0 | 20 | 41.0M | 1 h 54 min | 3.9 | `eba4daa59e682b4b` | yes | yes |
 | `c-r150-l12-18-24` | C, R15 tuning run 0 (phase 6): flow sigma 0.3 (`--flow-sigma 0.3`) | 12, 18, 24 | 0 | 20 | 41.0M | 1 h 52 min | 3.8 | `804cdafe344f7ce9` | yes | yes |
 | `c-r151-l12-18-24` | C, R15 tuning run 1 (phase 6): flow sigma 1.0 (`--flow-sigma 1.0`) | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 8 min | 3.8 | `48579ecb78c4c2c1` | yes | yes |
+| `c-r152-l12-18-24` | C, R15 tuning run 2 (phase 6): Beta time sampling (`--time-sampling beta`) | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 12 min | 3.8 | `67b9a0445b79a200` | yes | yes |
 
 ### RL runs
 
