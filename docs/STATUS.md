@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 24 05:24, version 31: A4's selector not adopted; B's tuned configuration collapsing under RL4 in training, and R19; the measured optimism of navdev-chosen checkpoints): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 05:45 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 05:53 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -82,8 +82,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
   - **navdev points the other way:** the deployed A4 leads A6 by 0.52 in-sample and 1.10 cross-fitted (743 scenes, 11 drives).
   - **Two readings, not yet told apart.** (1) A4's deployed checkpoint (update 2,500) is a good draw from RL4's noisy curve, which navdev found. The half generators run RL4 to the same update count without that choice, so they land anywhere on their own curves: A's RL4 navdev curve swings 83.6-88.1 across saves, RL6's only 86.2-87.6. (2) The training drives' scenes favour RL6 and navdev's do not.
-  - **Scoring the half generators on navdev tells them apart:** it is running on the desktop CPU since 05:45. R14 lists this measure ("the half generators against the deployed one, on navdev"), but no code computed it until now; it goes into the driver for every chain next.
-  - **Why it matters:** A4's selector learned from its half generators' candidates. If those are weaker than the deployed generator's, the selector served a different generator from the one it learned on, which could explain part of its -0.36. And R16 compares contenders on navdev alone.
+  - **Told apart by navdev itself (05:47; the half generators scored on navdev, R14's measure "the half generators against the deployed one", which no code computed until now; in the driver from caafab5):** A4's halves score 81.69 and 81.29 against the deployed A4's 88.09, **deployed - halves +6.60 (+4.02 to +8.55)**. A6's score 86.04 and 86.13 against 87.57, +1.49 (-0.98 to +2.71). On navdev too A4's halves trail A6's, -4.60 (-6.63 to -3.61), while the deployed pair differs by +0.52 (-0.83 to +1.85). **So reading (1) holds:** the deployed A4 is a rare good RL4 checkpoint that navdev found; RL4 runs stopped at the same update count land far lower, RL6 runs close together.
+  - **Why it matters:** A4's selector learned from candidates of generators 6.6 points weaker on navdev than the one it then served, which may explain its -0.36. A direct test is running on the desktop CPU (since 05:52): A4's selector applied to its half generators' own navdev candidates, the distribution it learned from. And R16 compares contenders on navdev alone, where a navdev-found RL4 checkpoint looks better than RL4 runs usually are.
 - **B's tuned configuration collapses under RL4, in training** (05:23; `47b4`'s log on the RL scenes, not navdev, which decides). Mean per 100 updates:
 
   | updates | 1-100 | 201-300 | 401-500 | 601-700 | 801-900 | 1,001-1,073 |
