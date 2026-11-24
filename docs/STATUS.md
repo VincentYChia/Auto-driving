@@ -2,20 +2,20 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 23 14:51, version 28: R15 complete, phase 6's full RL running, one optional question): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 23 20:15, version 29: phase 6's first full RL stages, the aggregate regenerated): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-23 19:43 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-23 20:15 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 19:43). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 23 20:15). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 19:43 Nov 23):
-  - **Running: A4's half-0 path generator** (`470a4-60h0`, since 18:44), the first half generator with RL at full scale: A3 trained on half the training drives (about 1 h), then RL4 for 2,500 updates, as many as the deployed checkpoint (R14), then its out-of-fold candidates for the other half's RL scenes. Then A4's half-1 generator, A6's two half generators (queued 19:20), then B's, C's and D's stages: 17 jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 20:15 Nov 23):
+  - **Running: A4's half-0 path generator** (`470a4-60h0`, since 18:44; trained, and at update 733 of its RL at 20:11 with 0 scorer errors), the first half generator with RL at full scale: A3 trained on half the training drives (about 1 h), then RL4 for 2,500 updates, as many as the deployed checkpoint (R14), then its out-of-fold candidates for the other half's RL scenes. Then A4's half-1 generator, A6's two half generators (queued 19:20), then B's, C's and D's stages: 17 jobs pending.
   - **Done 18:44: A under RL6, round 1** (`47a6`, 5,000 updates, rc 0); chosen at 19:20 (above).
   - **Done 16:21: A under RL4, round 1** (`47a4`, 5,000 updates in 2 h 23 min, rc 0, 0 scorer errors); chosen at 17:01 (above).
   - **Done 13:58: D's last tuning run, the study's last** (`46d3`, anchor truncation 0.1, 1 h 56 min, rc 0), kept twice with its MODELS row; the driver scores it on navdev now, then makes D's R15 choice. All twelve R15 tuning runs are trained and kept twice.
@@ -62,6 +62,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Latest results
 - **A under RL6, full stage: navdev 87.57 at update 3,000** (19:20; R11's choice; A3 started at 82.79). By checkpoint: 500 86.15, 1,000 86.38, 1,500 86.52, 2,000 86.60, 2,500 86.87, **3,000 87.57**, 3,500 86.92, 4,000 86.68, 4,500 86.91, 5,000 86.56. **RL6's curve is smooth and high everywhere** (86.2-87.6 from the first save), where RL4's sits at 83.6-86.3 apart from its one spike (88.09 at 2,500, its choice): RL4 wins the max, RL6 every other save. One round (R18); A6's selector spec is written and its decisive chain queued right after A4's (all on navdev; navtest after the final system, R16). Kept twice with its MODELS row.
+  - **Best-of-6 against the start, from the regenerated aggregate (20:12; navdev, drive intervals):** RL6 keeps A's candidates near the start level at almost every save (change near 0), while RL4 loses about 1-2.5 points of best-of-6 at most saves, as in phase 4. The selector chooses among these candidates, so this is the number to watch next to the single path.
 - **Phase 6's first full RL stage: A under RL4 reaches 88.09 on navdev's single path** (17:01; R11's choice, update 2,500 of 5,000; A3 started at 82.79). By checkpoint: 500 84.73, 1,000 84.18, 1,500 84.15, 2,000 83.64, **2,500 88.09**, 3,000 86.31, 3,500 85.13, 4,000 84.83, 4,500 85.22, 5,000 84.92.
   - The chosen save is not the last, so **R18 stops it after one round**.
   - **Read 88.09 as optimistic:** it is the highest of 11 navdev readings (743 scenes, about one point of standard error each), 2-4 points above its neighbours; the saves from 3,000 on sit at 84.8-86.3. navtest comes once per contender, after the final system is chosen (R16).
