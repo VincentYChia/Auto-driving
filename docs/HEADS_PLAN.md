@@ -351,6 +351,14 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
 - **Selection noise.** More saves make the navdev maximum more optimistic. navtest stays untouched until the final system is chosen (R16), so the headline number is not biased by it.
 - **Cost** [D]: each extra round is about 3.1 h of RL for the contender plus 10 navdev path sets, and about 2 × 3.1 h more for its two half generators: about 9 GPU hours. At most 3 extra rounds per contender, about 28 h.
 
+**R19. When RL improves no save of the tuned configuration** (committed 2026-11-24 05:16, before any navdev score of B's, C's or D's full RL stages; prompted by B's training reward under RL4, below). The standing direction: judge contenders by the final system's measure, and never let a pre-RL measure drop one.
+- **Trigger.** A contender's full RL stage ends (R18) with R11 choosing update 0: no save beats the start on navdev's single path. It can only happen where R15's tuned configuration is not the method's phase-1 configuration.
+- **Then** the method's phase-1 configuration gets the same full RL stage: the same recipe, R18's rounds, from its own R11 starting epoch (phase 4's), as jobs `47{m}{r}_rlfull{r}-<phase-1 run>`.
+- **The contender's deployed path generator** is the higher of the two R11 choices by navdev single path; a tie stays with the tuned configuration. Its decisive chain (R14) runs on that one. Both stages are reported.
+- **Equal treatment.** It applies to every contender. A4 and A6 chose RL saves, so it cannot change them.
+- **Why.** R15 picks the tuned configuration by navdev single path before RL, but R16 judges the system after RL. Without R19, a configuration that RL cannot improve would stand in for its method because of a pre-RL difference. B's tuned configuration (noise target, linear schedule) won R15 by 0.37 points (81.77 against 81.40). Under RL4 its training reward fell from 0.843 (updates 1-100) to 0.502 (updates 1,001-1,073); best of 8 fell from 0.941 to 0.638 and NC from 0.981 to 0.717. B's phase-1 configuration, under the same recipe in phase 4, rose from 0.897 to 0.926. B's navdev scores, which decide, were not made when this was written.
+- **Cost** [D]: about 3.4 h of GPU per triggered stage at B's measured 2.4 s per update (one round; more under R18). The chain still runs once per contender.
+
 **R14. The selector's design** (committed 2026-11-20 11:38, before any selector result and before its code runs on real data). Evidence: `docs/research/heads/notes/selector_design.md`, a review of about 25 published NAVSIM selectors.
 - **The score it predicts, checked on our files:** NAVSIM v1.1's PDMS is NC × DAC × (5·TTC + 5·EP + 2·C)/12.
   - On one of our navtest score files (12,146 scenes), this formula equals the official score exactly.
