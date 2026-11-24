@@ -2,9 +2,9 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 23 20:15, version 29: phase 6's first full RL stages, the aggregate regenerated): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 24 05:00, version 30: the first selector after RL, A4's, not adopted; the measured optimism of navdev-chosen checkpoints; the aggregate regenerated): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 04:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 05:00 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -16,6 +16,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time; read 04:49 Nov 24):
   - **Running: B under RL4, full stage** (`47b4`, since 04:28; B's tuned configuration `b-r153`, 5,000 updates, about 2.4 h), and on the CPU queue A6's half-1 candidates (`57a6half1`, since 04:32; about 45 min). A6's cross-fitted selector is queued once they are scored and runs after B's RL4 stage (about 07:00); then B's decisive chain and B under RL6, then C's and D's stages: 18 GPU jobs pending.
+  - **Done 05:00: the three trained selectors are kept twice, with MODELS rows.** They had none: the selector is a trained model too (7.2M parameters), and I had not listed it. The rehearsal's two were already on Anvil; A4's (`selector-a4-xfit-s0`, 636 MB) is copied now. All 21 weight files of each match on both machines. `pilot_sft/MODELS.md` has a new Selectors section, and every later selector gets its row when it finishes.
   - **Done 04:28: A6's half-1 path generator** (`470a6-60h1`, rc 0: half 1 in 55 min, RL6 3,000 updates on half 1's 40,943 RL scenes). Both runs kept twice with MODELS rows.
   - **Done 02:11: A4's cross-fitted selector** (`470a4-620`, rc 0): not adopted on navdev (above), recorded by the driver at 02:12 (`choices/selector_a4_adoption.json`).
   - **Done 02:23 on the CPU queue: A6's half-0 candidates scored** (`57a6half0`, rc 0).
@@ -309,10 +310,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **NAVSIM scoring runs on the desktop.** H1 re-scored there matches Anvil on all 12,146 scenes (PDMS 0.856069 both).
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
-**Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates):
-1. **Phase 6, R15 tuning (running):** B's second tuning run (`--target v`, ends about 21:35), then B's last two, C's four and D's last two, about 17 GPU hours; each is scored on navdev by the driver, and R15 picks each method's configuration by navdev single path. Done: D's 10 and 40 anchors, B's noise target (none beats its main configuration so far).
-2. **Phase 6, per contender (eight: A, B, C, D, each under RL4 and RL6):** the full RL stage from the tuned configuration (rounds of 5,000 updates while the last save is navdev's best, R18), then its decisive chain right after it: two half generators with the same RL, scoring their out-of-fold candidates, and the cross-fitted selector (R14). A's two stages (`47a4`, `47a6`) are queued; the others follow their method's tuning.
-3. **The final system on navdev (R16)**, then one navtest score per contender (about Fri Nov 27 with one RL round each [D]). After it: the in-fold controls, seed-1 selectors and ablations, then phase 2's follow-up runs.
+**Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates [D]):
+1. **Now:** B under RL4, full stage (`47b4`, since 04:28, about 2.4 h; then R18 decides whether a second round runs), and on the CPU queue A6's half-1 candidates (`57a6half1`); then A6's cross-fitted selector (`470a6-620`) and its adoption on navdev.
+2. **Phase 6, per contender (eight: A, B, C and D, each under RL4 and RL6):** A4 is done (its selector not adopted) and A6 is at its selector; then B4's decisive chain, B6's full stage and chain, then C's and D's. Each contender gets its full RL stage from the tuned configuration (rounds of 5,000 updates while the last save is navdev's best, R18), then its decisive chain: two half generators with the same RL, their out-of-fold candidates scored, and the cross-fitted selector (R14).
+3. **The final system on navdev (R16)**, then one navtest score per contender (about Fri Nov 27 if every stage takes one round [D]). After it: the in-fold controls, seed-1 selectors and ablations, then phase 2's follow-up runs.
 4. **The report after each result** (the private link at the top of this page).
 5. **A 20 s replay page for each new best** (your standing rule). A after RL4, seed 1 (89.05) has its page since 12:55 (above). A later run that beats it gets one within the hour: `scripts/desk/replay_head_predict.sh`, then `scripts/anvil/helpers/run_replay_v2_head.sh`. Local only (nuPlan images).
 

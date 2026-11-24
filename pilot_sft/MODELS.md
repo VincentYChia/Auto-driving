@@ -166,3 +166,13 @@ An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update
 A's RL7 is the same run as its RL0 (A's steps are not Gaussian, so the SD floor does nothing). All R12 and R13 recipe runs are on both machines with matching checksums (2026-11-20 10:49).
 
 The RL trial lowered navdev's single-path PDMS (81.18 → 73.97 after 200 updates), which led to R12 in `docs/HEADS_PLAN.md`. It is kept as the evidence for that rule, not used further.
+
+### Selectors
+
+A selector run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20.pt`, `checkpoint.pt` (with the optimizer), `run.json`, `log.jsonl`, `choice.json` (the epoch and own-pick margin chosen on the 10 held-out training drives, R14) and `navdev/` (its selected paths and R14's measures). Each is trained on its chain's out-of-fold candidates for the RL scenes (70,889 scenes, 7 candidates each; 9,737 scenes of 10 drives held out). The SHA-256 is of the chosen epoch's weights; all 21 `.pt` files match on both machines (checked 2026-11-24 04:59).
+
+| Run | Chain (deployed path generator) | Variant | Chosen on held-out drives | Parameters | Training time | GB | SHA-256 (first 16) | Desktop | Anvil |
+|---|---|---|---|---|---|---|---|---|---|
+| `selector-rehearsal-xfit-s0` | the rehearsal, no contender: `a1-l12-18-24` epoch 20, without RL | cross-fitted, seed 0; navdev +1.35 over the own pick (used for no choice) | epoch 10, margin 0.02 | 7,199,493 | 34.3 min | 0.6 | epoch_10 `baf803adb6bee0ff` | yes | yes |
+| `selector-rehearsal-xfit-boundary` | the same | cross-fitted, seed 0, with 4 boundary paths per scene in training only (an ablation); navdev +2.08 | epoch 12, margin 0.03 | 7,199,493 | 41.7 min | 0.6 | epoch_12 `3a195a943d1f66b7` | yes | yes |
+| `selector-a4-xfit-s0` | contender A4: `a3-l12-18-24-rlfull4` rl_2500 | cross-fitted, seed 0, the one that decides adoption (R14); navdev -0.36, not adopted | epoch 5, margin 0.03 | 7,199,493 | 36.9 min | 0.6 | epoch_5 `33d6a9d0bea14da4` | yes | yes |

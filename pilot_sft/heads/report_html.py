@@ -570,6 +570,8 @@ function drawSel() {
     if (ch.adoption) { const p = document.createElement('p'); p.className = 'small';
       p.innerHTML = `Adoption on navdev (R14, the cross-fitted seed-0 selector): ${ch.adoption.adopted ? '<b>adopted</b>' : 'not adopted'}; a gain is ${ch.adoption.gain_claimed ? 'claimed (its drive interval excludes 0)' : 'not claimed'}.`;
       box.appendChild(p); }
+    if (!ch.variants.length) { const p = document.createElement('p'); p.className = 'small';  // candidates only, so far
+      p.textContent = 'No selector of this chain is trained yet.'; box.appendChild(p); return; }
     const c = document.createElement('div'); c.className = 'chart'; box.appendChild(c);
     const rows = ch.variants.filter(v => v.navdev).map(v => ({label: v.variant, color: 'var(--ink-2)', marks: [{...v.navdev.gain, kind: 'solid',
       tip: `<b>${esc(v.name)}</b><br>selected minus own pick, navdev: ${dvs(v.navdev.gain)}`}]}));
