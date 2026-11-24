@@ -99,6 +99,7 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `selector-rehearsal-gen-half1` | A1 on drive half 1 (80 of 158 drives, 117,746 scenes), the selector chain's rehearsal (R14; used for no choice) | 12, 18, 24 | 0 | 20 | 41.9M | 56 min | 3.8 | `b208c5241ddb36a2` | yes | yes |
 | `selector-a4-gen-half0` | A3 on drive half 0 (78 of 158 drives, 118,387 scenes), contender A4's selector chain (R14); its RL run below | 12, 18, 24 | 0 | 20 | 41.9M | 1 h 8 min | 3.7 | `bfdfe6fec41d0c50` | yes | yes |
 | `selector-a4-gen-half1` | A3 on drive half 1 (80 of 158 drives, 117,746 scenes), contender A4's selector chain (R14); its RL run below | 12, 18, 24 | 0 | 20 | 41.9M | 55 min | 3.7 | `84ad776e00077e36` | yes | yes |
+| `selector-a6-gen-half0` | A3 on drive half 0 (78 of 158 drives, 118,387 scenes), contender A6's selector chain (R14); its RL run below | 12, 18, 24 | 0 | 20 | 41.9M | 1 h 10 min | 3.7 | `07de8b7d0cb609c0` | yes | yes |
 | `a0-l12-18-24` | A0 (phase 2: plain bins, no notion of distance) | 12, 18, 24 | 0 | 20 | 42.4M | 1 h 55 min | 4.0 | `78d702da529bd222` | yes | yes |
 | `a2-l12-18-24` | A2 (phase 2: A1 plus soft labels) | 12, 18, 24 | 0 | 20 | 41.9M | 1 h 50 min | 3.9 | `dfc01c8e9f19811d` | yes | yes |
 | `a3-l12-18-24` | A3 (phase 2: A2 plus the position-error loss and the averaged readout) | 12, 18, 24 | 0 | 20 | 41.9M | 2 h 16 min | 4.0 | `f5106da50c3d7c46` | yes | yes |
@@ -158,6 +159,7 @@ An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update
 | `a3-l12-18-24-rlfull6` | `a3-l12-18-24` epoch 5 | phase 6 (R16, R15, R18), full RL stage, RL6; round 1 of 5,000 updates; navdev choice rl_3000 (R11), so no round 2 | 80,626 | 500-5,000 (10) | 2.1 | rl_3000 `572507dd3dbc2889`, rl_5000 `dae3d04847f369c6` | yes | yes |
 | `selector-a4-gen-half0-rl` | `selector-a4-gen-half0` epoch 5 | phase 6 (R14), contender A4's half-0 generator: RL4 for 2,500 updates (as many as A4's deployed checkpoint) on half 0's RL scenes | 39,683 (half 0; half 1 has the other 40,943) | 500-2,500 (5) | 1.4 | rl_2500 `7258d77b7d59a348` | yes | yes |
 | `selector-a4-gen-half1-rl` | `selector-a4-gen-half1` epoch 5 | phase 6 (R14), contender A4's half-1 generator: RL4 for 2,500 updates (as many as A4's deployed checkpoint) on half 1's RL scenes | 40,943 (half 1) | 500-2,500 (5) | 1.4 | rl_2500 `5929df65ea1ba7c9` | yes | yes |
+| `selector-a6-gen-half0-rl` | `selector-a6-gen-half0` epoch 5 | phase 6 (R14), contender A6's half-0 generator: RL6 for 3,000 updates (as many as A6's deployed checkpoint) on half 0's RL scenes | 39,683 (half 0) | 500-3,000 (6) | 1.5 | rl_3000 `a61a162ae645902e` | yes | yes |
 
 A's RL7 is the same run as its RL0 (A's steps are not Gaussian, so the SD floor does nothing). All R12 and R13 recipe runs are on both machines with matching checksums (2026-11-20 10:49).
 
