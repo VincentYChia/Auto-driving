@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 24 05:00, version 30: the first selector after RL, A4's, not adopted; the measured optimism of navdev-chosen checkpoints; the aggregate regenerated): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 24 05:24, version 31: A4's selector not adopted; B's tuned configuration collapsing under RL4 in training, and R19; the measured optimism of navdev-chosen checkpoints): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
 **Updated:** 2026-11-24 05:23 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
