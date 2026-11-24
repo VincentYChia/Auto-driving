@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 24 06:18, version 33: each chain's half generators against the deployed one, chains compared out of fold, the aggregate regenerated; B's RL4 collapse and R19; A4's selector not adopted): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 06:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 07:54 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 06:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 07:54). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 06:47 Nov 24):
-  - **Running: B under RL4, full stage** (`47b4`, since 04:28; B's tuned configuration `b-r153`, 5,000 updates; update 3,996 at 06:47, ends about 07:30, then its 10 saves get navdev paths and scores, and R11 chooses about 08:00-08:30). **Its training reward collapsed and stays low:** 0.843 in updates 1-100, 0.50 at its lowest (about update 1,000 and 1,900), 0.56-0.63 since update 2,400. A6's cross-fitted selector (`470a6-620`) runs next, then B under RL6: 24 GPU jobs pending, far more than 6 h of work (A6's in-fold control, seed-1 selector and ablations were added at 05:22, after every full RL stage).
+- **4090 desktop, GPU queue** (one job at a time; read 07:54 Nov 24):
+  - **Running: A6's cross-fitted selector** (`470a6-620`, since 07:20; about 40 min), then its navdev adoption. **Next: B's phase-1 configuration under RL4, full stage** (`47b4_rlfull4-b-l12-18-24`, queued by R19 at 07:53; about 3.1 h), then B under RL6 (`47b6`, from the tuned configuration), then C's and D's stages: 23 GPU jobs pending.
+  - **Done 07:20: B under RL4, full stage, from the tuned configuration** (`47b4`, rc 0, 5,000 updates, 0 scorer errors). R11 chose update 0, the start, at 07:53 (below). Kept twice (2,088 MB, all 11 weight files match) with its MODELS row.
   - **Done before 05:22 on the CPU queue: A6's half-1 candidates scored** (`57a6half1`: 39,683 RL scenes, 277,781 paths in 44.9 min, 0 errors). Both halves of A6's out-of-fold candidates are scored.
   - **Done 06:03: the driver restarted on caafab5's code** (each half generator scored on navdev, R14's measure; the desktop's checkout is ec951cf, STATUS-only commits after it), by the one-shot watcher between passes; 2 processes.
   - **Done 05:23: the driver restarts on be1d523 (R19)** between passes, by the one-shot watcher; nothing was being scored.
@@ -73,6 +74,8 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Anvil** (Nov 24 06:47): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 770 pending and 60 running jobs (15 nodes partly in use, 1 out of service); ai 390 and 36. Our wait statistics are unchanged: gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,057,327, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local). The Anvil autopilot (`~/xv/overnight.sh`, login07) ended by its time limit on Nov 23 08:39; its last action was Nov 19, since all path-generator scoring runs on the desktop, so it stays off (fewer desktop logins). A desktop hang would show in the 30-minute checks.
 
 ## Latest results
+- **B's tuned configuration under RL4: R11 chose update 0, so R19 runs B's phase-1 configuration** (07:53; navdev single path, 743 scenes). Start (epoch 10, before RL) 79.34; saves 500 58.77, 1,000 45.80, 1,500 55.81, 2,000 40.00, 2,500 56.94, 3,000 60.28, 3,500 50.07, 4,000 46.52, 4,500 62.33, 5,000 63.33. Best-of-6 fell from 90.15 to 54-74. **RL destroyed this configuration** (noise target, linear schedule), as its training reward showed. As registered, R19 queued B's phase-1 configuration (`b-l12-18-24`: clean-path target, cosine schedule; RL4 in phase 4 lifted it by 3.7 points to 85.07 on navdev in 1,500 updates) for the same full RL4 stage from its epoch 10. B4 deploys the better of the two by navdev single path: the tuned start's 79.34, or the phase-1 configuration's R11 choice.
+  - **What it means for B under RL6** (after it, from the tuned configuration): RL6 adds the BC term, which may hold the noise-target paths in place. If it also chooses update 0, R19 gives B's phase-1 configuration an RL6 stage too.
 - **On 80,626 out-of-fold training scenes, A6's half generators beat A4's** (05:45; `pilot_sft/heads/oof_pair.py`, reporting only, `exp/heads/oof_pair_a4_a6.json` on the desktop). These are the RL scenes each half generator never trained on, from 101 drives, with drive intervals:
 
   | out of fold, A4 - A6 | half 0's generators | half 1's | pooled (80,626 scenes) |
