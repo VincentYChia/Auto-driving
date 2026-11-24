@@ -126,7 +126,7 @@ def page_data(agg: dict, ms: Optional[dict] = None, conf: Optional[dict] = None)
                 vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
         seeds.append({"method": m, "run": lc["run"], "values": vals})
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
-            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "recipeChange": recipe_change_rows(ms), "confirm": confirm_rows(conf), "selectors": selector_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
+            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "recipeChange": recipe_change_rows(ms), "confirm": confirm_rows(conf), "selectors": selector_rows(agg), "oofPairs": oof_pair_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
                                                                                     (ms or {}).items() if r.get("series_best_vs_a1")},
             "generated": agg.get("generated"), "names": METHOD_NAMES}
 
@@ -161,8 +161,30 @@ def selector_rows(agg: dict) -> list:
         ad = agg.get("methods", {}).get(f"selector_{x}_adoption")
         if isinstance(ad, dict):
             ch["adoption"] = {k: ad.get(k) for k in ("adopted", "gain_claimed", "role")}
+        hv = agg.get("selector_halves", {}).get(x)
+        if hv:  # R14: the half generators against the deployed one, on navdev, in points
+            d = hv.get("deployed_minus_halves")
+            ch["halves"] = {"deployed": round(100 * hv["deployed"], 2),
+                            **{k: round(100 * hv[k], 2) for k in ("half0", "half1") if k in hv},
+                            "gain": None if not d else {"x": round(100 * d["difference"], 2),
+                                                        "lo": round(100 * d["ci_drives"][0], 2),
+                                                        "hi": round(100 * d["ci_drives"][1], 2)}}
         out.append(ch)
     return out
+
+
+def oof_pair_rows(agg: dict) -> list:
+    """Every pair of chains on the same out-of-fold training scenes (collect_results' ``selector_oof_pairs``): A minus B
+    for the own pick, the best candidate and the mean candidate, in points with their drive intervals."""
+    rows = []
+    for name, r in sorted(agg.get("selector_oof_pairs", {}).items()):
+        if not r or not r.get("scenes"):
+            continue
+        a, b = name.split("-", 1)
+        rows.append({"a": a, "b": b, "scenes": r["scenes"], "drives": r["drives"],
+                     **{k: {"x": r[k]["a_minus_b"], "lo": r[k]["ci"][0], "hi": r[k]["ci"][1], "va": r[k]["a"], "vb": r[k]["b"]}
+                        for k in ("own_pick", "best_of_k", "mean_candidate")}})
+    return rows
 
 
 def phase4_rows(ms: Optional[dict]) -> dict:
@@ -570,6 +592,10 @@ function drawSel() {
     if (ch.adoption) { const p = document.createElement('p'); p.className = 'small';
       p.innerHTML = `Adoption on navdev (R14, the cross-fitted seed-0 selector): ${ch.adoption.adopted ? '<b>adopted</b>' : 'not adopted'}; a gain is ${ch.adoption.gain_claimed ? 'claimed (its drive interval excludes 0)' : 'not claimed'}.`;
       box.appendChild(p); }
+    if (ch.halves) { const p = document.createElement('p'); p.className = 'small'; const hv = ch.halves;
+      p.innerHTML = `Half generators on navdev (R14): half 0 ${hv.half0 ?? '–'}, half 1 ${hv.half1 ?? '–'}, against the deployed generator's ${hv.deployed}` +
+        (hv.gain ? `; deployed minus the halves ${dvs(hv.gain)}.` : '.');
+      box.appendChild(p); }
     if (!ch.variants.length) { const p = document.createElement('p'); p.className = 'small';  // candidates only, so far
       p.textContent = 'No selector of this chain is trained yet.'; box.appendChild(p); return; }
     const c = document.createElement('div'); c.className = 'chart'; box.appendChild(c);
@@ -584,6 +610,18 @@ function drawSel() {
           n.fail ? `${n.fail.selected} / ${n.fail.own_pick}` : '–',
           `epoch ${v.heldout.epoch ?? '–'}, margin ${v.heldout.delta ?? '–'} · ${v.train && v.train.elapsed_s ? Math.round(v.train.elapsed_s / 60) + ' min' : '–'}`]; }));
   });
+  const op = D.oofPairs || [];
+  if (op.length) {
+    const h = document.createElement('h3'); h.textContent = 'Chains compared out of fold (training scenes)'; box.appendChild(h);
+    const p = document.createElement('p'); p.className = 'small';
+    p.textContent = 'Each chain’s half generators make candidates for the RL scenes they did not train on. Two chains compared on the same scenes: A minus B, with drive intervals. Half generators, not the deployed ones, and training-distribution scenes; reporting only.';
+    box.appendChild(p);
+    const tb = document.createElement('div'); box.appendChild(tb);
+    const lab = c => c === 'rehearsal' ? 'rehearsal (A1, no RL)' : c.toUpperCase();
+    table(tb, ['A − B', 'Own pick', 'Best of 7', 'Mean candidate', 'Scenes · drives'],
+      op.map(r => [`${esc(lab(r.a))} − ${esc(lab(r.b))}`, `${dvs(r.own_pick)} <span class="small">(${r.own_pick.va.toFixed(2)} vs ${r.own_pick.vb.toFixed(2)})</span>`,
+        dvs(r.best_of_k), dvs(r.mean_candidate), `${r.scenes.toLocaleString()} · ${r.drives}`]));
+  }
 }
 function drawConfirm() {
   const box = document.getElementById('r4'); if (!box) return; box.innerHTML = '';

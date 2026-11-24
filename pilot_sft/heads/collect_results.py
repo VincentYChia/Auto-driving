@@ -22,6 +22,8 @@ Sections:
 - ``selectors``: phase 6 (R14): every trained selector's held-out choice, training, and R14's measures on navdev
   (and navtest once run).
 - ``selector_candidates``: per chain, the headroom of each completely scored candidate set (training scenes).
+- ``selector_halves``: per chain, its half generators against the deployed one on navdev (R14's measure).
+- ``selector_oof_pairs``: every pair of chains on the same out-of-fold training scenes (``oof_pair.py``).
 - ``methods``: the choice files the driver wrote (layer choices, RL starts, the R12 recipe, decisions).
 
 Intervals resample drives: 10,000 resamples, seed 0. Runs on the desktop with the score CSVs (pilot env).
@@ -300,6 +302,51 @@ class Results:
             out.setdefault(chain, {})[name] = headroom(f)
         return out
 
+    def selector_halves(self) -> dict:
+        """R14's measure "the half generators against the deployed one, on navdev" (reporting): per chain spec, each
+        half generator's navdev single path and the deployed generator's, and deployed minus the two halves' mean,
+        paired per scene, with its drive interval. Only scores already made are read (the driver makes them)."""
+        out = {}
+        for f in sorted(glob.glob(os.path.join(self.heads, "choices", "selector_spec_*.json"))):
+            x = os.path.basename(f)[len("selector_spec_"):-len(".json")].lower()
+            spec = json.load(open(f))
+            dep = self.score_of(self.name(spec["deployed_run"], "navdev", spec["deployed_weights"], spec["steps"], "single"))
+            halves = {}
+            for h in (0, 1):
+                run, w = ((f"selector-{x}-gen-half{h}-rl", f"rl_{spec['updates']}") if spec["updates"] > 0
+                          else (f"selector-{x}-gen-half{h}", f"epoch_{spec['rl_start_epoch']}"))
+                s = self.score_of(self.name(run, "navdev", w, spec["steps"], "single"))
+                if s is not None:
+                    halves[f"half{h}"] = s
+            if dep is None or not halves:
+                continue
+            rec = {"deployed": round(float(dep.mean()), 4), **{k: round(float(v.mean()), 4) for k, v in halves.items()}}
+            if len(halves) == 2:
+                rec["deployed_minus_halves"] = self.paired(dep, (halves["half0"] + halves["half1"]) / 2, "navdev")
+            out[x] = rec
+        return out
+
+    def selector_oof_pairs(self, train_meta: Optional[str]) -> dict:
+        """Every pair of chains whose two out-of-fold candidate sets are completely scored (``oof_pair.py``; reporting
+        only): A minus B for the own pick, the best candidate and the mean candidate, paired on the same training
+        scenes (no half generator of either chain trained on them), pooled over both halves, with drive intervals."""
+        if not train_meta or not os.path.exists(train_meta):
+            return {}
+        done = lambda c: all(os.path.exists(os.path.join(self.heads, f"selector-{c}", f"candidates_oof_half{h}.jsonl.done"))  # noqa: E731
+                             for h in (0, 1))
+        chains = sorted(c for c in (os.path.basename(d)[len("selector-"):]
+                                    for d in glob.glob(os.path.join(self.heads, "selector-*"))) if done(c))
+        if len(chains) < 2:
+            return {}
+        import oof_pair
+        drives = oof_pair.token_drives(train_meta)
+        per = {}
+        for c in chains:
+            per[c] = {}
+            for h in (0, 1):
+                per[c].update(oof_pair.per_scene(os.path.join(self.heads, f"selector-{c}", f"candidates_oof_half{h}.jsonl")))
+        return {f"{a}-{b}": oof_pair.paired(per[a], per[b], drives) for a, b in combinations(chains, 2)}
+
     def comparisons(self, methods: Dict[str, dict]) -> dict:
         chosen = {m: f["run"] for m, f in methods.items() if "run" in f and "choice" in f}
         return {f"{m1}-{m2}": {"runs": [chosen[m1], chosen[m2]], **self.pair(chosen[m1], chosen[m2])}
@@ -351,7 +398,7 @@ class Results:
             out[run] = rec
         return out
 
-    def collect(self) -> dict:
+    def collect(self, train_meta: Optional[str] = None) -> dict:
         methods = self.method_files()
         out = {"generated": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}", "references": {}}
         for sp in SPLITS:
@@ -365,7 +412,8 @@ class Results:
                                                           "scenes": int(len(s)), "subscores": self.subscores(d)}
         out.update(runs=self.runs(), layer_tests=self.layer_tests(methods), comparisons=self.comparisons(methods),
                    series=self.series(methods), rl=self.rl(), selectors=self.selectors(),
-                   selector_candidates=self.selector_candidates(), methods=methods)
+                   selector_candidates=self.selector_candidates(), selector_halves=self.selector_halves(),
+                   selector_oof_pairs=self.selector_oof_pairs(train_meta), methods=methods)
         return out
 
 
@@ -375,8 +423,10 @@ def main() -> None:
     p.add_argument("--exp", default=f"{HOME}/navsim_workspace/exp")
     p.add_argument("--cache-dir", default=f"{HOME}/navsim_workspace/head_cache",
                    help="the folder with drives_navdev.json and drives_navtest.json")
+    p.add_argument("--train-meta", default=f"{HOME}/navsim_workspace/head_cache/h1_l12-18-24/train/meta.jsonl",
+                   help="a stored-feature cache's training meta.jsonl, for the training scenes' drives (out-of-fold pairs)")
     args = p.parse_args()
-    out = Results(args.exp, args.cache_dir).collect()
+    out = Results(args.exp, args.cache_dir).collect(args.train_meta)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=1)
     print(f"{len(out['runs'])} runs, {len(out['rl'])} RL runs, {len(out['comparisons'])} method pairs, "

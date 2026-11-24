@@ -158,3 +158,20 @@ def test_report_script_parses(tmp_path):
         f = tmp_path / f"page{i}.js"
         f.write_text(js, encoding="utf-8")
         subprocess.run(["node", "--check", str(f)], check=True)
+
+
+def test_selector_rows_carry_the_half_generators_and_the_out_of_fold_pairs():
+    pair = lambda a, b, x, lo, hi: {"a": a, "b": b, "a_minus_b": x, "ci": [lo, hi]}  # noqa: E731
+    agg = {"selectors": {}, "methods": {},
+           "selector_candidates": {"a4": {"oof_half0": {"scenes": 40943}}},
+           "selector_halves": {"a4": {"deployed": 0.8809, "half0": 0.8169, "half1": 0.8129,
+                                      "deployed_minus_halves": {"difference": 0.066, "ci_drives": [0.0402, 0.0855], "scenes": 743}}},
+           "selector_oof_pairs": {"a4-a6": {"scenes": 80626, "drives": 101, "own_pick": pair(90.34, 93.02, -2.68, -3.01, -2.38),
+                                            "best_of_k": pair(93.36, 95.22, -1.85, -2.14, -1.58),
+                                            "mean_candidate": pair(90.0, 92.15, -2.15, -2.43, -1.88)},
+                                  "a6-rehearsal": {"scenes": 0}}}
+    rows = report_html.selector_rows(agg)
+    assert rows[0]["halves"] == {"deployed": 88.09, "half0": 81.69, "half1": 81.29, "gain": {"x": 6.6, "lo": 4.02, "hi": 8.55}}
+    op = report_html.oof_pair_rows(agg)
+    assert len(op) == 1 and (op[0]["a"], op[0]["b"], op[0]["drives"]) == ("a4", "a6", 101)
+    assert op[0]["own_pick"] == {"x": -2.68, "lo": -3.01, "hi": -2.38, "va": 90.34, "vb": 93.02}

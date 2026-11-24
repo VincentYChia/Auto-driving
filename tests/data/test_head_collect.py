@@ -212,3 +212,41 @@ def test_rl_settings_include_r13s_options(tree):
     rj.write_text(json.dumps(j))
     r = cr.Results(str(exp), str(cache)).collect()["rl"]["a1-l12-18-24-rlrecipe0"]
     assert r["settings"]["adv"] == "dr" and r["settings"]["lp_sd_floor"] == 0.1 and r["bc_weight"] == 0.37
+
+
+def test_each_chains_half_generators_are_set_against_the_deployed_one_on_navdev(tree):
+    exp, cache = tree
+    heads = exp / "heads"
+    (heads / "choices" / "selector_spec_A4.json").write_text(json.dumps({
+        "deployed_run": "a1-l12-18-24-rlrecipe0", "deployed_weights": "rl_500", "steps": 4, "updates": 500,
+        "rl_start_epoch": 20}))
+    config(exp, "selector-a4-gen-half0-rl", "navdev", "rl_500", 4, 1.5, 0.70)
+    config(exp, "selector-a4-gen-half1-rl", "navdev", "rl_500", 4, 1.5, 0.72)
+    (heads / "choices" / "selector_spec_rehearsal.json").write_text(json.dumps({
+        "deployed_run": "a1-l12-18-24", "deployed_weights": "epoch_20", "steps": 4, "updates": 0, "rl_start_epoch": 20}))
+    out = cr.Results(str(exp), str(cache)).collect()["selector_halves"]
+    assert list(out) == ["a4"]  # the rehearsal's half generators are not scored yet
+    r = out["a4"]
+    assert (r["deployed"], r["half0"], r["half1"]) == (0.7755, 0.7055, 0.7255)
+    assert r["deployed_minus_halves"]["difference"] == 0.06 and r["deployed_minus_halves"]["ci_drives"] == [0.06, 0.06]
+
+
+def test_every_pair_of_chains_is_compared_on_their_out_of_fold_scenes(tree, tmp_path):
+    exp, cache = tree
+    logs = ["2021.05.12.19.36.12_veh-35_00005_00204", "2021.06.07.12.54.00_veh-38_01100_01500"]
+    toks = [f"t{i}" for i in range(6)]
+    meta = tmp_path / "meta.jsonl"
+    meta.write_text("".join(json.dumps({"id": f"openscene/{logs[i % 2]}/{t}"}) + "\n" for i, t in enumerate(toks)))
+    for c, own in (("a4", 0.80), ("a6", 0.83), ("rehearsal", 0.70)):
+        d = exp / "heads" / f"selector-{c}"
+        d.mkdir(parents=True)
+        for h, part in ((0, toks[:3]), (1, toks[3:])):
+            rows = [{"token": t, "names": ["single", "sample_0"], "results": [{"score": own}, {"score": 0.9}]} for t in part]
+            (d / f"candidates_oof_half{h}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+            (d / f"candidates_oof_half{h}.jsonl.done").write_text("")
+    (exp / "heads" / "selector-a4-xfit-s0").mkdir()  # a selector folder, not a chain: left out
+    out = cr.Results(str(exp), str(cache)).collect(str(meta))["selector_oof_pairs"]
+    assert set(out) == {"a4-a6", "a4-rehearsal", "a6-rehearsal"}
+    p = out["a4-a6"]
+    assert (p["scenes"], p["drives"]) == (6, 2) and p["own_pick"]["a_minus_b"] == -3.0 and p["best_of_k"]["a_minus_b"] == 0.0
+    assert cr.Results(str(exp), str(cache)).collect()["selector_oof_pairs"] == {}  # no training meta: no pairs
