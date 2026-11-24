@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 24 11:18, version 35: R19 deploys B's phase-1 configuration for B4, 85.30 on navdev; A6's selector adopted by a hair, A4's not; the half generators and out-of-fold pairs): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 24 14:11, version 36: RL6 lifts the B configuration RL4 destroyed, R18 round 2; R19 deploys B's phase-1 configuration for B4, 85.30; A6's selector adopted by a hair, A4's not): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
 **Updated:** 2026-11-24 14:11 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
