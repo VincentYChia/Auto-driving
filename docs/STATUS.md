@@ -2,19 +2,19 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 24 05:59, version 32: the half generators on navdev and out of fold, RL4's deployed checkpoint a rare good draw, A4's selector on matched candidates; B's RL4 collapse and R19; A4's selector not adopted): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 24 06:18, version 33: each chain's half generators against the deployed one, chains compared out of fold, the aggregate regenerated; B's RL4 collapse and R19; A4's selector not adopted): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 05:59 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 06:18 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 05:45). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 06:18). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 05:45 Nov 24):
+- **4090 desktop, GPU queue** (one job at a time; read 06:18 Nov 24):
   - **Running: B under RL4, full stage** (`47b4`, since 04:28; B's tuned configuration `b-r153`, 5,000 updates). At 2.4 s per update it ends about 07:50, not 06:50 as first estimated; then its 10 saves get navdev paths and scores, and R11 chooses about 08:30-09:00. **Its training reward is collapsing** (below). A6's cross-fitted selector (`470a6-620`) is next, then B under RL6: 24 GPU jobs pending (A6's in-fold control, seed-1 selector and ablations were added at 05:22, after every full RL stage).
   - **Done before 05:22 on the CPU queue: A6's half-1 candidates scored** (`57a6half1`: 39,683 RL scenes, 277,781 paths in 44.9 min, 0 errors). Both halves of A6's out-of-fold candidates are scored.
   - **Done 06:03: the driver restarted on caafab5's code** (each half generator scored on navdev, R14's measure; the desktop's checkout is ec951cf, STATUS-only commits after it), by the one-shot watcher between passes; 2 processes.
@@ -86,6 +86,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - **Told apart by navdev itself (05:47; the half generators scored on navdev, R14's measure "the half generators against the deployed one", which no code computed until now; in the driver from caafab5):** A4's halves score 81.69 and 81.29 against the deployed A4's 88.09, **deployed - halves +6.60 (+4.02 to +8.55)**. A6's score 86.04 and 86.13 against 87.57, +1.49 (-0.98 to +2.71). On navdev too A4's halves trail A6's, -4.60 (-6.63 to -3.61), while the deployed pair differs by +0.52 (-0.83 to +1.85). **So reading (1) holds:** the deployed A4 is a rare good RL4 checkpoint that navdev found; RL4 runs stopped at the same update count land far lower, RL6 runs close together.
   - **Does that mismatch explain A4's selector? Tested (05:58): only a small part.** Applied to its half generators' own navdev candidates, the distribution it learned from, A4's selector gains +0.15 (-0.26 to +0.95) and +0.23 (-0.20 to +0.63), against -0.36 on the deployed generator's, while the best of 7 sits 5.1-6.0 points above the own pick there (it switches in 19-27% of scenes, wins and losses about even). After RL4 it ranks A's candidates little better than the own pick. **R14 stays as registered.** A6's selector, next, has half generators close to its deployed one (-1.49), so it tests the selector without the mismatch. Outputs: `exp/heads/selector_a4_on_halves_navdev.json`, `halves_navdev_a4_a6.json` on the desktop.
   - R16 compares contenders on navdev alone, where a navdev-found RL4 checkpoint looks better than RL4 runs usually are (the open question below).
+  - **In the aggregate and the report from 06:18** (`collect_results.py`: `selector_halves`, `selector_oof_pairs`), for every chain as it lands. The rehearsal (A1 without RL) adds the baseline: its half generators match its deployed one on navdev (-0.62, -2.52 to +0.66). Out of fold against it, A6's halves gain +3.66 (+3.41 to +3.90) on the own pick and A4's +0.98 (+0.56 to +1.38). Both lift the mean candidate (+11.3, +9.1); the best of 7 holds under RL6 (-0.0) and falls under RL4 (-1.9), as in phase 4.
 - **B's tuned configuration collapses under RL4, in training** (05:23; `47b4`'s log on the RL scenes, not navdev, which decides). Mean per 100 updates:
 
   | updates | 1-100 | 201-300 | 401-500 | 601-700 | 801-900 | 1,001-1,073 |
