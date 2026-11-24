@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 24 05:24, version 31: A4's selector not adopted; B's tuned configuration collapsing under RL4 in training, and R19; the measured optimism of navdev-chosen checkpoints): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 05:23 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 05:45 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 05:23). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 05:45). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 05:23 Nov 24):
-  - **Running: B under RL4, full stage** (`47b4`, since 04:28; B's tuned configuration `b-r153`, 5,000 updates). At 2.4 s per update it ends about 07:50, not 06:50 as first estimated; then its 10 saves get navdev paths and scores, and R11 chooses about 08:30-09:00. **Its training reward is collapsing** (below). On the CPU queue: A6's half-1 candidates (`57a6half1`, since 04:32). A6's cross-fitted selector runs after B's RL4 stage, then B under RL6: 18 GPU jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 05:45 Nov 24):
+  - **Running: B under RL4, full stage** (`47b4`, since 04:28; B's tuned configuration `b-r153`, 5,000 updates). At 2.4 s per update it ends about 07:50, not 06:50 as first estimated; then its 10 saves get navdev paths and scores, and R11 chooses about 08:30-09:00. **Its training reward is collapsing** (below). A6's cross-fitted selector (`470a6-620`) is next, then B under RL6: 24 GPU jobs pending (A6's in-fold control, seed-1 selector and ablations were added at 05:22, after every full RL stage).
+  - **Done before 05:22 on the CPU queue: A6's half-1 candidates scored** (`57a6half1`: 39,683 RL scenes, 277,781 paths in 44.9 min, 0 errors). Both halves of A6's out-of-fold candidates are scored.
   - **Done 05:23: the driver restarts on be1d523 (R19)** between passes, by the one-shot watcher; nothing was being scored.
   - **Done 05:00: the three trained selectors are kept twice, with MODELS rows.** They had none: the selector is a trained model too (7.2M parameters), and I had not listed it. The rehearsal's two were already on Anvil; A4's (`selector-a4-xfit-s0`, 636 MB) is copied now. All 21 weight files of each match on both machines. `pilot_sft/MODELS.md` has a new Selectors section, and every later selector gets its row when it finishes.
   - **Done 04:28: A6's half-1 path generator** (`470a6-60h1`, rc 0: half 1 in 55 min, RL6 3,000 updates on half 1's 40,943 RL scenes). Both runs kept twice with MODELS rows.
@@ -71,6 +72,18 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Anvil** (Nov 24 04:49): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 784 pending and 59 running jobs (15 nodes partly in use, 1 out of service); ai 390 and 36. Our wait statistics are unchanged: gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,057,458, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local).
 
 ## Latest results
+- **On 80,626 out-of-fold training scenes, A6's half generators beat A4's** (05:45; `pilot_sft/heads/oof_pair.py`, reporting only, `exp/heads/oof_pair_a4_a6.json` on the desktop). These are the RL scenes each half generator never trained on, from 101 drives, with drive intervals:
+
+  | out of fold, A4 - A6 | half 0's generators | half 1's | pooled (80,626 scenes) |
+  |---|---|---|---|
+  | own pick | -2.25 (-2.72 to -1.83) | -3.12 (-3.52 to -2.73) | **-2.68 (-3.01 to -2.38)**: 90.34 against 93.02 |
+  | best of 7 | -1.31 | -2.42 | -1.85 (-2.14 to -1.58) |
+  | mean candidate | -1.81 | -2.49 | -2.15 (-2.43 to -1.88) |
+
+  - **navdev points the other way:** the deployed A4 leads A6 by 0.52 in-sample and 1.10 cross-fitted (743 scenes, 11 drives).
+  - **Two readings, not yet told apart.** (1) A4's deployed checkpoint (update 2,500) is a good draw from RL4's noisy curve, which navdev found. The half generators run RL4 to the same update count without that choice, so they land anywhere on their own curves: A's RL4 navdev curve swings 83.6-88.1 across saves, RL6's only 86.2-87.6. (2) The training drives' scenes favour RL6 and navdev's do not.
+  - **Scoring the half generators on navdev tells them apart:** it is running on the desktop CPU since 05:45. R14 lists this measure ("the half generators against the deployed one, on navdev"), but no code computed it until now; it goes into the driver for every chain next.
+  - **Why it matters:** A4's selector learned from its half generators' candidates. If those are weaker than the deployed generator's, the selector served a different generator from the one it learned on, which could explain part of its -0.36. And R16 compares contenders on navdev alone.
 - **B's tuned configuration collapses under RL4, in training** (05:23; `47b4`'s log on the RL scenes, not navdev, which decides). Mean per 100 updates:
 
   | updates | 1-100 | 201-300 | 401-500 | 601-700 | 801-900 | 1,001-1,073 |
