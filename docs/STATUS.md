@@ -4,18 +4,18 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 24 08:09, version 34: A6's selector adopted by a hair, A4's not; B's tuned configuration under RL4 keeps its start and R19 runs B's phase-1 configuration; the half generators and out-of-fold pairs): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 08:09 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 08:11 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 08:09). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 08:11). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 08:09 Nov 24):
-  - **Running: B's phase-1 configuration under RL4, full stage** (`47b4_rlfull4-b-l12-18-24`, R19, since 08:02; 5,000 updates, about 3.1 h, then its navdev scores and R11's choice; B4 then deploys the better of it and the tuned start). Then B under RL6 from the tuned configuration (`47b6`), then C's and D's stages: 22 GPU jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 08:11 Nov 24):
+  - **Running: B's phase-1 configuration under RL4, full stage** (`47b4_rlfull4-b-l12-18-24`, R19, since 08:02; 5,000 updates, about 3.1 h, then its navdev scores and R11's choice; B4 then deploys the better of it and the tuned start). **It trains as it did in phase 4:** training reward 0.881, 0.911, 0.920 per 100 updates to update 309 (08:11), NC 0.99, DAC 0.95-0.98, against the tuned configuration's fall from 0.843. Then B under RL6 from the tuned configuration (`47b6`), then C's and D's stages: 23 GPU jobs pending.
   - **Done 08:02: A6's cross-fitted selector** (`470a6-620`, rc 0, 41.7 min); adopted on navdev at 08:03 (below). Kept twice (all 21 weight files match) with its MODELS row.
   - **Done 07:20: B under RL4, full stage, from the tuned configuration** (`47b4`, rc 0, 5,000 updates, 0 scorer errors). R11 chose update 0, the start, at 07:53 (below). Kept twice (2,088 MB, all 11 weight files match) with its MODELS row.
   - **Done before 05:22 on the CPU queue: A6's half-1 candidates scored** (`57a6half1`: 39,683 RL scenes, 277,781 paths in 44.9 min, 0 errors). Both halves of A6's out-of-fold candidates are scored.
