@@ -163,6 +163,7 @@ An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update
 | `selector-a6-gen-half0-rl` | `selector-a6-gen-half0` epoch 5 | phase 6 (R14), contender A6's half-0 generator: RL6 for 3,000 updates (as many as A6's deployed checkpoint) on half 0's RL scenes | 39,683 (half 0) | 500-3,000 (6) | 1.5 | rl_3000 `a61a162ae645902e` | yes | yes |
 | `selector-a6-gen-half1-rl` | `selector-a6-gen-half1` epoch 5 | phase 6 (R14), contender A6's half-1 generator: RL6 for 3,000 updates (as many as A6's deployed checkpoint) on half 1's RL scenes | 40,943 (half 1) | 500-3,000 (6) | 1.5 | rl_3000 `116cddf1a9ce214b` | yes | yes |
 | `b-r153-l12-18-24-rlfull4` | `b-r153-l12-18-24` epoch 10 | phase 6 (R16, R15, R18), full RL stage, RL4; round 1 of 5,000 updates; navdev choice the start (update 0, single path 79.34; every save 40.0-63.3), so R19 gives B's phase-1 configuration the same stage | 80,626 | 500-5,000 (10) | 2.0 | rl_500 `fb4e7f026d67487e`, rl_5000 `efbfa13a711f36fd` | yes | yes |
+| `b-l12-18-24-rlfull4` | `b-l12-18-24` epoch 10 | phase 6 (R16, R18, R19), full RL stage, RL4, of B's phase-1 configuration (R19: the tuned one chose update 0); round 1 of 5,000 updates; navdev choice rl_1000 (85.30), above the tuned start's 79.34, so B4 deploys it | 80,626 | 500-5,000 (10) | 2.0 | rl_1000 `ee98fd231f3e3659`, rl_5000 `41f94a75e604f8b9` | yes | yes |
 
 A's RL7 is the same run as its RL0 (A's steps are not Gaussian, so the SD floor does nothing). All R12 and R13 recipe runs are on both machines with matching checksums (2026-11-20 10:49).
 
