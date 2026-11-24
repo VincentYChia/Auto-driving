@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 24 14:11, version 36: RL6 lifts the B configuration RL4 destroyed, R18 round 2; R19 deploys B's phase-1 configuration for B4, 85.30; A6's selector adopted by a hair, A4's not): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 14:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 15:14 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 14:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 15:14). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 14:47 Nov 24):
-  - **Running: B4's half-0 path generator** (`470b4-60h0`, since 13:24: B's phase-1 configuration on drive half 0, then RL4 for 1,000 updates, at update 820 at 14:47 with training reward 0.90, then the out-of-fold candidates for half 1's RL scenes), then B4's half-1 generator (`470b4-60h1`), then **B under RL6, round 2** (`47b6r2`, R18, to 10,000 updates, about 3.4 h), then C's and D's stages: 24 GPU jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 15:14 Nov 24):
+  - **Running: B4's half-1 path generator** (`470b4-60h1`, since 14:54: B's phase-1 configuration on drive half 1, RL4 for 1,000 updates, the out-of-fold candidates for half 0's RL scenes), and on the CPU queue half 0's candidates (`57b4half0`, since 14:54). Then B under RL6, round 2 (`47b6r2`, R18, to 10,000 updates, about 3.4 h), then B4's cross-fitted selector once both halves are scored, then C's and D's stages: 24 GPU jobs pending.
+  - **Done 14:54: B4's half-0 path generator** (`470b4-60h0`, rc 0: trained in 57 min on 78 drives, RL4 1,000 updates on half 0's 39,683 RL scenes, 0 scorer errors). **On navdev 83.24** against the deployed B4's 85.30: deployed - half +2.06 (-0.96 to +5.64), closer than A4's halves (+6.6) and near A6's (+1.5). Both runs kept twice with MODELS rows.
   - **Done 13:24: B under RL6, round 1, from the tuned configuration** (`47b6`, rc 0, 5,000 updates). Its last save was navdev's best, so R18 queued round 2 at 13:58 (below). Round 1 kept twice (2,088 MB, all 11 weight files match) with its MODELS row.
   - **Done 10:38: B's phase-1 configuration under RL4, full stage** (R19, `47b4_rlfull4-b-l12-18-24`, rc 0, 5,000 updates). R11 chose `rl_1000` at 11:13, and R19 deployed it for B4 (below). Kept twice (2,087 MB, all 11 weight files match) with its MODELS row.
   - **Done 08:02: A6's cross-fitted selector** (`470a6-620`, rc 0, 41.7 min); adopted on navdev at 08:03 (below). Kept twice (all 21 weight files match) with its MODELS row.
