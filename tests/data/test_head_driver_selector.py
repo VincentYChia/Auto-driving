@@ -561,3 +561,16 @@ def test_r19_keeps_the_tuned_configuration_on_a_tie_and_never_runs_without_a_tri
     driver.phase6({})
     assert calls == ["a3-l12-18-24"]
     assert json.loads((choices / "selector_spec_A4.json").read_text())["deployed_weights"] == "rl_1000"
+
+
+def test_the_half_generators_are_scored_on_navdev_once_their_paths_exist(chain):
+    """R14's measure: the half generators against the deployed one, on navdev (reporting)."""
+    H = Path(driver.P["heads"])
+    st = driver.selector_chain("a", SPEC)
+    assert "halves_navdev_single" not in st  # nothing predicted yet
+    base = H / "selector-a-gen-half0-rl" / "navdev_rl_1500"
+    (base / "steps8" / "single").mkdir(parents=True)
+    (base / "steps8" / "single" / "shard_000_of_001.jsonl").write_text("{}\n")
+    (base / "timing.json").write_text("{}")
+    st = driver.selector_chain("a", SPEC)
+    assert set(st["halves_navdev_single"]) == {"half0"} and 0.7 < st["halves_navdev_single"]["half0"] < 0.9

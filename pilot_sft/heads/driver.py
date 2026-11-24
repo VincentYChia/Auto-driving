@@ -920,6 +920,12 @@ def selector_chain(x: str, spec: dict) -> dict:
                       f"phase 6 (R14): selector {x}, half-{h} path generator and its out-of-fold candidates",
                       half_body(spec, x, h, halves), first=first)
         sets[f"half{h}"] = (oof[h], os.path.join(H, f"selector-{x}", f"candidates_oof_half{h}.jsonl"))
+        # R14's measure "the half generators against the deployed one, on navdev" (reporting): each half generator's
+        # navdev single path, scored once its paths exist (collect_results.py then shows it with the RL runs)
+        if os.path.exists(os.path.join(H, run, f"navdev_{weights}", "timing.json")):
+            v = score(os.path.join(H, run, f"navdev_{weights}", S, "single"), "navdev")
+            if v is not None:
+                st.setdefault("halves_navdev_single", {})[f"half{h}"] = round(float(v.mean()), 4)
     dep = os.path.join(H, spec["deployed_run"], f"navtrain_{spec['deployed_weights']}", S)
     if "infold" in needed:
         queue_job(chain_job(x, "61", f"_selector-{x}-infold", first, decisive=False),
