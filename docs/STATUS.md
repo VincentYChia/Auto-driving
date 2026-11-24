@@ -4,19 +4,20 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 23 20:15, version 29: phase 6's first full RL stages, the aggregate regenerated): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 02:12 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 02:41 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 02:12). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 02:41). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 02:12 Nov 24):
+- **4090 desktop, GPU queue** (one job at a time; read 02:41 Nov 24):
   - **Running: A6's half-1 path generator** (`470a6-60h1`, since 02:11; about 2.3 h), and on the CPU queue A6's half-0 candidates (`57a6half0`). Then A6's cross-fitted selector, then B's, C's and D's stages: 19 GPU jobs pending.
-  - **Done 02:11: A4's cross-fitted selector** (`470a4-620`, rc 0): not adopted on navdev (above).
+  - **Done 02:11: A4's cross-fitted selector** (`470a4-620`, rc 0): not adopted on navdev (above), recorded by the driver at 02:12 (`choices/selector_a4_adoption.json`).
+  - **Done 02:23 on the CPU queue: A6's half-0 candidates scored** (`57a6half0`, rc 0).
   - **Done 01:34: A6's half-0 path generator** (`470a6-60h0`, rc 0: half 0 in 1 h 10 min, RL6 3,000 updates, 0 scorer errors, out-of-fold candidates for half 1). Both runs kept twice with MODELS rows.
   - **Done 23:51 on the CPU queue: A4's half-1 candidates scored** (`57a4half1`: 39,683 RL scenes, 277,781 paths, 0 errors). Both halves of A4's out-of-fold candidates are scored.
   - **Done 23:01: A4's half-1 path generator** (`470a4-60h1`, rc 0: half 1, 80 drives, 117,746 scenes, 55 min; RL4 2,500 updates on half 1's 40,943 RL scenes; out-of-fold candidates for half 0's). Both runs kept twice with MODELS rows.
