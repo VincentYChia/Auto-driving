@@ -153,6 +153,7 @@ An RL run's folder (`exp/heads/<run>/`) holds `rl_<u>.pt` for every saved update
 | `d-l12-18-24-s2-rl` | `d-l12-18-24-s2` epoch 5 | phase 4 (R16), RL4; navdev choice rl_500 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_500 `f60746416418cd09`, rl_1500 `d57ef5d789dbeb76` | yes | yes |
 | `d-l12-18-24-s2-rl6` | `d-l12-18-24-s2` epoch 5 | phase 4 (R16), RL6; navdev choice rl_1000 (R11) | 80,626 | 250-1,500 (6) | 1.5 | rl_1000 `a4e31030998362eb`, rl_1500 `069f84747b09fb44` (all six checked, 2026-11-22 14:13) | yes | yes |
 | `a3-l12-18-24-rlfull4` | `a3-l12-18-24` epoch 5 | phase 6 (R16, R15, R18), full RL stage, RL4; round 1 of 5,000 updates; navdev choice rl_2500 (R11), so no round 2 | 80,626 | 500-5,000 (10) | 2.1 | rl_2500 `5625d995e59b0e46`, rl_5000 `bafb5dcd80ec827c` | yes | yes |
+| `a3-l12-18-24-rlfull6` | `a3-l12-18-24` epoch 5 | phase 6 (R16, R15, R18), full RL stage, RL6; round 1 of 5,000 updates; navdev choice rl_3000 (R11), so no round 2 | 80,626 | 500-5,000 (10) | 2.1 | rl_3000 `572507dd3dbc2889`, rl_5000 `dae3d04847f369c6` | yes | yes |
 
 A's RL7 is the same run as its RL0 (A's steps are not Gaussian, so the SD floor does nothing). All R12 and R13 recipe runs are on both machines with matching checksums (2026-11-20 10:49).
 
