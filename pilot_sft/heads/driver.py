@@ -1171,16 +1171,54 @@ def phase6(status: dict) -> None:
             continue
         st["rounds"] = ch.get("rounds", 1)
         st["checkpoint"] = ch["checkpoint"]
+        dep = (tuned, start, rl, ch)
+        if ch["checkpoint"] == "start" and tuned["run"] != lc["run"]:
+            dep = r19_fallback(x, method, recipe, lc, dep, st)
+            if dep is None:
+                continue
+        cfg, start, rl, ch = dep
         spec = os.path.join(P["heads"], "choices", f"selector_spec_{x}.json")
         if not os.path.exists(spec):
-            dep_run, dep_w = (tuned["run"], f"epoch_{start}") if ch["checkpoint"] == "start" else (rl, ch["checkpoint"])
-            write_json(spec, {"method": method, "kind": tuned["kind"], "layers": tuned["layers"], "flags": tuned["flags"],
+            dep_run, dep_w = (cfg["run"], f"epoch_{start}") if ch["checkpoint"] == "start" else (rl, ch["checkpoint"])
+            write_json(spec, {"method": method, "kind": cfg["kind"], "layers": cfg["layers"], "flags": cfg["flags"],
                               "rl_start_epoch": start, "recipe": recipe, "updates": ch["updates"],
                               "save_every": FULL_RL_EVERY, "deployed_run": dep_run, "deployed_weights": dep_w,
-                              "steps": tuned["choice"]["steps"], "scale": tuned["choice"]["scale"],
-                              "k": GRID[tuned["kind"]]["k"], "rule": "docs/HEADS_PLAN.md R14, R15, R16",
+                              "steps": cfg["choice"]["steps"], "scale": cfg["choice"]["scale"],
+                              "k": GRID[cfg["kind"]]["k"], "configuration": cfg["run"],
+                              "rule": "docs/HEADS_PLAN.md R14, R15, R16" + (", R19" if "r19" in st else ""),
                               "written": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"})
             log(f"phase 6: selector spec for {x}: deployed {dep_run} {dep_w}")
+
+
+def r19_fallback(x: str, method: str, recipe: int, lc: dict, tuned_dep: tuple, st: dict) -> Optional[tuple]:
+    """R19: the tuned configuration's full RL stage chose update 0, so the method's phase-1 configuration gets the
+    same full RL stage (R18's rounds, from phase 4's R11 starting epoch), and the contender deploys the higher of the
+    two R11 choices by navdev single path, a tie staying with the tuned configuration. Returns (configuration, start
+    epoch, RL run, choice) of the deployed one, or None while the phase-1 configuration's stage runs or is scored.
+    The decision is written once, as ``choices/r19_<x>.json``."""
+    tuned, tstart, trl, tch = tuned_dep
+    main = {"method": method, "run": lc["run"], "kind": lc["kind"], "layers": lc["layers"], "flags": [],
+            "choice": lc["choice"]}
+    rs = rl_start(method, lc)
+    if not rs:
+        return None
+    mstart, mrl = rs["epoch"], f"{lc['run']}-rlfull{recipe}"
+    st["r19"] = {"triggered": True, "tuned": {"run": trl, "checkpoint": "start", "navdev_single_pdms": tch["navdev_single_pdms"]}}
+    mch = full_rl_stage(method, recipe, main["run"], {"kind": main["kind"], "choice": main["choice"], "run": main["run"]},
+                        mstart, mrl)
+    if not mch:
+        return None
+    use_main = mch["navdev_single_pdms"] > tch["navdev_single_pdms"]  # a tie stays with the tuned configuration
+    st["r19"].update(main={"run": mrl, "checkpoint": mch["checkpoint"], "navdev_single_pdms": mch["navdev_single_pdms"]},
+                     deployed="main" if use_main else "tuned")
+    out = os.path.join(P["heads"], "choices", f"r19_{x.lower()}.json")
+    if not os.path.exists(out):
+        write_json(out, {"contender": x, "tuned": st["r19"]["tuned"], "main": st["r19"]["main"],
+                         "deployed": st["r19"]["deployed"], "rule": "docs/HEADS_PLAN.md R19",
+                         "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"})
+        log(f"phase 6: R19 for {x}: tuned {trl} chose update 0 ({tch['navdev_single_pdms']}); phase-1 configuration "
+            f"{mrl} chose {mch['checkpoint']} ({mch['navdev_single_pdms']}); deployed: {st['r19']['deployed']}")
+    return (main, mstart, mrl, mch) if use_main else tuned_dep
 
 
 def selectors(status: dict) -> None:

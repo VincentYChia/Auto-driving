@@ -490,3 +490,74 @@ def test_a_contenders_chain_runs_before_more_full_rl_but_after_tuning(chain):
     assert driver.chain_job("rehearsal", "60", "h0_selector-rehearsal-gen-half0", True) == "60rehearsalh0_selector-rehearsal-gen-half0"
     assert driver.chain_job("rehearsal", "62", "6_x", True, decisive=False) == "62rehearsal6_x"  # the rehearsal: unchanged
     assert driver.chain_job("a4", "62", "0_selector-a4-xfit-s0", False) < driver.chain_job("a6", "60", "h0_x", False)
+
+
+# ---- R19: when RL improves no save of the tuned configuration -------------------------------------------------
+def r19_world(tree, monkeypatch):  # noqa: F811
+    """A4 whose tuned configuration is A3 (not the phase-1 A1), with every one of A3's full-RL saves below its start."""
+    choices, _ = phase6_a_only(tree, monkeypatch)
+    lc = driver.choose_layers("A")
+    tuned = {"method": "A", "run": "a3-l12-18-24", "kind": "masked", "layers": lc["layers"], "flags": ["--soft-sigma", "1"],
+             "choice": driver.choose_run("a3-l12-18-24", "masked"), "rule": "test"}
+    (choices / "A_tuned.json").write_text(json.dumps(tuned))
+    return choices, lc
+
+
+def lower_rl_of(run, by, also=None):
+    """A scorer that lowers every navdev save of ``run``'s RL folders by ``by`` (and raises ``also``'s rl_3000)."""
+    def scorer(folder, split, exp_name, **kw):
+        fake_scorer(folder, split, exp_name, **kw)
+        delta = -by if (f"{run}{os.sep}navdev_rl_" in folder or f"{run}/navdev_rl_" in folder) else 0.0
+        if also and "navdev_rl_3000" in folder and also in folder:
+            delta += 0.05
+        if delta:
+            f = Path(driver.P["exp"]) / exp_name / "run" / "scores.csv"
+            d = pd.read_csv(f)
+            d["score"] = d["score"] + delta
+            d.to_csv(f, index=False)
+    return scorer
+
+
+def test_r19_runs_the_phase1_configuration_when_rl_improves_no_save_and_deploys_the_better(tree, monkeypatch):  # noqa: F811
+    choices, lc = r19_world(tree, monkeypatch)
+    monkeypatch.setattr(driver, "SCORER", lower_rl_of("a3-l12-18-24-rlfull4", 0.05, also="a1-l12-18-24-rlfull4"))
+    driver.phase6({})
+    assert (Path(driver.P["queue"]) / "47a4_rlfull4-a3-l12-18-24.sh").exists()
+    full_rl_outputs(Path(driver.P["heads"]) / "a3-l12-18-24-rlfull4", 4, 1.5)
+    status = {}
+    driver.phase6(status)  # A3 chooses update 0: R19 queues A1's full RL stage, and no spec is written yet
+    assert json.loads((Path(driver.P["heads"]) / "a3-l12-18-24-rlfull4" / "choices_navdev.json").read_text())["checkpoint"] == "start"
+    j = (Path(driver.P["queue"]) / "47a4_rlfull4-a1-l12-18-24.sh").read_text()
+    assert "--run $H/a1-l12-18-24 --weights epoch_15" in j and "--updates 5000 --save-every 500" in j
+    assert not (choices / "selector_spec_A4.json").exists() and status["phase6_full"]["A4"]["r19"]["triggered"]
+    full_rl_outputs(Path(driver.P["heads"]) / "a1-l12-18-24-rlfull4", 4, 1.5)
+    driver.phase6(status)  # A1's stage chooses rl_3000, above A3's start: the contender deploys A1's RL save
+    spec = json.loads((choices / "selector_spec_A4.json").read_text())
+    assert (spec["deployed_run"], spec["deployed_weights"], spec["updates"]) == ("a1-l12-18-24-rlfull4", "rl_3000", 3000)
+    assert (spec["flags"], spec["rl_start_epoch"], spec["configuration"]) == ([], 15, "a1-l12-18-24") and "R19" in spec["rule"]
+    r19 = json.loads((choices / "r19_a4.json").read_text())
+    assert r19["deployed"] == "main" and r19["main"]["checkpoint"] == "rl_3000" and r19["tuned"]["checkpoint"] == "start"
+
+
+def test_r19_keeps_the_tuned_configuration_on_a_tie_and_never_runs_without_a_trigger(tree, monkeypatch):  # noqa: F811
+    choices, lc = r19_world(tree, monkeypatch)
+    tch = {"checkpoint": "start", "updates": 0, "navdev_single_pdms": 0.83}
+    calls = []
+
+    def stage(method, recipe, run, tlc, start, rl):
+        calls.append(run)
+        return tch if run == "a3-l12-18-24" else {"checkpoint": "rl_500", "updates": 500, "navdev_single_pdms": 0.83}
+
+    monkeypatch.setattr(driver, "full_rl_stage", stage)
+    driver.phase6({})
+    assert calls == ["a3-l12-18-24", "a1-l12-18-24"]
+    spec = json.loads((choices / "selector_spec_A4.json").read_text())  # a tie: the tuned configuration's start
+    assert (spec["deployed_run"], spec["deployed_weights"], spec["configuration"]) == ("a3-l12-18-24", "epoch_15", "a3-l12-18-24")
+    assert json.loads((choices / "r19_a4.json").read_text())["deployed"] == "tuned"
+    # the tuned configuration chose an RL save: R19 does not run
+    (choices / "selector_spec_A4.json").unlink()
+    tch.update(checkpoint="rl_1000", updates=1000, navdev_single_pdms=0.85)
+    calls.clear()
+    driver.phase6({})
+    assert calls == ["a3-l12-18-24"]
+    assert json.loads((choices / "selector_spec_A4.json").read_text())["deployed_weights"] == "rl_1000"
