@@ -343,7 +343,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates [D]):
-1. **Now:** B under RL4, full stage (`47b4`, since 04:28, ends about 07:50; R11's choice about 08:30-09:00, then R18 or R19), and on the CPU queue A6's half-1 candidates (`57a6half1`); then A6's cross-fitted selector (`470a6-620`) and its adoption on navdev.
+1. **Now:** A6's cross-fitted selector (`470a6-620`, since 07:20) and its navdev adoption; then B's phase-1 configuration under RL4 (R19, `47b4_rlfull4-b-l12-18-24`, about 3.1 h), then B under RL6 from the tuned configuration (R19 again if it chooses update 0).
 2. **Phase 6, per contender (eight: A, B, C and D, each under RL4 and RL6):** A4 is done (its selector not adopted) and A6 is at its selector; then B4's decisive chain, B6's full stage and chain, then C's and D's. Each contender gets its full RL stage from the tuned configuration (rounds of 5,000 updates while the last save is navdev's best, R18), then its decisive chain: two half generators with the same RL, their out-of-fold candidates scored, and the cross-fitted selector (R14).
 3. **The final system on navdev (R16)**, then one navtest score per contender (about Fri Nov 27 if every stage takes one round [D]). After it: the in-fold controls, seed-1 selectors and ablations, then phase 2's follow-up runs.
 4. **The report after each result** (the private link at the top of this page).
