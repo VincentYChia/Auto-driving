@@ -4,17 +4,17 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 24 20:06, version 37: B4's selector not adopted, so after RL no selector has helped yet; B6 deploys RL6 update 6,000 at 86.74; R19's B4 at 85.30): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 20:05 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 20:42 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 20:05). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 20:42). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 20:05 Nov 24):
+- **4090 desktop, GPU queue** (one job at a time; read 20:42 Nov 24):
   - **Running: B6's half-0 path generator** (`470b6-60h0`, since 19:56: the tuned configuration on drive half 0, then RL6 for 6,000 updates, about 5 h), then B6's half-1 generator, then C's and D's stages: 30 GPU jobs pending.
   - **Done 19:56: B4's cross-fitted selector** (`470b4-620`, rc 0, 40.3 min); not adopted at 20:00 (below). Kept twice (all 21 weight files match) with its MODELS row.
   - **Done 19:15: B under RL6, round 2** (`47b6r2`, rc 0, to 10,000 updates). R11 chose `rl_6000` at 19:50 (below). Both rounds kept twice (3,706 MB, every file matches) with the MODELS row.
@@ -83,6 +83,17 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 - **Anvil** (Nov 24 18:47): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 783 pending and 57 running jobs (15 nodes partly in use, 1 out of service); ai 483 and 36. Our wait statistics are unchanged: gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,056,246, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local). The Anvil autopilot (`~/xv/overnight.sh`, login07) ended by its time limit on Nov 23 08:39; its last action was Nov 19, since all path-generator scoring runs on the desktop, so it stays off (fewer desktop logins). A desktop hang would show in the 30-minute checks.
 
 ## Latest results
+- **Why the selectors find nothing after RL: RL shrinks the candidates from metres to decimetres** (20:42; R14's registered measures "gain by candidate spread" and "calibration", in each selector's navdev report but not yet in the report page). Spread is the mean pairwise distance between the 7 candidates' end points, in quartiles of navdev's 743 scenes:
+
+  | selector | spread quartiles (m) | selected - own pick per quartile (points) | NC predicted / true |
+  |---|---|---|---|
+  | rehearsal, A1 without RL | 0.1-1.1, 1.1-2.4, 2.4-9.2, 9.2-32.8 | +0.18, +1.35, +1.63, +2.23 | 0.957 / 0.944 |
+  | A4 | 0.0-0.22, 0.22-0.38, 0.38-0.61, 0.62-4.9 | +0.31, -0.43, -1.02, -0.32 | 0.993 / 0.974 |
+  | A6 | 0.0-0.31, 0.31-0.49, 0.49-0.70, 0.70-5.1 | 0.00, 0.00, -0.03, +0.54 | 0.997 / 0.977 |
+  | B4 | 0.16-0.53, 0.53-0.70, 0.70-0.91, 0.91-2.0 | +0.56, -0.01, -1.48, -0.79 | 0.997 / 0.979 |
+
+  - Without RL the selector gains more the wider the candidates spread. After RL three quarters of navdev's scenes have candidates within about 0.7 m of each other, and the selector predicts nearly every candidate collision-free (NC 0.993-0.997 against a true 0.974-0.979), so the rare colliding candidates that decide most of the score go unseen. Top-1 accuracy (tie-aware) 0.41-0.44 after RL, 0.49 before.
+  - **What it suggests (not tested):** a selector after RL needs candidates that differ, such as RL6's wider ones at a higher sampling scale, or D's anchors. D's contenders, whose candidates stay apart, are where a selector still has room.
 - **B4's cross-fitted selector is not adopted, and measurably hurts** (20:00; R14, the deployed B4 `rl_1000`, 743 scenes): selected path 84.87 against the own pick's 85.30, **-0.43 (-0.60 to -0.03)**. It chose epoch 17 and margin 0.05, switches in 11% of scenes (25 wins, 31 losses, 26 ties) and picks slightly more paths that fail NC or DAC (55 against 52); best of 7 89.98. Its half generators were close to the deployed one (+1.38), so this is not A4's mismatch. **After RL, three selectors out of three move navdev by under half a point:** A4 -0.36, A6 +0.13 (adopted, no gain claimed), B4 -0.43. R14 keeps each contender's own pick when the selector does not help, so the system paths are A4 88.09, A6 87.70, B4 85.30, and B6's chain runs next.
 - **B6 is decided: R11 chose update 6,000 at 86.74 on navdev** (19:50; B's tuned configuration under RL6, 2 rounds, R18 stopped as round 2's last save was not the best). Round 2 by save: 5,500 82.40, **6,000 86.74**, 6,500 84.65, 7,000 84.00, 7,500 84.78, 8,000 84.84, 8,500 85.68, 9,000 85.23, 9,500 85.11, 10,000 85.52 (round 1 rose from 79.34 to 84.48). Best-of-6 at the choice 90.91. **Read 86.74 as optimistic:** it is the highest of 21 navdev readings and sits 2-4 points above its neighbours (82.40, 84.65). B6's selector spec was written at once and its decisive chain queued; its half generators each run RL6 for 6,000 updates (about 5 h each).
   - **Phase 6's navdev single paths so far:** A4 88.09, A6 87.57 (selected path 87.70), B6 86.74, B4 85.30.
