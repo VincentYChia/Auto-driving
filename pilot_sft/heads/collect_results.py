@@ -57,7 +57,7 @@ SUBS = ("no_at_fault_collisions", "drivable_area_compliance", "driving_direction
 SELECTOR_KEYS = ("scenes", "candidates", "drives", "selected_pdms", "own_pick_pdms", "selected_minus_own",
                  "selected_minus_own_ci", "best_of_k_pdms", "random_pick_pdms", "mean_candidate_pdms",
                  "share_of_best_of_k_gap_closed", "switch_rate", "switches", "picks_failing_nc_or_dac", "top1_exact",
-                 "top1_tie_aware")  # R14's measures, from selector.report
+                 "top1_tie_aware", "gain_by_spread_quartile", "calibration")  # R14's measures, from selector.report
 R17_THRESHOLD = 0.014  # 1.4 PDMS points: two seed SDs of a single-seed difference (docs/HEADS_PLAN.md R17)
 CURVE = ("reward", "best_of_g", "equal_reward_groups", "kl", "grad_norm", "no_at_fault_collisions",
          "drivable_area_compliance", "time_to_collision_within_bound", "ego_progress", "paths_per_s", "bc")

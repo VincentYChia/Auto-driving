@@ -150,7 +150,13 @@ def selector_rows(agg: dict) -> list:
                                                                           "lo": pct(ci[0]), "hi": pct(ci[1])},
                            "share": n.get("share_of_best_of_k_gap_closed"), "switch": n.get("switch_rate"),
                            "switches": n.get("switches"), "fail": n.get("picks_failing_nc_or_dac"),
-                           "top1": n.get("top1_tie_aware"), "scenes": n.get("scenes"), "candidates": n.get("candidates")}
+                           "top1": n.get("top1_tie_aware"), "scenes": n.get("scenes"), "candidates": n.get("candidates"),
+                           "spread": [{"lo": round(b["spread_m"][0], 2), "hi": round(b["spread_m"][1], 2), "scenes": b["scenes"],
+                                       "gain": round(100 * b["selected_minus_own"], 2)}
+                                      for b in n.get("gain_by_spread_quartile") or []],
+                           "nc": None if not (n.get("calibration") or {}).get("NC") else
+                           {"pred": round(n["calibration"]["NC"]["mean_predicted"], 3),
+                            "true": round(n["calibration"]["NC"]["mean_true"], 3)}}
         chains.setdefault(r["chain"], {"chain": r["chain"], "variants": []})["variants"].append(row)
     for x, sets in agg.get("selector_candidates", {}).items():  # the chain's scored training candidates
         chains.setdefault(x, {"chain": x, "variants": []})["candidates"] = sets
@@ -595,6 +601,13 @@ function drawSel() {
     if (ch.halves) { const p = document.createElement('p'); p.className = 'small'; const hv = ch.halves;
       p.innerHTML = `Half generators on navdev (R14): half 0 ${hv.half0 ?? '–'}, half 1 ${hv.half1 ?? '–'}, against the deployed generator's ${hv.deployed}` +
         (hv.gain ? `; deployed minus the halves ${dvs(hv.gain)}.` : '.');
+      box.appendChild(p); }
+    const v0 = ch.variants.find(v => v.variant === 'xfit-s0' && v.navdev);
+    if (v0 && v0.navdev.spread && v0.navdev.spread.length) { const p = document.createElement('p'); p.className = 'small';
+      p.innerHTML = 'Cross-fitted seed-0 selector by candidate spread (mean pairwise end-point distance, quartiles of navdev): ' +
+        v0.navdev.spread.map(b => `${b.lo.toFixed(2)}&ndash;${b.hi.toFixed(2)} m ${sgn(b.gain)}`).join(', ') + '.' +
+        (v0.navdev.nc ? ` No-collision predicted ${v0.navdev.nc.pred.toFixed(3)} against a true ${v0.navdev.nc.true.toFixed(3)}.` : '') +
+        (v0.navdev.top1 != null ? ` Top-1 (tie-aware) ${v0.navdev.top1.toFixed(2)}.` : '');
       box.appendChild(p); }
     if (!ch.variants.length) { const p = document.createElement('p'); p.className = 'small';  // candidates only, so far
       p.textContent = 'No selector of this chain is trained yet.'; box.appendChild(p); return; }

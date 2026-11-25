@@ -85,7 +85,10 @@ def test_phase4_rows_per_split_and_recipe():
 def test_selector_rows_per_chain_with_adoption():
     nav = {"scenes": 743, "candidates": 7, "selected_pdms": 0.83, "own_pick_pdms": 0.8186, "selected_minus_own": 0.0114,
            "selected_minus_own_ci": [0.002, 0.02], "best_of_k_pdms": 0.9, "switch_rate": 0.12,
-           "switches": {"wins": 50, "losses": 30, "ties": 9}, "picks_failing_nc_or_dac": {"selected": 40, "own_pick": 52}}
+           "switches": {"wins": 50, "losses": 30, "ties": 9}, "picks_failing_nc_or_dac": {"selected": 40, "own_pick": 52},
+           "gain_by_spread_quartile": [{"spread_m": [0.104, 1.1], "scenes": 186, "selected_minus_own": 0.0018},
+                                       {"spread_m": [1.1, 2.35], "scenes": 185, "selected_minus_own": 0.0135}],
+           "calibration": {"NC": {"mean_predicted": 0.9571, "mean_true": 0.9444, "ece": 0.022}}}
     agg = {"selectors": {
         "selector-rehearsal-xfit-boundary": {"chain": "rehearsal", "variant": "xfit-boundary", "heldout": {"epoch": 9}, "navdev": nav},
         "selector-rehearsal-xfit-s0": {"chain": "rehearsal", "variant": "xfit-s0", "heldout": {"epoch": 12, "delta": 0.02},
@@ -98,6 +101,9 @@ def test_selector_rows_per_chain_with_adoption():
     assert [v["variant"] for v in rh["variants"]] == ["xfit-s0", "xfit-boundary"]  # R14's order
     assert rh["variants"][0]["navdev"]["gain"] == {"x": 1.14, "lo": 0.2, "hi": 2.0} and rh["variants"][0]["navdev"]["own"] == 81.86
     assert rh["adoption"] == {"adopted": True, "gain_claimed": True, "role": "rehearsal"}
+    assert rh["variants"][0]["navdev"]["spread"] == [{"lo": 0.1, "hi": 1.1, "scenes": 186, "gain": 0.18},
+                                                    {"lo": 1.1, "hi": 2.35, "scenes": 185, "gain": 1.35}]
+    assert rh["variants"][0]["navdev"]["nc"] == {"pred": 0.957, "true": 0.944}
     assert "navdev" not in rows[0]["variants"][0]  # trained, not yet applied to navdev
     assert 'id="sel"' in report_html.build(agg, {"title": "t"})
     agg["selector_candidates"] = {"rehearsal": {"oof_half0": {"scenes": 40943, "own_pick_pdms": 89.06}}, "d4": {"oof_half0": {}}}

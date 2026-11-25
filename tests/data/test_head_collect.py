@@ -162,7 +162,9 @@ def test_selectors_carry_their_choice_training_and_navdev_measures(tree):
                                             "extra_candidates_per_scene": 0}))
     (d / "navdev" / "report.json").write_text(json.dumps({"scenes": 2000, "weights": "epoch_12", "delta": 0.02, "report": {
         "scenes": 743, "candidates": 7, "selected_pdms": 0.83, "own_pick_pdms": 0.8186, "selected_minus_own": 0.0114,
-        "selected_minus_own_ci": [0.002, 0.02], "best_of_k_pdms": 0.90, "switch_rate": 0.12, "not_kept": 1}}))
+        "selected_minus_own_ci": [0.002, 0.02], "best_of_k_pdms": 0.90, "switch_rate": 0.12, "not_kept": 1,
+        "gain_by_spread_quartile": [{"spread_m": [0.1, 1.1], "scenes": 186, "selected_minus_own": 0.0018}],
+        "calibration": {"NC": {"mean_predicted": 0.957, "mean_true": 0.944, "ece": 0.022}}}}))
     (heads / "selector-rehearsal-gen-half0").mkdir()  # a half generator, not a selector
     out = cr.Results(str(exp), str(cache)).collect()["selectors"]
     assert set(out) == {"selector-rehearsal-xfit-s0"}
@@ -172,6 +174,7 @@ def test_selectors_carry_their_choice_training_and_navdev_measures(tree):
     assert r["train"]["elapsed_s"] == 2400.0 and r["train"]["scenes"]["train"] == 70000
     assert r["navdev"]["selected_minus_own_ci"] == [0.002, 0.02] and r["navdev"]["scenes"] == 743
     assert "not_kept" not in r["navdev"] and "navtest" not in r
+    assert r["navdev"]["gain_by_spread_quartile"][0]["scenes"] == 186 and r["navdev"]["calibration"]["NC"]["ece"] == 0.022
 
 
 def test_each_chains_scored_candidate_sets_carry_their_headroom(tree):
