@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 24 20:51, version 38: why the selectors find little after RL, with R14's gain by candidate spread and no-collision calibration per chain; B4's selector not adopted; B6 at 86.74, B4 at 85.30): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-25 04:50 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-25 05:48 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 25 04:50). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 25 05:48). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 04:50 Nov 25):
-  - **Running: C under RL4, full stage** (`47c4`, since 04:28 Nov 25: C's tuned configuration `c-r152`, Beta time sampling, 5,000 updates in R18's rounds), and on the CPU queue B6's half-1 candidates (`57b6half1`, since 04:33). B6's cross-fitted selector (`470b6-620`) is queued once they are scored and runs after C's stage; then C under RL6, then D's stages: 28 GPU jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 05:48 Nov 25):
+  - **Running: C under RL4, full stage** (`47c4`, since 04:28 Nov 25: C's tuned configuration `c-r152`, Beta time sampling; update 2,575 at 05:48, training reward 0.92, NC 0.99, steady). Next: **B6's cross-fitted selector** (`470b6-620`, queued 05:22, first in the queue), then C under RL6, then D's stages: 34 GPU jobs pending (B6's seed-1 selector and ablations added).
+  - **Done 05:19 Nov 25 on the CPU queue: B6's half-1 candidates scored** (`57b6half1`: 39,683 RL scenes, 277,781 paths in 45.5 min, 0 errors). **Out of fold (80,626 scenes, 101 drives), own pick:** B6 91.41 against A6 93.02 (-1.61, -1.85 to -1.37), B4 92.00 (-0.59, -0.91 to -0.24) and A4 90.34 (+1.07, +0.69 to +1.47); best of 7 94.97, level with B4 (-0.07) and A6 (-0.25). So out of fold A6 > B4 > B6 > A4 on the own pick, while navdev's deployed order is A4 88.09 > A6 87.57 > B6 86.74 > B4 85.30.
   - **Done 04:28 Nov 25: B6's half-1 path generator** (`470b6-60h1`, rc 0: trained in 62 min on 80 drives, RL6 6,000 updates on half 1's 40,943 RL scenes, 0 scorer errors). **On navdev 83.72.** With half 0's 83.07, the deployed B6 (86.74) sits **+3.35 (+2.74 to +4.56)** above the halves' mean: B6's deployed save is a navdev spike that its halves do not reproduce, as with A4 (+6.60), less so B4 (+1.38) and A6 (+1.49). Both runs kept twice with MODELS rows.
   - **Done 01:02 Nov 25 on the CPU queue: B6's half-0 candidates scored** (`57b6half0`: 40,943 RL scenes, 286,601 paths in 45.6 min, 0 errors). Own pick 91.01, best of 7 94.74, mean candidate 88.46; some candidate beats the own pick in 54.9% of scenes; the own pick fails NC or DAC in 1,452, and a candidate passes in 63.4% of those. On the same scenes: A4 90.34 / 93.59, B4 91.70 / 94.98, A6 92.59 / 94.89.
   - **Done 00:12 Nov 25: B6's half-0 path generator** (`470b6-60h0`, rc 0: trained in 62 min on 78 drives, RL6 6,000 updates on half 0's 39,683 RL scenes, 0 scorer errors). **On navdev 83.07** against the deployed B6's 86.74: deployed - half +3.67 (+2.96 to +4.88), wider than B4's (+2.06) or A6's halves, as expected when the deployed save is a navdev spike. Both runs kept twice with MODELS rows.
