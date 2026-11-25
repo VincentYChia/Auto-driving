@@ -4,18 +4,18 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 24 20:51, version 38: why the selectors find little after RL, with R14's gain by candidate spread and no-collision calibration per chain; B4's selector not adopted; B6 at 86.74, B4 at 85.30): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-24 20:51 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-24 22:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 20:51). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 24 22:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 20:51 Nov 24):
-  - **Running: B6's half-0 path generator** (`470b6-60h0`, since 19:56: the tuned configuration on drive half 0, then RL6 for 6,000 updates, about 5 h), then B6's half-1 generator, then C's and D's stages: 30 GPU jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 22:47 Nov 24):
+  - **Running: B6's half-0 path generator** (`470b6-60h0`, since 19:56: the tuned configuration on drive half 0, then RL6 for 6,000 updates, about 5 h; RL update 3,220 at 22:41), then B6's half-1 generator, then C's and D's stages: 30 GPU jobs pending.
   - **Done 19:56: B4's cross-fitted selector** (`470b4-620`, rc 0, 40.3 min); not adopted at 20:00 (below). Kept twice (all 21 weight files match) with its MODELS row.
   - **Done 19:15: B under RL6, round 2** (`47b6r2`, rc 0, to 10,000 updates). R11 chose `rl_6000` at 19:50 (below). Both rounds kept twice (3,706 MB, every file matches) with the MODELS row.
   - **Done 17:10 on the CPU queue: B4's half-1 candidates scored** (`57b4half1`: 39,683 RL scenes, 277,781 paths in 44.8 min, 0 errors). Both halves of B4's out-of-fold candidates are scored. **Out of fold (80,626 scenes, 101 drives), B4's half generators sit between A's:** own pick B4 92.00 against A4 90.34 (+1.66, +1.35 to +1.98) and A6 93.02 (-1.02, -1.33 to -0.73); best of 7 95.04, level with A6's 95.22 (-0.17, -0.40 to +0.03). On navdev the deployed generators rank the other way (A4 88.09, A6 87.57, B4 85.30).
@@ -80,7 +80,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - So the final system is about Fri Nov 27 17:00 if every stage stops after one round. R18 adds about 9.3 h for each extra round a contender takes (its full stage and both halves). Then each contender's navtest score.
   - After it: the in-fold controls, seed-1 selectors and ablations (about 36 h), then phase 2's follow-up runs (about 16 h). Phase 6 is not shortened (HEADS_PLAN, "Schedule risks"); quality over schedule.
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on 6c341e1 (navtest for every configuration) at 15:41; its first pass was OK, with no failed passes. Both queue runners are up.
-- **Anvil** (Nov 24 20:47): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 814 pending and 58 running jobs (15 nodes partly in use, 1 out of service); ai 488 and 37. Our wait statistics are unchanged: gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,056,183, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local). The Anvil autopilot (`~/xv/overnight.sh`, login07) ended by its time limit on Nov 23 08:39; its last action was Nov 19, since all path-generator scoring runs on the desktop, so it stays off (fewer desktop logins). A desktop hang would show in the 30-minute checks.
+- **Anvil** (Nov 24 22:47): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 823 pending and 57 running jobs (15 nodes partly in use, 1 out of service); ai 478 and 37. Our wait statistics are unchanged: gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,056,180, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local). The Anvil autopilot (`~/xv/overnight.sh`, login07) ended by its time limit on Nov 23 08:39; its last action was Nov 19, since all path-generator scoring runs on the desktop, so it stays off (fewer desktop logins). A desktop hang would show in the 30-minute checks.
 
 ## Latest results
 - **Why the selectors find nothing after RL: RL shrinks the candidates from metres to decimetres** (20:42; R14's registered measures "gain by candidate spread" and "calibration", in each selector's navdev report but not yet in the report page). Spread is the mean pairwise distance between the 7 candidates' end points, in quartiles of navdev's 743 scenes:
