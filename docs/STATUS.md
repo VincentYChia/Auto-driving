@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 24 14:11, version 36: RL6 lifts the B configuration RL4 destroyed, R18 round 2; R19 deploys B's phase-1 configuration for B4, 85.30; A6's selector adopted by a hair, A4's not): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 24 20:06, version 37: B4's selector not adopted, so after RL no selector has helped yet; B6 deploys RL6 update 6,000 at 86.74; R19's B4 at 85.30): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
 **Updated:** 2026-11-24 20:05 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
@@ -362,7 +362,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates [D]):
-1. **Now:** B4's decisive chain (half generators since 13:24, then their candidates on the CPU queue, then the cross-fitted selector and its adoption), with B under RL6, round 2 (R18, `47b6r2`) between the half generators and C's stages.
+1. **Now:** B6's decisive chain (half generators with RL6 for 6,000 updates, about 5 h each, since 19:56; then their candidates on the CPU queue, the cross-fitted selector and its adoption), then C's and D's full stages, each followed by its decisive chain.
 2. **Phase 6, per contender (eight: A, B, C and D, each under RL4 and RL6):** A4 is done (its selector not adopted) and A6 is at its selector; then B4's decisive chain, B6's full stage and chain, then C's and D's. Each contender gets its full RL stage from the tuned configuration (rounds of 5,000 updates while the last save is navdev's best, R18), then its decisive chain: two half generators with the same RL, their out-of-fold candidates scored, and the cross-fitted selector (R14).
 3. **The final system on navdev (R16)**, then one navtest score per contender (about Fri Nov 27 if every stage takes one round [D]). After it: the in-fold controls, seed-1 selectors and ablations, then phase 2's follow-up runs.
 4. **The report after each result** (the private link at the top of this page).
