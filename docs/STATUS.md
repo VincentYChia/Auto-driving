@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 25 07:38, version 39: C4 at 87.28 on a navdev plateau; B6's selector not adopted, so after RL four selectors out of four have not helped; why, by candidate spread): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-25 08:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-25 10:21 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 25 08:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 25 10:21). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 08:47 Nov 25):
-  - **Running: C4's half-0 path generator** (`470c4-60h0`, since 07:32 Nov 25: C's tuned configuration on drive half 0, then RL4 for 2,500 updates; training at 434 rows/s against about 690 for B's halves, so about 35 min slower. Measured at 08:47: the page cache (54 of 62 GB) no longer holds the stored features after C4's RL scoring filled it, the training reads 1.6 GB/s from disk, and memory stalls 23% of the time. Only our training process uses memory (7.9 GB); nothing to fix without root, and results are unaffected), then C4's half-1 generator, then C under RL6 (`47c6`), then D's stages: 35 GPU jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 10:21 Nov 25):
+  - **Running: C4's half-1 path generator** (`470c4-60h1`, since 10:09 Nov 25: C's tuned configuration on drive half 1, then RL4 for 2,500 updates; training disk-bound at about 434 rows/s, see below), and on the CPU queue C4's half-0 candidates (`57c4half0`, since 10:13). Then C under RL6 (`47c6`), then D's stages: 34 GPU jobs pending.
+  - **Done 10:09 Nov 25: C4's half-0 path generator** (`470c4-60h0`, rc 0: trained in 91 min on 78 drives at 434 rows/s, disk-bound because the page cache no longer holds the stored features; RL4 2,500 updates on half 0's 39,683 RL scenes, 0 scorer errors). **On navdev 82.68** against the deployed C4's 87.28: deployed - half +4.60 (+2.15 to +6.65), wide although C4's own navdev curve was a plateau; half 1 will show whether it holds. Both runs kept twice with MODELS rows.
   - **Done 07:32 Nov 25: B6's cross-fitted selector** (`470b6-620`, rc 0, 39.4 min of training); not adopted at 07:32 (below). Kept twice with its MODELS row.
   - **Done 06:52 Nov 25: C under RL4, full stage** (`47c4`, rc 0, 5,000 updates). R11 chose `rl_2500` at 07:27 (below). Kept twice (2,088 MB, every file matches) with its MODELS row.
   - **Done 05:19 Nov 25 on the CPU queue: B6's half-1 candidates scored** (`57b6half1`: 39,683 RL scenes, 277,781 paths in 45.5 min, 0 errors). **Out of fold (80,626 scenes, 101 drives), own pick:** B6 91.41 against A6 93.02 (-1.61, -1.85 to -1.37), B4 92.00 (-0.59, -0.91 to -0.24) and A4 90.34 (+1.07, +0.69 to +1.47); best of 7 94.97, level with B4 (-0.07) and A6 (-0.25). So out of fold A6 > B4 > B6 > A4 on the own pick, while navdev's deployed order is A4 88.09 > A6 87.57 > B6 86.74 > B4 85.30.
