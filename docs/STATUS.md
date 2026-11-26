@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 26 17:46, version 51: R16's final system is A4, navdev 88.09; D6's selector -2.16, the RL explanation's prediction holds; navtest scores to come about 19:50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 26 18:53, version 52: THE HEADLINE, the final system A4 scores 88.83 on navtest, +3.23 over H1's text output; the other contenders' navtest scores follow about 19:45): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
 **Updated:** 2026-11-26 18:48 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
