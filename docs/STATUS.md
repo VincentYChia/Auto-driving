@@ -422,6 +422,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - **Plain version:** your 2026-11-19 rules (two tiles, short findings text, no run names, no compute).
    - **Technical version:** the phase 1-4 navtest table, phase 6's eight contenders on navdev and navtest, the selector before and after RL, and R4's tests.
    - **Then** `pilot_sft/README.md`'s navtest table and `docs/GAPS.md` under its rule. The selector-after-RL finding is navdev only, so it cannot be filled there.
+7. **A prediction for D4's selector, written 08:26 Nov 26 before it trains** (reporting only; R14's adoption rule decides, as for every contender). After RL every selector failed, and the explanation so far is that RL draws the candidates together (end points within about 0.7 m in three quarters of navdev scenes). D4 has no RL and the widest candidates, so that explanation predicts [D]:
+   - D4's xfit-s0 gains more than the rehearsal's +1.35 on navdev;
+   - the gain sits mostly in navdev's top quartile of candidate spread.
+   If D4's selector does not gain, spread alone does not explain the failures after RL, and the selectors' over-predicted no-collision (0.993-0.997 against 0.974-0.979 true) becomes the lead explanation.
 ### Done so far (details, oldest first)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
 2. ~~Code: regression R as a configuration kind, with tests; queue its two phase-1 training runs.~~ **Done** (bb05104; jobs 380, 381 queued).
