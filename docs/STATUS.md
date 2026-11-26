@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 07:03, version 43: all eight generators chosen; D6 under RL6 at 82.65 where RL4 failed D; after RL six selectors out of six have not helped): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 07:04 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 07:13 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 06:57). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 07:13). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 06:57 Nov 26):
-  - **Running: D4's half-0 path generator** (`470d4-60h0`, since 06:18 Nov 26: D's phase-1 configuration on drive half 0, no RL as D4 deploys epoch 5 without it, then the out-of-fold candidates), then D4's half-1 generator. Then **D6's decisive chain** (`470d6-60h0`, `470d6-60h1`, queued 06:56: the tuned configuration on each half with RL6 for 3,000 updates), then D4's and D6's selectors and **R16's final system**: 47 GPU jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 07:12 Nov 26):
+  - **Running: D4's half-0 path generator** (`470d4-60h0`, since 06:18 Nov 26, at epoch 18.5 and 675 rows/s at 07:12: D's phase-1 configuration on drive half 0, no RL as D4 deploys epoch 5 without it, then the out-of-fold candidates), then D4's half-1 generator. Then **D6's decisive chain** (`470d6-60h0`, `470d6-60h1`, queued 06:56: the tuned configuration on each half with RL6 for 3,000 updates), then D4's and D6's selectors and **R16's final system**: 47 GPU jobs pending.
+  - **Fixed 07:12 Nov 26, before it could fail: R16's navtest step for an adopted selector** (276144a). The driver queued A6's selector on navtest as soon as A6's navtest paths existed, but `apply_selector.py --exp` reads every candidate's navtest score file and stops without them, so `final_navtest.json` would never have been written. The driver now scores the own pick and the K samples on navtest first (reporting R14's measures on navtest beside the headline); a test covers it, and the head suite passes (155, 2 skipped). The desktop has the code; the one-shot watcher restarts the driver after its next pass, never while scoring.
   - **Done 06:18 Nov 26: D under RL6, full stage, round 1, from the tuned configuration** (`47d6`, rc 0, 5,000 updates; training reward 0.89-0.91 throughout, NC 0.99, where RL4 had failed D). R11 chose `rl_3000` at 06:56 (below). Kept twice with its MODELS row.
   - **Done 03:38 Nov 26: D's phase-1 configuration under RL4, full stage** (R19, `47d4_rlfull4-d-l12-18-24`, rc 0). R11 kept the start and R19 deployed it for D4 at 04:15 (below). Kept twice (2,095 MB, every file matches) with its MODELS row.
   - **Done 00:40 Nov 26: C6's cross-fitted selector** (`470c6-620`, rc 0, 37.0 min of training); not adopted at 00:45 (below). Kept twice with its MODELS row.
