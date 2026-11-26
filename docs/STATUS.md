@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 16:35, version 50: D6's candidates out of fold, the highest best of 7; A4's controls; D4's selector +6.02 on navdev, adopted; all eight generators chosen): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 16:35 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 16:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 16:35). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 16:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 16:35 Nov 26):
-  - **Running on the GPU: A4's in-fold selector** (`48a4-622`, since 16:03 Nov 26, R14's control). **Next: D6's cross-fitted selector** (`470d6-620`, queued 16:25, first in the queue, about 16:43 to 17:23 [D]), then **R16's final system**. D6's seed-1 selector and ablations (`48d6-62*`, queued 16:25) sort after it. The CPU queue is idle.
+- **4090 desktop, GPU queue** (one job at a time; read 16:47 Nov 26):
+  - **Running: D6's cross-fitted selector** (`470d6-620`, since 16:44 Nov 26, at epoch 1.2 at 16:47; about 17:25 to finish [D]; R14 adopts it if its navdev gain is above 0). Then **R16's final system**: its navtest prediction jobs wait for the 48* job then running (A4's imitation selector). D6's seed-1 selector and ablations sort after them: 50 GPU jobs pending. The CPU queue is idle.
+  - **Done 16:44 Nov 26: A4's in-fold selector** (`48a4-622`, rc 0; R14's control, trained on the deployed A4's own candidates). **On navdev -0.21 (-0.70 to -0.01)**, switching in 4.8% of scenes. Like the cross-fitted ones (seed 0 -0.36, seed 1 -0.37, pdms -0.55, listwise 0.00), it does not help after RL.
   - **Done 16:24 Nov 26 on the CPU queue: D6's half-1 candidates scored** (`57d6half1`: 39,683 RL scenes, 277,781 paths, 0 errors). Own pick 89.37, best of 7 96.13, mean candidate 67.38. Some candidate beats the own pick in 51.2% of scenes; the own pick fails NC or DAC in 2,134, and a candidate passes in 84.2% of those.
     - **Out of fold (80,626 scenes, 101 drives), D6's best of 7 (96.13) is the highest of any chain.** It is level with C6's (C6 - D6 +0.10, -0.05 to +0.26) and 0.9 to 2.8 above every other chain and the rehearsal.
     - **Its own pick (89.29)** is below every RL chain (A4 +1.04, C4 +0.88, B6 +2.12, B4 +2.71, A6 +3.72, C6 +4.01, each interval excluding 0), above D4 (+6.06) and level with the rehearsal (-0.07, -0.56 to +0.39).
@@ -128,7 +129,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - So the final system is about Fri Nov 27 17:00 if every stage stops after one round. R18 adds about 9.3 h for each extra round a contender takes (its full stage and both halves). Then each contender's navtest score.
   - After it: the in-fold controls, seed-1 selectors and ablations (about 36 h), then phase 2's follow-up runs (about 16 h). Phase 6 is not shortened (HEADS_PLAN, "Schedule risks"); quality over schedule.
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on 6c341e1 (navtest for every configuration) at 15:41; its first pass was OK, with no failed passes. Both queue runners are up.
-- **Anvil** (Nov 26 14:47): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 895 pending and 48 running jobs (15 nodes mixed, 1 drained); ai 523 and 41. Our wait statistics are unchanged (no job since): gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,056,078.7, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local). The Anvil autopilot (`~/xv/overnight.sh`, login07) ended by its time limit on Nov 23 08:39 and stays off (fewer desktop logins); a desktop hang would show in the 30-minute checks.
+- **Anvil** (Nov 26 16:47): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 890 pending and 48 running jobs (15 nodes mixed, 1 drained); ai 532 and 41. Our wait statistics are unchanged (no job since): gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,056,078.7, GPU 1,370.7, AI 2,764.0. No desktop connections open (0 from Anvil, 0 control sockets, 0 local). The Anvil autopilot (`~/xv/overnight.sh`, login07) ended by its time limit on Nov 23 08:39 and stays off (fewer desktop logins); a desktop hang would show in the 30-minute checks.
 
 ## Latest results
 - **D6 decided: RL6 lifts D's tuned configuration from 76.57 to 82.65 on navdev** (06:56 Nov 26; R11's choice `rl_3000`, best-of-6 91.97; one round). By save: 500 78.48, 1,000 80.83, 1,500 80.53, 2,000 80.51, 2,500 80.83, **3,000 82.65**, 3,500 82.19, 4,000 82.53, 4,500 81.73, 5,000 81.79. RL4 failed D in both configurations; RL6, with its BC term, lifts it by about 6 points and keeps best-of-6 near 92.
