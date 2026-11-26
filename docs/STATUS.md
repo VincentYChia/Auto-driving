@@ -4,17 +4,17 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 10:56, version 47: D6's half-0 generator 79.97 on navdev; D4 out of fold, good candidates behind a weak own pick; all eight generators chosen): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 10:55 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 11:19 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 10:55). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 11:19). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 10:55 Nov 26):
+- **4090 desktop, GPU queue** (one job at a time; read 11:19 Nov 26):
   - **Running: D4's cross-fitted selector** (`470d4-620`, since 10:48 Nov 26: trained on both halves' out-of-fold candidates, then applied to D4's navdev candidates; R14 adopts it if its navdev gain is above 0; about 40 min [D]). Then D6's half-1 generator (`470d6-60h1`: training, then RL6 for 3,000 updates), D6's selector and **R16's final system**. D4's seed-1 selector and its ablations sort after them: 50 GPU jobs pending.
   - **Queued 10:53 on the CPU queue: D6's half-0 candidates scored** (`57d6half0`: half 1's 40,943 RL scenes, 7 paths each; about 46 min [D]).
   - **Done 10:48 Nov 26: D6's half-0 path generator** (`470d6-60h0`, rc 0: D's tuned configuration trained on 78 drives in 59 min, then RL6 for 3,000 updates on half 0's 39,683 RL scenes, the training reward rising from 0.866 (updates 1-250) to 0.899 (updates 2,001-2,062, the last block read) with NC 0.985-0.987; out-of-fold candidates for half 1's 40,943 RL scenes). **On navdev 79.97 (77.28 to 83.70)** against the deployed D6's 82.65: deployed - half **+2.68 (+0.57 to +4.77)**. Other RL6 half 0s: C6 +1.37, B6 +3.67; A6's two halves averaged +1.49. Both runs kept twice (the RL run 1,525 MB, every file matches) with MODELS rows.
@@ -417,7 +417,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates [D]):
-1. **Now:** D4's decisive chain (half generators without RL since 06:18 Nov 26, candidates, the cross-fitted selector), then D6's (half generators with RL6 for 3,000 updates); then R16's final system on navdev and one navtest score per contender (the driver queues them).
+1. **Now:** D4's cross-fitted selector (epoch 13.4 of 20 at 11:18; its navdev result about 11:35 [D]) and D6's half-0 candidates on the CPU queue (19,264 of 40,943 scenes at 11:18). Then D6's half-1 generator (about 1 h of training and 1.6 h of RL6, so about 14:15 [D]), its candidates (about 15:00 [D]) and D6's selector (about 16:20 [D], a 48* job may run first). Then R16 chooses the final system on navdev and queues one navtest score per contender: 8 prediction jobs, then 15 scorings at a mean 221 s each (367 past navtest scorings, at most 301 s). **The headline lands about 18:00 Thu [D].**
 2. **Phase 6, per contender (eight: A, B, C and D, each under RL4 and RL6):** all eight full RL stages are done and every generator is chosen (navdev single path: A4 88.09, A6 87.57, C6 87.43, C4 87.28, B6 86.74, B4 85.30, D6 82.65, D4 77.10). Six decisive chains are done (only A6's selector adopted); D4's and D6's remain. Each chain: two half generators with the contender's RL, their out-of-fold candidates scored on the CPU queue, and the cross-fitted selector (R14).
 3. **The final system on navdev (R16)**, then one navtest score per contender (about Fri Nov 27 if every stage takes one round [D]). After it: the in-fold controls, seed-1 selectors and ablations, then phase 2's follow-up runs.
 4. **The report after each result** (the private link at the top of this page).
