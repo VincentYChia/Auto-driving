@@ -4,18 +4,24 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 16:35, version 50: D6's candidates out of fold, the highest best of 7; A4's controls; D4's selector +6.02 on navdev, adopted; all eight generators chosen): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 16:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 17:38 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 16:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 17:38). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 16:47 Nov 26):
-  - **Running: D6's cross-fitted selector** (`470d6-620`, since 16:44 Nov 26, at epoch 1.2 at 16:47; about 17:25 to finish [D]; R14 adopts it if its navdev gain is above 0). Then **R16's final system**: its navtest prediction jobs wait for the 48* job then running (A4's imitation selector). D6's seed-1 selector and ablations sort after them: 50 GPU jobs pending. The CPU queue is idle.
+- **4090 desktop, GPU queue** (one job at a time; read 17:38 Nov 26):
+  - **Running: A4's imitation selector** (`48a4-625`, since 17:27 Nov 26, R14's ablation). **R16's final system** comes in the driver's pass after D6's adoption file; its navtest prediction jobs then run first, after this job.
+  - **Done 17:27 Nov 26: D6's cross-fitted selector, not adopted** (`470d6-620`, rc 0). **On navdev the selected path scores 80.48 against the own pick's 82.65: -2.16 (-3.95 to -1.32).**
+    - It moves away from the best of 7 (92.20), closing -23% of the gap. It switches in 46% of scenes (146 wins, 141 losses, 56 ties).
+    - Its picks fail NC or DAC more often than the own pick (85 against 69).
+    - Every navdev quartile of candidate spread loses: 1.6-3.9 m -1.97, 3.9-4.9 m -2.48, 4.9-6.6 m -0.88, 6.6-14.4 m -3.32. D6's candidates are as spread out as D4's (1.5-14.8 m).
+    - Every sub-score is over-predicted: NC 0.915 against 0.888 true, DAC 0.802 against 0.757, TTC 0.858 against 0.818, EP 0.842 against 0.562, comfort 0.960 against 0.864.
+    - **The prediction written before it trained (Next, item 8):** the spread explanation predicted a gain, and it fails. The RL explanation predicted a failure with NC over-predicted by more than D4's 0.013, and it holds: 0.027, twice D4's. So spread alone does not make a selector work after RL; the selectors' miscalibration after RL is the lead explanation. That rests on one chain.
   - **Done 16:44 Nov 26: A4's in-fold selector** (`48a4-622`, rc 0; R14's control, trained on the deployed A4's own candidates). **On navdev -0.21 (-0.70 to -0.01)**, switching in 4.8% of scenes. Like the cross-fitted ones (seed 0 -0.36, seed 1 -0.37, pdms -0.55, listwise 0.00), it does not help after RL.
   - **Done 16:24 Nov 26 on the CPU queue: D6's half-1 candidates scored** (`57d6half1`: 39,683 RL scenes, 277,781 paths, 0 errors). Own pick 89.37, best of 7 96.13, mean candidate 67.38. Some candidate beats the own pick in 51.2% of scenes; the own pick fails NC or DAC in 2,134, and a candidate passes in 84.2% of those.
     - **Out of fold (80,626 scenes, 101 drives), D6's best of 7 (96.13) is the highest of any chain.** It is level with C6's (C6 - D6 +0.10, -0.05 to +0.26) and 0.9 to 2.8 above every other chain and the rehearsal.
@@ -453,7 +459,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - D4's xfit-s0 gains more than the rehearsal's +1.35 on navdev;
    - the gain sits mostly in navdev's top quartile of candidate spread.
    If D4's selector does not gain, spread alone does not explain the failures after RL, and the selectors' over-predicted no-collision (0.993-0.997 against 0.974-0.979 true) becomes the lead explanation.
-8. **A prediction for D6's selector, written 11:56 Nov 26 before it trains** (reporting only; R14 decides). D6 has RL6, but its candidates stay spread out: on half 1's RL scenes the mean candidate is 69.28 against an own pick of 89.22, and the best of 7 is 96.12. Two explanations remain for the six failures after RL, and they predict differently here [D]:
+8. **A prediction for D6's selector, written 11:56 Nov 26 before it trains** (outcome 17:27: the spread prediction fails, -2.16; the RL prediction holds, NC over-predicted by 0.027; see Running now) (reporting only; R14 decides). D6 has RL6, but its candidates stay spread out: on half 1's RL scenes the mean candidate is 69.28 against an own pick of 89.22, and the best of 7 is 96.12. Two explanations remain for the six failures after RL, and they predict differently here [D]:
    - *Spread:* RL drew those chains' candidates together, so there was little to choose. Then D6's selector gains on navdev (point estimate above 0).
    - *RL itself:* after RL, selectors over-predict no-collision. Then D6's selector fails like the others, and its no-collision estimate is over-predicted (above the true rate by more than D4's 0.013).
    Both can hold at once; D6's no-collision calibration and gain are reported side by side.

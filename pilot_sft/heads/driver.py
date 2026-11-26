@@ -1244,7 +1244,8 @@ def system_scores(x: str, spec: dict, adopted: bool) -> Optional[pd.Series]:
     if not os.path.exists(f):
         return None
     rows = [json.loads(line) for line in open(f, encoding="utf-8") if line.strip()]
-    return pd.Series({r["token"]: r["true_chosen"] for r in rows}, dtype=float)
+    # the selection covers every dev scene (2,000); only NAVSIM's scored navdev scenes (743) carry true scores
+    return pd.Series({r["token"]: r["true_chosen"] for r in rows if "true_chosen" in r}, dtype=float)
 
 
 def final_system(status: dict) -> None:

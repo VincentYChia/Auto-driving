@@ -429,7 +429,9 @@ def test_the_final_system_is_chosen_on_navdev_before_any_navtest_score(tree, mon
         if val is not None:
             d = H / f"selector-{x.lower()}-xfit-s0" / "navdev"
             d.mkdir(parents=True)
-            (d / "selection.jsonl").write_text("".join(json.dumps({"token": t, "true_chosen": val}) + "\n" for t in TOKENS))
+            (d / "selection.jsonl").write_text("".join(json.dumps({"token": t, "true_chosen": val}) + "\n" for t in TOKENS)
+                                               + json.dumps({"token": "unscored-dev-scene", "chosen": 0}) + "\n")
+            # a dev scene outside NAVSIM's navdev filter has a selected path but no true score (the 2026-11-26 KeyError)
     status = {}
     driver.final_system(status)
     fs = json.loads((choices / "final_system.json").read_text())
