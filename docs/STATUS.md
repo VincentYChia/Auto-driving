@@ -4,14 +4,14 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 08:26, version 45: D4's half generators 72.51 and 72.01, its candidates with the most headroom of any chain (own pick 82.04, best of 7 94.60); all eight generators chosen): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 08:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 08:51 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 08:49). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 08:51). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time; read 08:49 Nov 26):
@@ -421,6 +421,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - **Comparison:** other top studies after RL, kept apart from scores that add test-time extras. These are self-reported [R]: AutoVLA 3B 89.1; SpanVLA 3B 90.8; ReCogDrive 8B 90.8; DriveFine 8B 90.7, with a refiner; WAM-Diff 8.4B 91.0, with guidance and MoE. WAM-Diff2 2B scores 88.3 without RL, 91.1 with selection.
    - **Plain version:** your 2026-11-19 rules (two tiles, short findings text, no run names, no compute).
    - **Technical version:** the phase 1-4 navtest table, phase 6's eight contenders on navdev and navtest, the selector before and after RL, and R4's tests.
+   - **Progress (08:51 Nov 26):** the technical version's new section is drafted locally. It has Table 4 (each method before and after RL, navtest), Table 5 (R4's tests) and Table 6 (the eight contenders: navdev single path, selector gain, system path). Two paragraphs cover which method and how continuous, then RL4 against RL6 and the selector. R16's navtest cells and D4's and D6's selectors are left open until their numbers land.
    - **Then** `pilot_sft/README.md`'s navtest table and `docs/GAPS.md` under its rule. The selector-after-RL finding is navdev only, so it cannot be filled there.
 7. **A prediction for D4's selector, written 08:26 Nov 26 before it trains** (reporting only; R14's adoption rule decides, as for every contender). After RL every selector failed, and the explanation so far is that RL draws the candidates together (end points within about 0.7 m in three quarters of navdev scenes). D4 has no RL and the widest candidates, so that explanation predicts [D]:
    - D4's xfit-s0 gains more than the rehearsal's +1.35 on navdev;
