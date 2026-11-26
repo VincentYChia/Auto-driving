@@ -439,6 +439,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - D4's xfit-s0 gains more than the rehearsal's +1.35 on navdev;
    - the gain sits mostly in navdev's top quartile of candidate spread.
    If D4's selector does not gain, spread alone does not explain the failures after RL, and the selectors' over-predicted no-collision (0.993-0.997 against 0.974-0.979 true) becomes the lead explanation.
+8. **A prediction for D6's selector, written 11:56 Nov 26 before it trains** (reporting only; R14 decides). D6 has RL6, but its candidates stay spread out: on half 1's RL scenes the mean candidate is 69.28 against an own pick of 89.22, and the best of 7 is 96.12. Two explanations remain for the six failures after RL, and they predict differently here [D]:
+   - *Spread:* RL drew those chains' candidates together, so there was little to choose. Then D6's selector gains on navdev (point estimate above 0).
+   - *RL itself:* after RL, selectors over-predict no-collision. Then D6's selector fails like the others, and its no-collision estimate is over-predicted (above the true rate by more than D4's 0.013).
+   Both can hold at once; D6's no-collision calibration and gain are reported side by side.
 
 ### Done so far (details, oldest first)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
