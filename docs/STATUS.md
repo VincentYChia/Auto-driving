@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 25 15:30, version 40: C6 decided at 87.43 and C4's selector not adopted, so after RL five selectors out of five have not helped; the system paths so far): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-25 21:51 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-25 22:18 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 25 21:51). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 25 22:18). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 21:51 Nov 25):
-  - **Running: D under RL4, full stage** (`47d4`, since 21:20 Nov 25: D's tuned configuration `d-r153`, anchor truncation 0.1 with one generation step, 5,000 updates in R18's rounds; R19 applies if R11 keeps its start), and on the CPU queue C6's half-1 candidates (`57c6half1`, since 21:25). C6's selector is queued once they are scored and runs after D's stage; then D under RL6: 38 GPU jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 22:18 Nov 25):
+  - **Running: D under RL4, full stage** (`47d4`, since 21:20 Nov 25: D's tuned configuration `d-r153`, anchor truncation 0.1 with one generation step, 5,000 updates in R18's rounds; R19 applies if R11 keeps its start). **Its training reward held at 0.86-0.88 for 1,000 updates, then fell** (per 100 updates: 0.808, 0.722, 0.661, 0.731, 0.672, 0.631 to update 1,552 at 22:18): RL4's long-run instability again, as for B. Then **C6's cross-fitted selector** (`470c6-620`, queued 22:15), then D under RL6: 43 GPU jobs pending.
+  - **Done 22:11 Nov 25 on the CPU queue: C6's half-1 candidates scored** (`57c6half1`, rc 0). Both halves of C6's out-of-fold candidates are scored.
   - **Done 21:20 Nov 25: C6's half-1 path generator** (`470c6-60h1`, rc 0: trained in 55 min on 80 drives, RL6 4,500 updates on half 1's 40,943 RL scenes, 0 scorer errors). **On navdev 85.24.** With half 0's 86.06, the deployed C6 (87.43) sits **+1.78 (-0.76 to +3.21)** above the halves' mean: RL6's half generators reproduce the deployed one for both A6 (+1.49) and C6. Both runs kept twice with MODELS rows.
   - **Done 19:10 Nov 25 on the CPU queue: C6's half-0 candidates scored** (`57c6half0`: 40,943 RL scenes, 286,601 paths in 45.8 min, 0 errors). **Own pick 92.92, the highest of any chain on these scenes** (A6 92.59, B4 91.70, B6 91.01, A4 90.34, C4 90.29); best of 7 95.88, also the highest; some candidate beats the own pick in 56.0% of scenes; the own pick fails NC or DAC in only 690 scenes, and a candidate passes in 71.3% of those.
   - **Done 18:23 Nov 25: C6's half-0 path generator** (`470c6-60h0`, rc 0: trained in 63 min on 78 drives, RL6 4,500 updates on half 0's 39,683 RL scenes, 0 scorer errors). **On navdev 86.06** against the deployed C6's 87.43: deployed - half +1.37 (-1.76 to +3.05). RL6's half generators reproduce their deployed one (A6 +1.49, C6 half 0 +1.37), RL4's at a navdev-chosen update do not (A4 +6.60, C4 +6.23; B4 +1.38 stopped at 1,000 updates, before RL4's swings). Both runs kept twice with MODELS rows.
