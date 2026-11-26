@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 14:26, version 49: D6's half generators 79.97 and 77.92; D4's selector +6.02 on navdev, adopted; all eight generators chosen): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 15:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 16:20 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 15:49). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 16:20). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 15:49 Nov 26):
-  - **Running on the GPU: R14's controls for A4** (the xfit-listwise selector since 15:23 Nov 26; then the in-fold selector, queued 15:45, imitation and boundary). **On the CPU queue: D6's half-1 candidates scored** (`57d6half1`, since 15:40, 6,464 of 39,683 scenes at 15:48, about 16:23 to finish [D]). Then D6's selector, after the 48* job then on the GPU, and **R16's final system**: 46 GPU jobs pending.
+- **4090 desktop, GPU queue** (one job at a time; read 16:20 Nov 26):
+  - **Running on the GPU: R14's controls for A4** (the in-fold selector since 16:03 Nov 26; then imitation and boundary). **On the CPU queue: D6's half-1 candidates scored** (`57d6half1`, since 15:40, 32,064 of 39,683 scenes at 16:18, about 16:27 to finish [D]). Then D6's selector, after the in-fold selector (about 16:43 to 17:23 [D]), and **R16's final system**: 45 GPU jobs pending.
+  - **Done 16:03 Nov 26: A4's xfit-listwise selector** (`48a4-624`, rc 0; R14's ablation with a listwise loss). **On navdev 0.00 (-0.16 to +0.08)**: it switches in only 7.7% of scenes, so it keeps the own pick. A4's xfit-pdms (-0.55) and listwise selectors are kept twice (634 and 636 MB) with MODELS rows.
   - **Done 15:40 Nov 26 on the CPU queue: A4's in-fold candidates scored** (`57a4infold`: the deployed A4's own candidates on all 80,626 RL scenes it trained on, 564,382 paths in 90.6 min, 0 errors). It is R14's in-fold control (reported, decides nothing).
   - **Done 15:23 Nov 26: A4's xfit-pdms selector** (`48a4-623`, rc 0; R14's ablation that predicts PDMS alone, not its sub-scores). **On navdev -0.55 (-1.38 to +0.23)**, switching in 33.8% of scenes: like seed 0 (-0.36) and seed 1 (-0.37), no gain after RL.
   - **Done 14:45 Nov 26: A4's seed-1 selector** (`48a4-621`, rc 0, 37.6 min of training; R14's second seed, reported only). **On navdev -0.37 (-1.41 to +0.55), as seed 0's -0.36 (-1.07 to +0.53):** A4's selector failure holds across the selector's seed. Kept twice (636 MB) with its MODELS row.
