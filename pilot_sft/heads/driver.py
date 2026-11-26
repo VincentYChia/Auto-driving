@@ -1306,6 +1306,11 @@ def final_system(status: dict) -> None:
             continue
         paths = os.path.join(test, f"steps{spec['steps']}")
         if adopted:
+            # apply_selector.py --exp reads every candidate's NAVSIM score file (R14's measures on navtest, reported
+            # beside the headline) and stops without them, so the own pick and the K samples are scored first
+            cands = [os.path.join(paths, "single")] + sample_folders(paths, spec["scale"], spec["k"])
+            if any(score(f, "navtest") is None for f in cands):
+                continue
             sel = os.path.join(H, f"selector-{x.lower()}-xfit-s0", "navtest")
             queue_job(f"350_navtest-selector-{x.lower()}", f"phase 6 (R16): contender {x}'s selector on navtest, once",
                       f"taskset -c 16-31 $PY pilot_sft/heads/apply_selector.py --selector "

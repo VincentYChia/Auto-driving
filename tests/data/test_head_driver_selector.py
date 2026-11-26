@@ -440,18 +440,30 @@ def test_the_final_system_is_chosen_on_navdev_before_any_navtest_score(tree, mon
     assert "--k 6 --scales 1" in (Path(driver.P["queue"]) / "350_navtest-gen-a4-rl_2500.sh").read_text()  # candidates
     assert "--k 0" in (Path(driver.P["queue"]) / "350_navtest-gen-a6-rl_2500.sh").read_text()  # own pick only
 
-    # navtest paths written: the adopted selectors are applied once, then every system path is scored once
+    # navtest paths written: an adopted selector is applied once its candidates are scored on navtest (it reads their
+    # score files), then every system path is scored once
     for x in adopted:
         t = H / f"gen-{x.lower()}" / "navtest_rl_2500"
         (t / "steps2" / "single").mkdir(parents=True)
         (t / "timing.json").write_text("{}")
+    asked = []
+    monkeypatch.setattr(driver, "score", lambda folder, split: asked.append(os.path.relpath(folder, H)) or (
+        pd.Series([0.9] * 3) if "sample_5" not in folder else None))  # the last candidate is not scorable yet
+    driver.final_system(status)
+    assert not {"350_navtest-selector-a4.sh", "350_navtest-selector-d4.sh"} & set(os.listdir(driver.P["queue"]))
+    cand = os.path.join("gen-a4", "navtest_rl_2500", "steps2")
+    assert [a for a in asked if a.startswith("gen-a4")] == [os.path.join(cand, n)
+                                                            for n in ["single"] + [f"sample_{j}" for j in range(6)]]
+    monkeypatch.setattr(driver, "score", lambda folder, split: pd.Series([0.9] * 3))
     driver.final_system(status)
     assert {"350_navtest-selector-a4.sh", "350_navtest-selector-d4.sh"} <= set(os.listdir(driver.P["queue"]))
+    assert "--exp" in (Path(driver.P["queue"]) / "350_navtest-selector-a4.sh").read_text()
     for x in ("a4", "d4"):
         sel = H / f"selector-{x}-xfit-s0" / "navtest"
         (sel / "selected").mkdir(parents=True)
         (sel / "report.json").write_text("{}")
-    got = {"selector-a4": 0.91, "selector-d4": 0.9, "gen-a6": 0.86, "gen-d6": 0.84}
+    got = {"selector-a4": 0.91, "selector-d4": 0.9, "gen-a6": 0.86, "gen-d6": 0.84,
+           "gen-a4": 0.88, "gen-d4": 0.87}  # the adopted contenders' candidates, already scored
     monkeypatch.setattr(driver, "score", lambda folder, split: pd.Series(
         [next(v for k, v in got.items() if k in folder)] * 3) if split == "navtest" else None)
     driver.final_system(status)
