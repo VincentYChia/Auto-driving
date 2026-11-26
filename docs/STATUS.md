@@ -2,9 +2,9 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 26 04:21, version 42: RL4 fails D, so D4 deploys D without RL; seven contenders' system paths; after RL six selectors out of six have not helped): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 26 07:03, version 43: all eight generators chosen; D6 under RL6 at 82.65 where RL4 failed D; after RL six selectors out of six have not helped): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 06:57 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 07:04 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -406,7 +406,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates [D]):
 1. **Now:** D4's decisive chain (half generators without RL since 06:18 Nov 26, candidates, the cross-fitted selector), then D6's (half generators with RL6 for 3,000 updates); then R16's final system on navdev and one navtest score per contender (the driver queues them).
-2. **Phase 6, per contender (eight: A, B, C and D, each under RL4 and RL6):** A4 is done (its selector not adopted) and A6 is at its selector; then B4's decisive chain, B6's full stage and chain, then C's and D's. Each contender gets its full RL stage from the tuned configuration (rounds of 5,000 updates while the last save is navdev's best, R18), then its decisive chain: two half generators with the same RL, their out-of-fold candidates scored, and the cross-fitted selector (R14).
+2. **Phase 6, per contender (eight: A, B, C and D, each under RL4 and RL6):** all eight full RL stages are done and every generator is chosen (navdev single path: A4 88.09, A6 87.57, C6 87.43, C4 87.28, B6 86.74, B4 85.30, D6 82.65, D4 77.10). Six decisive chains are done (only A6's selector adopted); D4's and D6's remain. Each chain: two half generators with the contender's RL, their out-of-fold candidates scored on the CPU queue, and the cross-fitted selector (R14).
 3. **The final system on navdev (R16)**, then one navtest score per contender (about Fri Nov 27 if every stage takes one round [D]). After it: the in-fold controls, seed-1 selectors and ablations, then phase 2's follow-up runs.
 4. **The report after each result** (the private link at the top of this page).
 5. **A 20 s replay page for each new best** (your standing rule). A after RL4, seed 1 (89.05) has its page since 12:55 (above). A later run that beats it gets one within the hour: `scripts/desk/replay_head_predict.sh`, then `scripts/anvil/helpers/run_replay_v2_head.sh`. Local only (nuPlan images).
