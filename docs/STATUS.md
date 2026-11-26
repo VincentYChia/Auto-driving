@@ -4,18 +4,22 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 16:35, version 50: D6's candidates out of fold, the highest best of 7; A4's controls; D4's selector +6.02 on navdev, adopted; all eight generators chosen): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 17:38 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 17:41 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 17:38). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 17:41). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 17:38 Nov 26):
-  - **Running: A4's imitation selector** (`48a4-625`, since 17:27 Nov 26, R14's ablation). **R16's final system** comes in the driver's pass after D6's adoption file; its navtest prediction jobs then run first, after this job.
+- **4090 desktop, GPU queue** (one job at a time; read 17:41 Nov 26):
+  - **Running: A4's imitation selector** (`48a4-625`, since 17:27 Nov 26). **Next on the GPU: R16's eight navtest prediction jobs** (`350_navtest-*`, queued 17:40, first in the queue, from about 18:05 [D]). The driver scores each on navtest as it lands, A6's and D4's 7 candidates each too, then applies their selectors once. **The headline lands about 19:50 [D].**
+  - **Decided 17:40 Nov 26: R16's final system is A4** (`a3-l12-18-24-rlfull4` at rl_2500): masked diffusion in configuration A3, RL4 for 2,500 updates, its own pick (A4's selector was not adopted). By navdev system path (the point estimate, R16): A4 88.09, A6 87.70 (selected), C6 87.43, C4 87.28, B6 86.74, B4 85.30, D4 83.13 (selected), D6 82.65.
+    - Final minus each, navdev: A6 +0.39 (-0.87 to +1.52), C6 +0.66 (-1.34 to +4.02), C4 +0.81 (-1.65 to +2.30), B6 +1.35 (-0.94 to +2.68), B4 +2.79 (-0.34 to +5.25), D4 +4.96 (+3.39 to +7.34), D6 +5.44 (+2.68 to +6.92).
+    - So on navdev A4 is clearly above only D's two contenders. A, B and C under either recipe cannot be told apart from it. R16 chooses by the point estimate and reports these intervals.
+  - **Fixed 17:40 Nov 26: R16's choice had failed once** (f1904a3). At 17:30, the first pass with all eight adoption files, the driver stopped with `KeyError: 'true_chosen'`. An adopted selector's navdev selection lists all 2,000 dev scenes, but only NAVSIM's 743 scored scenes carry true scores. My unit test had given every row one. The driver now reads only the scored scenes; a regression test reproduces the error and passes with the fix (16 of 16). The driver restarted on f1904a3 at 17:40 between passes and chose at once. The delay was 10 minutes.
   - **Done 17:27 Nov 26: D6's cross-fitted selector, not adopted** (`470d6-620`, rc 0). **On navdev the selected path scores 80.48 against the own pick's 82.65: -2.16 (-3.95 to -1.32).**
     - It moves away from the best of 7 (92.20), closing -23% of the gap. It switches in 46% of scenes (146 wins, 141 losses, 56 ties).
     - Its picks fail NC or DAC more often than the own pick (85 against 69).
@@ -440,7 +444,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates [D]):
-1. **Now:** D6's cross-fitted selector (first in the GPU queue, after A4's in-fold selector: about 16:43 to 17:23 [D]). Then R16 chooses the final system on navdev and queues one navtest score per contender; its prediction jobs wait for the 48* job then running. A6's and D4's selectors are adopted, so their 7 candidates each are scored on navtest too: 8 prediction jobs, then about 22 scorings at a mean 221 s (367 past navtest scorings, at most 301 s). **The headline lands about 19:30 Thu [D].**
+1. **Now:** R16's navtest scores. Eight prediction jobs run first on the GPU (from about 18:05 [D]). Then about 22 navtest scorings at a mean 221 s, with A6's and D4's selectors applied once. **The final system A4's navtest score is the headline, about 19:50 Thu [D]**, with every contender's beside it. Then the report, `pilot_sft/README.md`, the final report (item 6) and, if A4 beats 89.05 on navtest, its 20 s replay page within the hour (item 5).
 2. **Phase 6, per contender (eight: A, B, C and D, each under RL4 and RL6):** all eight full RL stages are done and every generator is chosen (navdev single path: A4 88.09, A6 87.57, C6 87.43, C4 87.28, B6 86.74, B4 85.30, D6 82.65, D4 77.10). Six decisive chains are done (only A6's selector adopted); D4's and D6's remain. Each chain: two half generators with the contender's RL, their out-of-fold candidates scored on the CPU queue, and the cross-fitted selector (R14).
 3. **The final system on navdev (R16)**, then one navtest score per contender (about Fri Nov 27 if every stage takes one round [D]). After it: the in-fold controls, seed-1 selectors and ablations, then phase 2's follow-up runs.
 4. **The report after each result** (the private link at the top of this page).
