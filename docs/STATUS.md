@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 26 16:35, version 50: D6's candidates out of fold, the highest best of 7; A4's controls; D4's selector +6.02 on navdev, adopted; all eight generators chosen): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 26 17:46, version 51: R16's final system is A4, navdev 88.09; D6's selector -2.16, the RL explanation's prediction holds; navtest scores to come about 19:50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
 **Updated:** 2026-11-26 17:41 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
@@ -25,6 +25,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - Its picks fail NC or DAC more often than the own pick (85 against 69).
     - Every navdev quartile of candidate spread loses: 1.6-3.9 m -1.97, 3.9-4.9 m -2.48, 4.9-6.6 m -0.88, 6.6-14.4 m -3.32. D6's candidates are as spread out as D4's (1.5-14.8 m).
     - Every sub-score is over-predicted: NC 0.915 against 0.888 true, DAC 0.802 against 0.757, TTC 0.858 against 0.818, EP 0.842 against 0.562, comfort 0.960 against 0.864.
+    - D6's selector (636 MB) and A4's in-fold selector are kept twice with MODELS rows.
     - **The prediction written before it trained (Next, item 8):** the spread explanation predicted a gain, and it fails. The RL explanation predicted a failure with NC over-predicted by more than D4's 0.013, and it holds: 0.027, twice D4's. So spread alone does not make a selector work after RL; the selectors' miscalibration after RL is the lead explanation. That rests on one chain.
   - **Done 16:44 Nov 26: A4's in-fold selector** (`48a4-622`, rc 0; R14's control, trained on the deployed A4's own candidates). **On navdev -0.21 (-0.70 to -0.01)**, switching in 4.8% of scenes. Like the cross-fitted ones (seed 0 -0.36, seed 1 -0.37, pdms -0.55, listwise 0.00), it does not help after RL.
   - **Done 16:24 Nov 26 on the CPU queue: D6's half-1 candidates scored** (`57d6half1`: 39,683 RL scenes, 277,781 paths, 0 errors). Own pick 89.37, best of 7 96.13, mean candidate 67.38. Some candidate beats the own pick in 51.2% of scenes; the own pick fails NC or DAC in 2,134, and a candidate passes in 84.2% of those.
