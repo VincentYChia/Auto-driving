@@ -426,6 +426,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - D4's xfit-s0 gains more than the rehearsal's +1.35 on navdev;
    - the gain sits mostly in navdev's top quartile of candidate spread.
    If D4's selector does not gain, spread alone does not explain the failures after RL, and the selectors' over-predicted no-collision (0.993-0.997 against 0.974-0.979 true) becomes the lead explanation.
+
 ### Done so far (details, oldest first)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).
 2. ~~Code: regression R as a configuration kind, with tests; queue its two phase-1 training runs.~~ **Done** (bb05104; jobs 380, 381 queued).
