@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 11:56, version 48: D4's selector +6.02 on navdev, adopted, the first since the rehearsal to help; D6's half-0 candidates with the highest best of 7; all eight generators chosen): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 12:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 13:06 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -430,7 +430,10 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 5. **A 20 s replay page for each new best** (your standing rule). A after RL4, seed 1 (89.05) has its page since 12:55 (above). A later run that beats it gets one within the hour: `scripts/desk/replay_head_predict.sh`, then `scripts/anvil/helpers/run_replay_v2_head.sh`. Local only (nuPlan images).
 6. **The final report for Mon Nov 30** (plan written 07:51 Nov 26, before R16's numbers). Both files are updated in place in `navsim_demo_renders/`, with their PDFs; they still headline H1's 85.6 without RL.
    - **Headline:** the final system's navtest score (R16), with its drive interval and its difference from H1's text output.
-   - **Comparison:** other top studies after RL, kept apart from scores that add test-time extras. These are self-reported [R]: AutoVLA 3B 89.1; SpanVLA 3B 90.8; ReCogDrive 8B 90.8; DriveFine 8B 90.7, with a refiner; WAM-Diff 8.4B 91.0, with guidance and MoE. WAM-Diff2 2B scores 88.3 without RL, 91.1 with selection.
+   - **Comparison** (verified 13:06 Nov 26 in the papers' own tables, `docs/research/heads/notes/rivals_after_rl_2026-11-26.md`): other top studies after RL, one sample, no test-time extras [V]:
+     - AdaThinkDrive 8B 90.3; Curious-VLA 3B 90.3; SpanVLA 3B 90.8; AutoVLA 3B 89.1;
+     - DriveFine about 9B 89.6 without refinement; ReCogDrive 90.8, model size not stated (README: 2B; 8B 90.4 [R]).
+     Scores with test-time extras are shown apart: WAM-Diff 91.0 with guidance; WAM-Diff2 91.1 and ReflectDrive 91.1 with selection; DriveVLA-W0 90.2 with anchors.
    - **Plain version:** your 2026-11-19 rules (two tiles, short findings text, no run names, no compute).
    - **Technical version:** the phase 1-4 navtest table, phase 6's eight contenders on navdev and navtest, the selector before and after RL, and R4's tests.
    - **Progress (08:51 Nov 26):** the technical version's new section is drafted locally. It has Table 4 (each method before and after RL, navtest), Table 5 (R4's tests) and Table 6 (the eight contenders: navdev single path, selector gain, system path). Two paragraphs cover which method and how continuous, then RL4 against RL6 and the selector. R16's navtest cells and D4's and D6's selectors are left open until their numbers land.

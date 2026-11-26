@@ -188,6 +188,19 @@ A collaborator named these four as the strongest work in this space. All scores 
 
 In these papers RL adds about 3–5 points (D).
 
+**Checked against the papers' own tables, 2026-11-26 (V):** `docs/research/heads/notes/rivals_after_rl_2026-11-26.md`. **After RL, one sample, no test-time extras:**
+- AdaThinkDrive (8B, 1 camera) 90.3; Curious-VLA (3B, 1 camera) 90.3.
+- SpanVLA (3B, 3 cameras × 4 frames) 90.8 (v2; v1 90.3); AutoVLA (3B, 3 cameras × 4 frames) 89.1.
+- DriveFine (about 9B) 89.6 without its refinement pass.
+- ReCogDrive 90.8 (v2). The paper does not name the size; the authors' README gives 90.8 for the 2B model and 90.4 for the 8B [R].
+- WAM-Diff reports no number after RL without guidance. WAM-Diff2, DriveVLA-W0 and ReflectDrive have no RL stage.
+
+**Corrections to the list above:**
+- WAM-Diff's 82.3 already includes its reverse-causal decoding order; with nothing added it scores 80.3.
+- ReflectDrive's 84.8 already has CFG on.
+- DriveFine's 90.7 includes a refinement pass.
+- ReCogDrive's plain SFT baseline is 82.4 in v2's Table 3 (83.3 in v1).
+
 **What this leaves open (D):**
 - **None of the five outputs an explanation.**
 - **Latency** is unreported, or comes from closed weights with unclear hardware.
