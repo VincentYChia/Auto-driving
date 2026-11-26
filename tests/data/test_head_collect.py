@@ -253,3 +253,39 @@ def test_every_pair_of_chains_is_compared_on_their_out_of_fold_scenes(tree, tmp_
     p = out["a4-a6"]
     assert (p["scenes"], p["drives"]) == (6, 2) and p["own_pick"]["a_minus_b"] == -3.0 and p["best_of_k"]["a_minus_b"] == 0.0
     assert cr.Results(str(exp), str(cache)).collect()["selector_oof_pairs"] == {}  # no training meta: no pairs
+
+
+def test_the_final_system_and_each_contenders_system_path_on_navtest(tree):
+    exp, cache = tree
+    C = exp / "heads" / "choices"
+    assert cr.Results(str(exp), str(cache)).collect()["final_system"] == {}  # nothing before R16's choice
+    for x, run, w in (("A4", "gen-a4", "rl_2500"), ("A6", "gen-a6", "rl_3000"), ("D4", "gen-d4", "epoch_5")):
+        (C / f"selector_spec_{x}.json").write_text(json.dumps({"deployed_run": run, "deployed_weights": w, "steps": 4,
+                                                               "updates": 0, "rl_start_epoch": 5}))
+    (C / "final_system.json").write_text(json.dumps({
+        "final": "A6", "tie": False, "decided": "2026-11-27 10:00:00", "rule": "R16",
+        "adopted": {"A4": False, "A6": True, "D4": False},
+        "navdev_system_pdms": {"A4": 0.88, "A6": 0.89, "D4": 0.77},
+        "final_minus_other": {"A4": {"difference": 0.01, "ci_drives": [0.0, 0.02]},
+                              "D4": {"difference": 0.12, "ci_drives": [0.1, 0.14]}}}))
+    write_scores(exp, cr.Results.name("gen-a4", "navtest", "rl_2500", 4, "single"), [0.86] * len(TOKENS))
+    write_scores(exp, cr.Results.name("gen-a6", "navtest", "rl_3000", 4, "single"), [0.87] * len(TOKENS))
+    write_scores(exp, "heads-selector-a6-xfit-s0-navtest-selected_navtest_v1", [0.88] * len(TOKENS))
+    fs = cr.Results(str(exp), str(cache)).collect()["final_system"]
+    assert fs["final"] == "A6" and "headline" not in fs  # D4's navtest score is still missing
+    a6, a4, d4 = (fs["contenders"][x] for x in ("A6", "A4", "D4"))
+    assert a6["adopted"] and a6["navtest_system"]["pdms"] == 0.88 and a6["navtest_own_pick"]["pdms"] == 0.87
+    assert a6["navtest_system"]["vs_h1_text"]["difference"] == 0.03  # H1's text output: 0.85 on navtest
+    assert a6["navtest_selected_minus_own"]["difference"] == 0.01 and "navtest_final_minus_it" not in a6
+    assert a4["navtest_final_minus_it"]["difference"] == 0.02 and a4["navdev_final_minus_it"]["difference"] == 0.01
+    assert "navtest_own_pick" not in a4 and a4["navtest_system"]["subscores"]["no_at_fault_collisions"] == 1.0
+    assert "navtest_system" not in d4 and d4["navdev_system_pdms"] == 0.77
+    assert fs["navtest_pairs"]["system"]["A6-A4"]["difference"] == 0.02  # the recipe pair, system path
+    assert fs["navtest_pairs"]["own_pick"]["A6-A4"]["difference"] == 0.01  # and the generators' own picks
+    write_scores(exp, cr.Results.name("gen-d4", "navtest", "epoch_5", 4, "single"), [0.80] * len(TOKENS))
+    (C / "final_navtest.json").write_text(json.dumps({"final": "A6", "headline_navtest_pdms": 0.88}))
+    fs = cr.Results(str(exp), str(cache)).collect()["final_system"]
+    assert fs["headline"]["headline_navtest_pdms"] == 0.88
+    assert fs["navtest_pairs"]["system"]["A4-D4"]["difference"] == 0.06  # methods under the same recipe
+    assert fs["contenders"]["D4"]["navtest_final_minus_it"]["ci_drives"] == [0.08, 0.08]
+    json.dumps(fs)

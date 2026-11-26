@@ -181,3 +181,33 @@ def test_selector_rows_carry_the_half_generators_and_the_out_of_fold_pairs():
     op = report_html.oof_pair_rows(agg)
     assert len(op) == 1 and (op[0]["a"], op[0]["b"], op[0]["drives"]) == ("a4", "a6", 101)
     assert op[0]["own_pick"] == {"x": -2.68, "lo": -3.01, "hi": -2.38, "va": 90.34, "vb": 93.02}
+
+
+def test_the_final_system_rows_in_contender_order_with_navtest_and_pairs():
+    def d(x, lo, hi):
+        return {"difference": x, "ci_drives": [lo, hi], "scenes": 12146}
+
+    def st(p, lo, hi, vs=None):
+        return {"pdms": p, "ci_drives": [lo, hi], "scenes": 12146, "drives": 44, **({"vs_h1_text": vs} if vs else {})}
+
+    agg = {"final_system": {"final": "A6", "decided": "2026-11-27 10:00:00", "contenders": {
+        "D4": {"deployed_run": "d-l12-18-24", "deployed_weights": "epoch_5", "steps": 4, "adopted": False,
+               "navdev_system_pdms": 0.771, "navdev_final_minus_it": d(0.106, 0.08, 0.13)},
+        "A6": {"deployed_run": "a3-rlfull6", "deployed_weights": "rl_3000", "steps": 4, "adopted": True,
+               "navdev_system_pdms": 0.877, "navtest_system": st(0.8863, 0.87, 0.90, d(0.03, 0.02, 0.04)),
+               "navtest_own_pick": st(0.885, 0.87, 0.90), "navtest_selected_minus_own": d(0.0013, -0.001, 0.003)},
+        "A4": {"deployed_run": "a3-rlfull4", "deployed_weights": "rl_2500", "steps": 4, "adopted": False,
+               "navdev_system_pdms": 0.8809, "navtest_system": st(0.88, 0.86, 0.895),
+               "navtest_final_minus_it": d(0.0063, 0.001, 0.012)}},
+        "navtest_pairs": {"system": {"A6-A4": d(0.0063, 0.001, 0.012)}},
+        "headline": {"final": "A6", "headline_navtest_pdms": 0.8863}}}
+    F = report_html.page_data(agg)["final"]
+    assert [r["x"] for r in F["rows"]] == ["A4", "A6", "D4"]  # contender order, not the file's
+    a6 = F["rows"][1]
+    assert a6["navtest"]["x"] == 88.63 and a6["navtest"]["vsH1"] == {"x": 3.0, "lo": 2.0, "hi": 4.0}
+    assert a6["selMinusOwn"]["x"] == 0.13 and a6["own"]["x"] == 88.5 and a6["adopted"] is True
+    assert F["rows"][0]["finalMinus"] == {"x": 0.63, "lo": 0.1, "hi": 1.2} and F["rows"][2]["navtest"] is None
+    assert F["rows"][2]["navdevFinalMinus"]["x"] == 10.6 and F["headline"] == 88.63
+    assert F["pairs"]["system"] == [{"pair": "A6-A4", "x": 0.63, "lo": 0.1, "hi": 1.2}]
+    assert report_html.page_data({})["final"] is None  # before R16's choice the section says what comes
+    assert 'id="final"' in report_html.build(agg, {"title": "t"})

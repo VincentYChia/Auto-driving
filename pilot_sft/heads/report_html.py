@@ -126,7 +126,7 @@ def page_data(agg: dict, ms: Optional[dict] = None, conf: Optional[dict] = None)
                 vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
         seeds.append({"method": m, "run": lc["run"], "values": vals})
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
-            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "recipeChange": recipe_change_rows(ms), "confirm": confirm_rows(conf), "selectors": selector_rows(agg), "oofPairs": oof_pair_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
+            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "recipeChange": recipe_change_rows(ms), "confirm": confirm_rows(conf), "selectors": selector_rows(agg), "oofPairs": oof_pair_rows(agg), "final": final_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
                                                                                     (ms or {}).items() if r.get("series_best_vs_a1")},
             "generated": agg.get("generated"), "names": METHOD_NAMES}
 
@@ -177,6 +177,31 @@ def selector_rows(agg: dict) -> list:
                                                         "hi": round(100 * d["ci_drives"][1], 2)}}
         out.append(ch)
     return out
+
+
+FINAL_ORDER = ("A4", "A6", "B4", "B6", "C4", "C6", "D4", "D6")
+
+
+def final_rows(agg: dict) -> Optional[dict]:
+    """Phase 6 (R16): the final system and every contender's system path, from the aggregate's ``final_system``."""
+    fs = agg.get("final_system") or {}
+    if not fs.get("final"):
+        return None
+    rows = []
+    for x in sorted(fs.get("contenders", {}), key=lambda k: (FINAL_ORDER.index(k) if k in FINAL_ORDER else 99, k)):
+        c = fs["contenders"][x]
+        nd = c.get("navdev_system_pdms")
+        rows.append({"x": x, "method": x[0], "run": c["deployed_run"], "weights": c["deployed_weights"],
+                     "adopted": c["adopted"], "navdev": None if nd is None else round(100 * nd, 2),
+                     "navdevFinalMinus": diff(c["navdev_final_minus_it"]) if c.get("navdev_final_minus_it") else None,
+                     "navtest": iv(c.get("navtest_system")), "own": iv(c.get("navtest_own_pick")),
+                     "selMinusOwn": diff(c["navtest_selected_minus_own"]) if c.get("navtest_selected_minus_own") else None,
+                     "finalMinus": diff(c["navtest_final_minus_it"]) if c.get("navtest_final_minus_it") else None})
+    pairs = {k: [{"pair": q, **diff(d)} for q, d in v.items()] for k, v in (fs.get("navtest_pairs") or {}).items()}
+    head = fs.get("headline") or {}
+    hp = head.get("headline_navtest_pdms")
+    return {"final": fs["final"], "decided": fs.get("decided"), "rows": rows, "pairs": pairs,
+            "headline": None if hp is None else round(100 * hp, 2)}
 
 
 def oof_pair_rows(agg: dict) -> list:
@@ -558,6 +583,8 @@ function tiles() {
   }));
   const aText = a => `${a.method} under ${a.rec}, navtest, mean of ${a.n} seed${a.n > 1 ? 's' : ''}`;
   const fText = k => (full[k] && full[k] !== after[k]) ? `; with ${full[k].n} seeds: ${full[k].method} under ${full[k].rec}, ${f1(full[k].mean)}` : '';
+  const F = D.final, ff = F && F.rows.find(r => r.x === F.final);
+  if (F && F.headline != null) out.push(['The final system (R16)', f1(F.headline), `${esc(F.final)}, navtest` + (ff && ff.navtest && ff.navtest.vsH1 ? `; minus H1 ${dvs(ff.navtest.vsH1)}` : '')]);
   if (h1) out.push(['H1, text output', f1(h1.x), 'navtest PDMS, the reference']);
   if (bs) out.push([after.single ? 'Best single path before RL' : 'Best single path', f1(bs.navtest_single.x), `${esc(bs.run)}, navtest; vs H1 ${dvs(bs.navtest_single.vsH1)}`]);
   if (after.single) out.push(['Best single path after RL', f1(after.single.mean), aText(after.single) + fText('single') + (h1 ? `; H1 ${f1(h1.x)} (point estimates)` : '')]);
@@ -636,6 +663,41 @@ function drawSel() {
         dvs(r.best_of_k), dvs(r.mean_candidate), `${r.scenes.toLocaleString()} · ${r.drives}`]));
   }
 }
+function drawFinal() {
+  const box = document.getElementById('final'); if (!box) return; box.innerHTML = '';
+  const F = D.final;
+  if (!F) { box.innerHTML = '<p class="small">R16 chooses the final system on navdev once every contender’s selector is adopted or not. Then each contender’s system path is scored once on navtest.</p>'; return; }
+  const fin = F.rows.find(r => r.x === F.final) || {};
+  const p = document.createElement('p');
+  p.innerHTML = `<b>The final system (R16, chosen on navdev ${esc(F.decided || '')}): ${esc(F.final)}</b>, ${esc(fin.run || '')} at ${esc(fin.weights || '')}, ` +
+    `${fin.adopted ? 'with its selector' : 'its own pick'}; navdev system path ${fin.navdev != null ? f1(fin.navdev) : '–'}. ` +
+    (fin.navtest ? `On navtest <b>${f1(fin.navtest.x)}</b> (${f1(fin.navtest.lo)}–${f1(fin.navtest.hi)})` + (fin.navtest.vsH1 ? `; minus H1’s text output ${dvs(fin.navtest.vsH1)}.` : '.')
+      : 'Its navtest score comes with the others’.');
+  box.appendChild(p);
+  const tested = F.rows.filter(r => r.navtest), h1 = D.refs.h1_text_navtest;
+  if (tested.length) {
+    const c = document.createElement('div'); c.className = 'chart'; box.appendChild(c);
+    forest(c, tested.map(r => ({label: r.x + (r.x === F.final ? ' (final)' : ''), sub: r.adopted ? 'selected path' : 'own pick', color: C(r.method),
+      marks: [{...r.navtest, kind: 'solid', tip: `<b>${esc(r.x)}</b>, ${esc(r.run)} at ${esc(r.weights)}<br>navtest system path ${f1(r.navtest.x)} (${f1(r.navtest.lo)}–${f1(r.navtest.hi)})` +
+        (r.navtest.vsH1 ? `<br>minus H1 ${dvs(r.navtest.vsH1)}` : '') + (r.finalMinus ? `<br>final minus it ${dvs(r.finalMinus)}` : '')}]})),
+      {refs: h1 ? [{x: h1.x, label: `H1 text ${f1(h1.x)}`}] : [], aria: 'Each contender’s system path on navtest'});
+  }
+  const tb = document.createElement('div'); box.appendChild(tb);
+  table(tb, ['Contender and its path generator', 'System path', 'navdev', 'Final − it, navdev', 'navtest', '− H1, navtest', 'Final − it, navtest'],
+    F.rows.map(r => [`${esc(r.x)}${r.x === F.final ? ' <b>(final)</b>' : ''}<br><span class="small">${esc(r.run)} · ${esc(r.weights)}</span>`, r.adopted ? 'selected' : 'own pick',
+      r.navdev != null ? f1(r.navdev) : '–', r.navdevFinalMinus ? dvs(r.navdevFinalMinus) : '–',
+      r.navtest ? `${f1(r.navtest.x)} <span class="small">(${f1(r.navtest.lo)}–${f1(r.navtest.hi)})</span>` : 'not scored yet',
+      r.navtest && r.navtest.vsH1 ? dvs(r.navtest.vsH1) : '–', r.finalMinus ? dvs(r.finalMinus) : '–']));
+  F.rows.filter(r => r.selMinusOwn && r.navtest && r.own).forEach(r => { const q = document.createElement('p'); q.className = 'small';
+    q.innerHTML = `${esc(r.x)}’s selector on navtest: selected ${f1(r.navtest.x)} against its own pick ${f1(r.own.x)}, ${dvs(r.selMinusOwn)}.`; box.appendChild(q); });
+  [['system', 'system path'], ['own_pick', 'own pick of each deployed path generator']].forEach(([k, what]) => {
+    const ps = (F.pairs || {})[k] || []; if (!ps.length) return;
+    const h = document.createElement('h3'); h.textContent = `Methods and recipes on navtest, ${what} (exploratory)`; box.appendChild(h);
+    const c = document.createElement('div'); c.className = 'chart'; box.appendChild(c);
+    forest(c, ps.map(r => ({label: r.pair.replace('-', ' − '), color: 'var(--ink-2)', marks: [{x: r.x, lo: r.lo, hi: r.hi, kind: 'solid',
+      tip: `<b>${esc(r.pair.replace('-', ' − '))}</b>, navtest ${what}: ${dvs(r)}`}]})), {zero: true, signed: true, aria: `Paired differences on navtest, ${what}`});
+  });
+}
 function drawConfirm() {
   const box = document.getElementById('r4'); if (!box) return; box.innerHTML = '';
   const c = D.confirm;
@@ -649,7 +711,7 @@ function drawConfirm() {
   table(tb, ['Test', 'What (navtest single path, ' + esc(c.recipe || '') + ')', 'Difference (points)', 'p', 'Holm-adjusted p', `Rejected at ${c.alpha ?? 0.05}?`],
     c.rows.map(r => [esc(r.key), esc(r.what), dvs(r), pv(r.p), pv(r.p_holm), r.rejected ? '<b>yes</b>' : 'no']));
 }
-function drawAll() { drawPhase1(); drawRL(); drawSel(); drawConfirm(); }
+function drawAll() { drawPhase1(); drawRL(); drawSel(); drawFinal(); drawConfirm(); }
 notes(); tiles(); drawAll();
 let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
 """
@@ -731,6 +793,14 @@ BODY = """
   navdev, with its drive interval. The cross-fitted seed-0 selector decides adoption; the other variants are its second seed, the
   in-fold control and the ablations. navtest comes once per contender, after the final system is chosen (R16).</p>
   <div id="sel"></div>
+</section>
+<section>
+  <h2>Phase 6: the final system (R16)</h2>
+  <p class="sub">The final system is the contender with the highest navdev PDMS of its system path: the selected path where its
+  selector is adopted (R14), otherwise its own pick. The choice is the point estimate, recorded before any phase-6 navtest score. Then
+  each contender's system path is scored once on navtest, and the final system's score is the headline. Whiskers are 95% intervals
+  that resample drives. The method and recipe pairs are exploratory (R4): intervals reported, nothing tested.</p>
+  <div id="final"></div>
 </section>
 <section><h2>What this means</h2><ul class="points" id="n-meaning"></ul></section>
 <section><h2>Problems and fixes</h2><ul class="points" id="n-problems"></ul></section>

@@ -24,6 +24,8 @@ Sections:
 - ``selector_candidates``: per chain, the headroom of each completely scored candidate set (training scenes).
 - ``selector_halves``: per chain, its half generators against the deployed one on navdev (R14's measure).
 - ``selector_oof_pairs``: every pair of chains on the same out-of-fold training scenes (``oof_pair.py``).
+- ``final_system``: phase 6 (R16): the final system chosen on navdev and every contender's system path on navtest
+  once scored (the final system's is the headline), with the method and recipe pairs on navtest (exploratory).
 - ``methods``: the choice files the driver wrote (layer choices, RL starts, the R12 recipe, decisions).
 
 Intervals resample drives: 10,000 resamples, seed 0. Runs on the desktop with the score CSVs (pilot env).
@@ -347,6 +349,65 @@ class Results:
                 per[c].update(oof_pair.per_scene(os.path.join(self.heads, f"selector-{c}", f"candidates_oof_half{h}.jsonl")))
         return {f"{a}-{b}": oof_pair.paired(per[a], per[b], drives) for a, b in combinations(chains, 2)}
 
+    def final_system(self) -> dict:
+        """Phase 6 (R16), reporting only: the final system chosen on navdev (``choices/final_system.json``) and, as they
+        are scored, every contender's system path on navtest (the final system's is the headline). Per contender: its
+        deployed path generator, whether its selector is adopted, its navdev system path and the final system minus it
+        (from the choice file); on navtest its system path (the selected path where adopted, otherwise the own pick)
+        with drive interval, sub-scores, the paired difference to H1's text output and the final system minus it; for an
+        adopted selector also the own pick and selected minus own. ``navtest_pairs``, for the system path and for the
+        own pick: each method's RL6 minus its RL4, and every pair of methods under the same recipe, paired on the same
+        scenes. These are exploratory (R4): intervals reported, nothing tested. Only scores already made are read."""
+        C = os.path.join(self.heads, "choices")
+        f = os.path.join(C, "final_system.json")
+        if not os.path.exists(f):
+            return {}
+        fs = json.load(open(f))
+        out = {k: fs.get(k) for k in ("final", "tie", "decided", "rule")}
+        rows, series = {}, {"system": {}, "own_pick": {}}
+        for x, adopted in fs.get("adopted", {}).items():
+            spec = json.load(open(os.path.join(C, f"selector_spec_{x}.json")))
+            rec = {"deployed_run": spec["deployed_run"], "deployed_weights": spec["deployed_weights"],
+                   "steps": spec["steps"], "adopted": bool(adopted),
+                   "navdev_system_pdms": fs.get("navdev_system_pdms", {}).get(x)}
+            if x in fs.get("final_minus_other", {}):
+                rec["navdev_final_minus_it"] = fs["final_minus_other"][x]
+            own = self.single(spec["deployed_run"], "navtest", spec["deployed_weights"], spec["steps"])
+            sel = self.frame(f"heads-selector-{x.lower()}-xfit-s0-navtest-selected_navtest_v1") if adopted else None
+            if own is not None:
+                series["own_pick"][x] = own["score"].astype(float)
+            d = sel if adopted else own
+            if d is not None:
+                series["system"][x] = d["score"].astype(float)
+                rec["navtest_system"] = {**self.stats(series["system"][x], "navtest"), "subscores": self.subscores(d)}
+            if adopted and own is not None:
+                rec["navtest_own_pick"] = {**self.stats(series["own_pick"][x], "navtest"), "subscores": self.subscores(own)}
+                if sel is not None:
+                    rec["navtest_selected_minus_own"] = self.paired(series["system"][x], series["own_pick"][x], "navtest")
+            rows[x] = rec
+        fin, system = out["final"], series["system"]
+        if fin in system:
+            for x, s in system.items():
+                if x != fin:
+                    rows[x]["navtest_final_minus_it"] = self.paired(system[fin], s, "navtest")
+        out["contenders"] = rows
+        pairs = {}
+        for k, ser in series.items():
+            p = {}
+            for m in sorted({x[:-1] for x in ser}):
+                if f"{m}6" in ser and f"{m}4" in ser:
+                    p[f"{m}6-{m}4"] = self.paired(ser[f"{m}6"], ser[f"{m}4"], "navtest")
+            for r in ("4", "6"):
+                for a, b in combinations(sorted(x for x in ser if x.endswith(r)), 2):
+                    p[f"{a}-{b}"] = self.paired(ser[a], ser[b], "navtest")
+            if p:
+                pairs[k] = p
+        out["navtest_pairs"] = pairs
+        fn = os.path.join(C, "final_navtest.json")
+        if os.path.exists(fn):
+            out["headline"] = json.load(open(fn))
+        return out
+
     def comparisons(self, methods: Dict[str, dict]) -> dict:
         chosen = {m: f["run"] for m, f in methods.items() if "run" in f and "choice" in f}
         return {f"{m1}-{m2}": {"runs": [chosen[m1], chosen[m2]], **self.pair(chosen[m1], chosen[m2])}
@@ -413,7 +474,8 @@ class Results:
         out.update(runs=self.runs(), layer_tests=self.layer_tests(methods), comparisons=self.comparisons(methods),
                    series=self.series(methods), rl=self.rl(), selectors=self.selectors(),
                    selector_candidates=self.selector_candidates(), selector_halves=self.selector_halves(),
-                   selector_oof_pairs=self.selector_oof_pairs(train_meta), methods=methods)
+                   selector_oof_pairs=self.selector_oof_pairs(train_meta), final_system=self.final_system(),
+                   methods=methods)
         return out
 
 
