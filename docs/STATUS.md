@@ -4,18 +4,18 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 23:25, version 54: R14's selector controls for A4 and A6, none helps after RL; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-27 00:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-27 01:18 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 27 00:49). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 27 01:18). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 00:49 Nov 27):
-  - **Running: R14's controls for B4** (the listwise selector on the GPU since 00:33 Nov 27; the in-fold selector queued 00:46): 39 GPU jobs pending, the controls of B4 to D6, then phase 2's follow-ups. **B4's variants so far (navdev, reported only):** seed 1 +0.06 (-0.50 to +0.31), pdms -0.17 (-1.62 to +1.05), switching in 4.8% and 27% of scenes; seed 0 was -0.43. B4's in-fold candidates were scored at 00:42. The seed-1 and pdms selectors are kept twice with MODELS rows.
+- **4090 desktop, GPU queue** (one job at a time; read 01:18 Nov 27):
+  - **Running: R14's controls for B4** (the in-fold selector on the GPU since 01:11 Nov 27): 38 GPU jobs pending, the controls of B4 to D6, then phase 2's follow-ups. **B4's variants so far (navdev, reported only):** seed 1 +0.06 (-0.50 to +0.31), pdms -0.17 (-1.62 to +1.05), listwise +0.12 (-0.42 to +0.34; switching in 3.4% of scenes); seed 0 was -0.43. The seed-1 and pdms selectors are kept twice with MODELS rows; listwise goes with the next batch.
   - **Done 23:06 Nov 26: A6's controls are complete (navdev, reported only).** Seed 1 +0.27 (0.00 to +0.52), in fold +0.14 (-0.34 to +0.61), pdms -0.05 (-0.10 to +0.02), listwise +0.22 (0.00 to +0.33), imitation +0.13 (0.00 to +0.25), boundary +0.14 (-0.49 to +1.01). No interval clears 0. The boundary variant switches in 27% of scenes, the others in under 6%. A4's seven variants ran from -1.55 to 0.00. All of A6's six variant selectors are kept twice with MODELS rows.
   - **Done since 18:13 Nov 26, R14's controls (navdev, reported only):** A4's imitation selector -1.55 (-2.46 to -0.35), A4's boundary selector -0.38 (-1.92 to +1.05), A6's seed-1 selector +0.27 (0.00 to +0.52, switching in 1.9% of scenes; seed 0 +0.13). After RL no selector variant has helped: A4's six variants (s0, s1, in fold, pdms, listwise, imitation, boundary) run from -1.55 to 0.00. All three kept twice (636 MB each) with MODELS rows.
   - **Done 19:50 Nov 26: every contender's system path scored once on navtest (R16)**, NAVSIM v1.1, all 12,146 scenes, 44 drives. Paired drive intervals:
