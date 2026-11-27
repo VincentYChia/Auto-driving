@@ -4,18 +4,18 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 27 07:55, version 55: R14's selector controls for A4, A6, B4 and B6, none helps after RL and B6's hurt; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-27 10:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-27 11:48 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 27 10:49). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 27 11:48). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 10:49 Nov 27):
-  - **Running: R14's controls for C4** (the imitation selector on the GPU since 10:32 Nov 27; then boundary): 25 GPU jobs pending, the controls of C4, C6, D4 and D6, then phase 2's follow-ups. **C4's variants so far (navdev, reported only):** seed 1 -0.47 (-0.87 to -0.19), pdms -0.66 (-1.21 to +0.19), listwise -0.36 (-0.64 to +0.03), in fold -0.01 (-0.03 to 0.00, switching in 2.6% of scenes); seed 0 was -0.40. None helps. All four are kept twice with MODELS rows.
+- **4090 desktop, GPU queue** (one job at a time; read 11:48 Nov 27):
+  - **Running: R14's controls for C4** (the boundary selector on the GPU since 11:25 Nov 27, the last of C4's): 24 GPU jobs pending, the controls of C6, D4 and D6, then phase 2's follow-ups. **C4's variants so far (navdev, reported only):** seed 1 -0.47 (-0.87 to -0.19), pdms -0.66 (-1.21 to +0.19), listwise -0.36 (-0.64 to +0.03), in fold -0.01 (-0.03 to 0.00), imitation -0.40 (-0.95 to +0.18); seed 0 was -0.40. None helps. Seed 1, pdms, listwise and in fold are kept twice with MODELS rows; imitation goes with the next batch.
   - **Done 07:38 Nov 27: B6's controls are complete (navdev, reported only). B6's selectors make its path worse.**
     - Wholly below 0: seed 0 -1.87 (-2.40 to -0.73), seed 1 -0.64 (-1.35 to -0.20), in fold -1.09 (-1.70 to -0.62), imitation -1.10 (-1.56 to -0.19), boundary -1.61 (-2.77 to -0.61, switching in 37.8% of scenes).
     - Within noise: pdms -0.30 (-1.09 to +0.90) and listwise +0.01 (-0.25 to +0.50).
