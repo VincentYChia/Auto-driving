@@ -4,18 +4,18 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 27 07:55, version 55: R14's selector controls for A4, A6, B4 and B6, none helps after RL and B6's hurt; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-27 12:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-27 13:18 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 27 12:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 27 13:18). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 12:47 Nov 27):
-  - **Running: R14's controls for C6** (C6's seed-1 selector on the GPU since 12:07 Nov 27; C6's in-fold candidates on the CPU queue since 12:09). Queued on the GPU, 22 jobs, over a day of work:
+- **4090 desktop, GPU queue** (one job at a time; read 13:18 Nov 27):
+  - **Running: R14's controls for C6** (the pdms selector on the GPU since 12:50 Nov 27; C6's in-fold candidates on the CPU queue since 12:09). **C6's seed-1 selector: navdev -0.18 (-0.49 to 0.00)**, switching in 0.7% of scenes; seed 0 was -0.26 (-0.44 to -0.01). It goes to Anvil with the next batch. Queued on the GPU, 21 jobs, over a day of work:
     - C6's four remaining variants;
     - D4's and D6's in-fold candidates, seed-1 selectors and four ablations each;
     - phase 2's six follow-up training runs: A3 without the metric embedding, without soft labels, with 0.05 m and 0.25 m bins, and A3's seeds 1 and 2 for R17.
