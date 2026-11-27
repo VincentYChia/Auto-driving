@@ -474,6 +474,11 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - **Plain version:** your 2026-11-19 rules (two tiles, short findings text, no run names, no compute).
    - **Technical version:** the phase 1-4 navtest table, phase 6's eight contenders on navdev and navtest, the selector before and after RL, and R4's tests.
    - **Progress (08:51 Nov 26):** the technical version's new section is drafted locally. It has Table 4 (each method before and after RL, navtest), Table 5 (R4's tests) and Table 6 (the eight contenders: navdev single path, selector gain, system path). Two paragraphs cover which method and how continuous, then RL4 against RL6 and the selector. R16's navtest cells and D4's and D6's selectors are left open until their numbers land.
+   - **Layout decided (20:48 Nov 26), technical version:** three Letter sheets (it was two).
+     - Page 1: a new title, abstract and tiles (88.8 on navtest, +3.2 over H1's text output, 5% of scenes scoring 0, the human 94.6).
+     - New page 2: the path-generator study (Tables 4-6 and the findings, from the draft).
+     - The old page 2 becomes page 3: the comparison figure after RL, and Table 3 with steps 1-3 done.
+     The numbers are all in: the draft has every navtest cell. The plain version follows, from its outline.
    - **Then** `pilot_sft/README.md`'s navtest table and `docs/GAPS.md` under its rule. The selector-after-RL finding is navdev only, so it cannot be filled there.
 7. **A prediction for D4's selector, written 08:26 Nov 26 before it trains** (outcome 11:39: part 1 holds, +6.02; part 2 fails, the gain is smallest in the most-spread quartile; see Running now) (reporting only; R14's adoption rule decides, as for every contender). After RL every selector failed, and the explanation so far is that RL draws the candidates together (end points within about 0.7 m in three quarters of navdev scenes). D4 has no RL and the widest candidates, so that explanation predicts [D]:
    - D4's xfit-s0 gains more than the rehearsal's +1.35 on navdev;
