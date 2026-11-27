@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 19:59, version 53: every contender on navtest; the final system A4 88.83, +3.23 over H1's text output; C6 89.50, 0.67 higher): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 19:59 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 20:20 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 19:59). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 20:20). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 19:59 Nov 26):
-  - **Running: R14's controls** (A6's selector ablations on the GPU since 19:42 Nov 26; A6's in-fold candidates on the CPU queue since 19:32): 46 GPU jobs pending, the controls and ablations of every contender, then phase 2's follow-ups.
+- **4090 desktop, GPU queue** (one job at a time; read 20:20 Nov 26):
+  - **Running: R14's controls** (A6's selector ablations on the GPU; A6's in-fold candidates on the CPU queue): 45 GPU jobs pending, the controls and ablations of every contender, then phase 2's follow-ups.
+  - **Done since 18:13 Nov 26, R14's controls (navdev, reported only):** A4's imitation selector -1.55 (-2.46 to -0.35), A4's boundary selector -0.38 (-1.92 to +1.05), A6's seed-1 selector +0.27 (0.00 to +0.52, switching in 1.9% of scenes; seed 0 +0.13). After RL no selector variant has helped: A4's six variants (s0, s1, in fold, pdms, listwise, imitation, boundary) run from -1.55 to 0.00. All three kept twice (636 MB each) with MODELS rows.
   - **Done 19:50 Nov 26: every contender's system path scored once on navtest (R16)**, NAVSIM v1.1, all 12,146 scenes, 44 drives. Paired drive intervals:
     - **A4, the final system: 88.83 (87.37 to 90.46); minus H1's text output +3.23 (+2.43 to +4.10).**
     - C6 89.50 (88.28 to 90.87): **C6 minus A4 +0.67 (+0.08 to +1.25)**.
