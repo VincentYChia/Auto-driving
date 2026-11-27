@@ -209,6 +209,27 @@ Small path generators (about 41M parameters) read H1's frozen hidden states (lay
     - C6 -0.26, A4 -0.36, C4 -0.40 and B4 -0.43;
     - B6 -1.87 (-2.40 to -0.73).
   - **Why the selector stops helping:** RL draws the candidates together: their end points lie within about 0.7 m of each other in three quarters of navdev scenes. The selectors also over-predict no-collision: 0.993-0.997 predicted against 0.974-0.979 true. D4's and D6's selectors are still to come.
+- **Phase 6 on navtest: the final system (R16, 2026-11-26, V).** Each contender's system path (the selected path where its selector is adopted, otherwise its own pick) was scored once, after the final system was chosen on navdev. Intervals are paired and resample drives.
+
+| Contender | System path | navdev | navtest | Minus H1's text output | Final system minus it |
+|---|---|---|---|---|---|
+| **A4, the final system** (masked diffusion, RL4) | own pick | 88.09 | **88.83** (87.37 to 90.46) | **+3.23** (+2.43 to +4.10) | – |
+| C6 (flow matching, RL6) | own pick | 87.43 | **89.50** (88.28 to 90.87) | +3.89 (+3.24 to +4.60) | **-0.67** (-1.25 to -0.08) |
+| C4 (flow matching, RL4) | own pick | 87.28 | 89.21 (87.98 to 90.60) | +3.60 (+2.86 to +4.38) | -0.38 (-0.91 to +0.23) |
+| A6 (masked diffusion, RL6) | selected | 87.70 | 88.70 (87.32 to 90.23) | +3.09 (+2.25 to +3.96) | +0.13 (-0.35 to +0.68) |
+| B4 (DDIM, RL4) | own pick | 85.30 | 88.22 (86.81 to 89.81) | +2.62 (+1.79 to +3.52) | +0.61 (+0.08 to +1.12) |
+| B6 (DDIM, RL6) | own pick | 86.74 | 87.96 (86.59 to 89.45) | +2.35 (+1.62 to +3.14) | +0.87 (+0.20 to +1.53) |
+| D6 (anchored diffusion, RL6) | own pick | 82.65 | 86.29 (84.72 to 88.08) | +0.69 (-0.18 to +1.67) | +2.54 (+1.98 to +3.07) |
+| D4 (anchored diffusion, no RL) | selected | 83.13 | 84.77 (83.39 to 86.26) | -0.83 (-1.63 to -0.08) | +4.06 (+3.13 to +5.06) |
+
+  - **The headline is A4, chosen on navdev.** RL lifts it +4.23 (+3.34 to +5.09) over its start before RL (84.60).
+  - **On navtest, flow matching under RL6 (C6) is 0.67 higher (+0.08 to +1.25).** On navdev the two could not be told apart (A4 - C6 +0.66, -1.34 to +4.02). navtest only reports (R1), so the final system stays A4.
+  - **Method pairs on navtest** (exploratory):
+    - Under RL6, C is above A (+0.80, +0.27 to +1.36) and B (+1.54).
+    - Under RL4, A and C cannot be told apart (-0.38, -0.91 to +0.23); both are above B.
+    - D trails every method.
+  - **The selector on navtest:** D4's (no RL) +3.47 (+2.69 to +4.18), A6's +0.03 (-0.07 to +0.11).
+  - C6's 89.50 is the best navtest single path so far. Its replay page is local: `../../navsim_demo_renders/replay_v2_c6final_vs_h1.html`.
 
 ### Where the NAVSIM zeros come from, and how navtest differs from our training data (2026-11-09, V)
 `../navsim_eval/failure_analysis.py` joins each scene's score with the human's recorded path and the agent input. Aggregates in `../docs/navsim_eval/results/failure_analysis_navtest_v1.json`; counts of unused training frames in `../docs/training_data/v1_xl_pool_mix_0p5s.json`. "What the human did" is read from the recorded 4 s path: a turn is a heading change over 20°, a sideways shift is over 2 m of lateral offset.
