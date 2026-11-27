@@ -4,14 +4,14 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 26 19:59, version 53: every contender on navtest; the final system A4 88.83, +3.23 over H1's text output; C6 89.50, 0.67 higher): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-26 21:50 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-26 21:55 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 21:50). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 26 21:55). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
 - **4090 desktop, GPU queue** (one job at a time; read 21:50 Nov 26):
@@ -460,7 +460,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
 
 ## Next (the live to-do list; the plan is `docs/HEADS_PLAN.md`)
 **Coming up, in run order** (desktop GPU queue, one job at a time; times are estimates [D]):
-1. **Now:** write up R16's result: `pilot_sft/README.md`'s path-generator section, the final report (item 6, both versions, in place) and `docs/GAPS.md` P5 under its rule. The headline is A4 88.83 on navtest, +3.23 over H1's text output; C6 is 0.67 higher on navtest. R14's controls and phase 2's follow-ups keep the GPU busy (46 jobs).
+1. **Now:** R14's controls and ablations of every contender, then phase 2's follow-ups (43 GPU jobs). The write-up is done: README, GAPS P5, the 12:00 report and both final reports (plain and technical, with PDFs). Each later control result gets its STATUS line, MODELS row and Anvil copy as it lands.
 2. **Phase 6, per contender (eight: A, B, C and D, each under RL4 and RL6):** all eight full RL stages are done and every generator is chosen (navdev single path: A4 88.09, A6 87.57, C6 87.43, C4 87.28, B6 86.74, B4 85.30, D6 82.65, D4 77.10). Six decisive chains are done (only A6's selector adopted); D4's and D6's remain. Each chain: two half generators with the contender's RL, their out-of-fold candidates scored on the CPU queue, and the cross-fitted selector (R14).
 3. **The final system on navdev (R16)**, then one navtest score per contender (about Fri Nov 27 if every stage takes one round [D]). After it: the in-fold controls, seed-1 selectors and ablations, then phase 2's follow-up runs.
 4. **The report after each result** (the private link at the top of this page).
@@ -484,7 +484,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
      - Page 2: the path-generator study (Tables 4-6, findings).
      - Page 3: Figure 3 against other top studies before and after RL (ours: the final system 84.6 to 88.8, and C6 at 89.5), Figure 6 with the path generator, RL and selector built, and Table 3 with steps 1-3 done.
      - Every sheet measures one Letter page. A backup of the 11-18 version is kept locally.
-     - **Next: the plain version** (`final_report_2026-11-19.html`), from its outline, under your 2026-11-19 rules.
+   - **Done 21:55 Nov 26: the plain version, in place, with its PDF** (`navsim_demo_renders/final_report_2026-11-19.html` and `.pdf`, two Letter pages). It follows your 2026-11-19 rules: no run names, two tiles (88.8 and 0.8B), findings as short text, and page 2 in your order. Rivals are "other top studies", stated at the same stage, now after practice. The system figure keeps 4 past poses and "masked diffusion first, then a DiT", now marked built and compared. The last next step is "Other improvements". It states that the final system was picked before testing and that a second path writer scored 0.7 higher on the test (the framing in Waiting on the researcher, which you can change). **Both final reports are ready for Monday.**
    - **Then** `pilot_sft/README.md`'s navtest table and `docs/GAPS.md` under its rule. The selector-after-RL finding is navdev only, so it cannot be filled there.
 7. **A prediction for D4's selector, written 08:26 Nov 26 before it trains** (outcome 11:39: part 1 holds, +6.02; part 2 fails, the gain is smallest in the most-spread quartile; see Running now) (reporting only; R14's adoption rule decides, as for every contender). After RL every selector failed, and the explanation so far is that RL draws the candidates together (end points within about 0.7 m in three quarters of navdev scenes). D4 has no RL and the widest candidates, so that explanation predicts [D]:
    - D4's xfit-s0 gains more than the rehearsal's +1.35 on navdev;
