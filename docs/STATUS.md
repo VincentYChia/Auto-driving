@@ -4,18 +4,19 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 28 07:21, version 58: phase 2's first follow-up result, A3 without the metric embedding, and A3's seed 1; R14's controls complete for all eight contenders; R20's block; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-28 07:21 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-28 08:20 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 28 07:21). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 28 08:20). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 07:21 Nov 28):
-  - **Running: A3's seed 2** (R17, also R20's second A seed; on the GPU since 06:01 Nov 28, epoch 7.7 of 20 at 06:47, about 08:15 [D]). Then R20's two C training runs and R20's first RL stage (`z_47a4s1`, A4 seed 1, queued 06:28): 3 GPU jobs pending, about 7 GPU hours [D]. R20's other three RL stages queue as their training runs end.
+- **4090 desktop, GPU queue** (one job at a time; read 08:20 Nov 28):
+  - **Running: R20's first C training run** (`c-r152-l12-18-24-s1`, on the GPU since 07:58 Nov 28, about 10:15 [D]). Then C's seed 2 and R20's first RL stage (A4 seed 1): 2 GPU jobs pending, about 4.6 GPU hours [D], plus R20's other three RL stages as their training runs end (about 7.3 GPU hours [D]).
+  - **Done 07:58 Nov 28: A3's seed 2** (`a3-l12-18-24-s2`, 1 h 57 min, rc 0, with its navdev and navtest paths at A3's choices). It is kept twice (Anvil size matches) with its MODELS row. The driver is scoring it. Then R17's three-seed test of A1 against A3 runs (`method_seeds.py`).
   - **New 06:28 Nov 28: A3's seed 1 scores well below seed 0 at A3's chosen settings** (epoch 5, 2 steps; R17 runs the seeds at seed 0's choices):
     - navdev single path 76.37 against seed 0's 82.79; best-of-6 88.05 against 90.29;
     - navtest single path 82.36 against seed 0's 84.60; best-of-6 91.10.
