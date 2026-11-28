@@ -2,7 +2,7 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 27 07:55, version 55: R14's selector controls for A4, A6, B4 and B6, none helps after RL and B6's hurt; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 27 20:54, version 56: R14's selector controls for every contender but D6. All seven of D4's selectors gain, none of 42 after RL does; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
 **Updated:** 2026-11-27 20:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
