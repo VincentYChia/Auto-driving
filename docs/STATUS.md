@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 28 01:25, version 57: R14's controls complete for all eight contenders. All seven of D4's selectors gain; of the 49 after RL none has an interval above 0, and after RL the in-fold control beats the cross-fitted selector; R20's block; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-28 06:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-28 06:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -20,6 +20,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - navdev single path 76.37 against seed 0's 82.79; best-of-6 88.05 against 90.29;
     - navtest single path 82.36 against seed 0's 84.60; best-of-6 91.10.
     So A3's lead over A1 on navdev (+0.93 single, seed 0) may be seed luck. That is what R17's seeds test: A1 against A3 over three seeds each, with the bootstrap over drives and seeds, once seed 2 lands (about 08:30 [D]). For R20 it means A4's seed 1 starts its RL stage from a weaker epoch 5. That is the registered design (seed 0's starting epoch, as in phase 4), and it is part of the pipeline's seed spread.
+    - **Checked 06:49: not a bad epoch by ADE.** Dev ADE at epoch 5 (1,000 dev-v2 samples) is 0.803 m for seed 1 against 0.820 m for seed 0, and best-of-6 ADE 0.528 against 0.521 m. So the navdev PDMS gap does not show in ADE, which ranks checkpoints differently from PDMS (GAPS P3). A likelier reading [D]: seed 0's choice is the earliest saved epoch, taken while the learning rate is still about 85% of peak and chosen as the navdev maximum, so part of its 82.79 is luck. A1's seeds, chosen at epoch 15, spread 1.0 on navtest.
   - **Done 05:59 Nov 28: A3's seed 1** (`a3-l12-18-24-s1`, 2 h 11 min, rc 0, with its navdev and navtest paths at A3's choices). It is kept twice (Anvil size matches) with its MODELS row. Its scores come with this pass.
   - **Done 06:01 Nov 28: the navtest paths of A3 without the metric embedding** (1.6 min on the GPU); their scores come with this pass.
   - **Done 03:47 Nov 28: phase 2's first follow-up run, A3 without the metric embedding** (`a3-no-metric-l12-18-24`, 2 h 42 min, rc 0, its navdev grid done). It is kept twice (Anvil size matches) with its MODELS row.
