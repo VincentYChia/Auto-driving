@@ -132,6 +132,7 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `c-r151-l12-18-24` | C, R15 tuning run 1 (phase 6): flow sigma 1.0 (`--flow-sigma 1.0`) | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 8 min | 3.8 | `48579ecb78c4c2c1` | yes | yes |
 | `c-r152-l12-18-24` | C, R15 tuning run 2 (phase 6): Beta time sampling (`--time-sampling beta`) | 12, 18, 24 | 0 | 20 | 41.0M | 2 h 12 min | 3.8 | `67b9a0445b79a200` | yes | yes |
 | `c-r153-l12-18-24` | C, R15 tuning run 3 (phase 6): logit-normal time sampling (`--time-sampling logit-normal`) | 12, 18, 24 | 0 | 20 | 41.0M | 1 h 52 min | 3.8 | `c9ddde4d79ddefae` | yes | yes |
+| `c-r152-l12-18-24-s1` | C, R15 tuning run 2, seed 1 (Beta time sampling, `--time-sampling beta`; R20's first seed of contender C6) | 12, 18, 24 | 1 | 20 | 41.0M | 1 h 51 min | 3.7 | `847ec2a09f9fbd7d` | yes | yes |
 
 ### RL runs
 
