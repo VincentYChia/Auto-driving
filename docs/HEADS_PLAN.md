@@ -377,6 +377,7 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
   - Two training runs of about 2 h 12 min each (`c-r152`'s time).
   - Four RL stages of about 2 h 25 min each; the seed-0 stages took 2 h 22 min to 2 h 27 min.
   - That is about 14 GPU hours, more if a stage needs R18's second round.
+- **Amended 2026-11-28 02:20 (scheduling only, before any R20 result).** R20's jobs now run ahead of phase 2's three remaining follow-up runs (A3 without soft labels, and the 0.05 m and 0.25 m bins). Those wait in the desktop's `~/queue/parked` under their own names until nothing else waits, and then return to the queue by themselves. Reason: R20 bears on the method answer in Monday's report, and those runs feed no choice. No rule, run or measure changes.
 
 **R14. The selector's design** (committed 2026-11-20 11:38, before any selector result and before its code runs on real data). Evidence: `docs/research/heads/notes/selector_design.md`, a review of about 25 published NAVSIM selectors.
 - **The score it predicts, checked on our files:** NAVSIM v1.1's PDMS is NC × DAC × (5·TTC + 5·EP + 2·C)/12.
