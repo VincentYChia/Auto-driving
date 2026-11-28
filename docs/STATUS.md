@@ -21,7 +21,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - seed 0 +6.02 (+2.70 to +7.78) and seed 1 +5.90 (+3.51 to +6.89);
     - in fold +5.41 (+3.50 to +6.92), pdms +5.28 (+2.85 to +6.41);
     - listwise +4.77 (+2.03 to +6.14), boundary +4.75 (+2.50 to +6.18).
-    The gain does not hang on the seed, the loss, the target or cross-fitting. A selector helps the path generator trained without RL. Across the six contenders trained with RL, none of 42 selectors does. All seven of D4's are kept twice with MODELS rows.
+    The gain does not hang on the seed, the loss, the target or cross-fitting. A selector helps the path generator trained without RL. Across the six contenders with RL whose controls are done (A4, A6, B4, B6, C4, C6; D6's are running), none of 42 selectors does. All seven of D4's are kept twice with MODELS rows.
   - **Done 16:57 Nov 27: D4's seed-1 selector holds the gain. On navdev +5.90 (+3.51 to +6.89)**, switching in 73.8% of scenes, against seed 0's +6.02 (+2.70 to +7.78). For D4, the contender without RL, the selector's gain does not depend on its seed. Every other contender's selectors, with RL, gain nothing. It goes to Anvil with the next batch.
   - **Done 16:10 Nov 27: C6's controls are complete (navdev, reported only). None of C6's seven selectors helps.** Seed 0 -0.26 (-0.44 to -0.01), seed 1 -0.18 (-0.49 to 0.00), pdms 0.00, listwise 0.00, in fold +0.01 (0.00 to +0.01), imitation 0.00 (never switching), boundary -0.79 (-1.17 to +0.03). Most barely leave C6's own pick. All seven are kept twice with MODELS rows. Queued on the GPU, 16 jobs:
     - C6's four remaining variants;
