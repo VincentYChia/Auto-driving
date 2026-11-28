@@ -4,19 +4,21 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 28 01:25, version 57: R14's controls complete for all eight contenders. All seven of D4's selectors gain; of the 49 after RL none has an interval above 0, and after RL the in-fold control beats the cross-fitted selector; R20's block; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-28 03:51 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-28 04:18 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 28 03:51). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 28 04:18). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 03:51 Nov 28):
+- **4090 desktop, GPU queue** (one job at a time; read 04:18 Nov 28):
   - **Running: A3's seed 1** (R17, also R20's first A seed; on the GPU since 03:47 Nov 28). Then A3's seed 2, R20's two C training runs, and R20's four RL stages as their training runs end.
-  - **Done 03:47 Nov 28: phase 2's first follow-up run, A3 without the metric embedding** (`a3-no-metric-l12-18-24`, 2 h 42 min, rc 0, its navdev grid done). It is kept twice (Anvil size matches) with its MODELS row. The driver scores its grid, makes its R10 choices and queues its navtest paths. R17 then reads it against A3 and A1.
+  - **Done 03:47 Nov 28: phase 2's first follow-up run, A3 without the metric embedding** (`a3-no-metric-l12-18-24`, 2 h 42 min, rc 0, its navdev grid done). It is kept twice (Anvil size matches) with its MODELS row.
+    - **Its navdev choices (R10, 04:04):** epoch 15, 2 steps, sampling setting 1.5. Single path 82.36, best-of-6 89.42. For comparison, at their own choices: A3 82.79 / 90.29, A2 82.36 / 90.68, A1 81.86 / 89.65 (unpaired; the paired intervals come with the next aggregate). Removing the metric embedding from A3 costs 0.43 on navdev by point estimate.
+    - Its navtest paths (`350_navtest-a3-no-metric-l12-18-24`) run right after A3's seed 1, about 06:30 [D]. R17's test is on navtest: an effect counts only above 1.4 points with the drive interval excluding 0. The report is republished then.
   - **Reordered 02:20 Nov 28 (our own queue, scheduling only):** R20 now runs ahead of phase 2's three remaining follow-up runs: A3 without soft labels, and the 0.05 m and 0.25 m bins. They wait in the desktop's `~/queue/parked` under their own names, so the driver does not queue them twice. A one-shot watcher (`unpark_after_r20.sh`) moves them back the moment nothing else waits, so the GPU does not idle.
     - Why: R20 bears on Monday's method answer (C6 against A4), and those three runs feed no choice. R20's result moves from about Sun 06:00 to about Sun 00:00 [D]; the three runs land about Sun 08:00 instead of Sat 15:00 [D]. Both are before Monday. R20's text in `docs/HEADS_PLAN.md` carries the dated amendment.
   - **Done 01:31 Nov 28, after D6's last control:**
