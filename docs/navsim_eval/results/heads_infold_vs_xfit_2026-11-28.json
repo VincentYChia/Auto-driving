@@ -1,0 +1,121 @@
+{
+ "contenders": {
+  "A4": {
+   "in_fold_minus_cross_fitted": 0.15,
+   "ci_drives": [
+    -0.83,
+    0.85
+   ],
+   "same_pick": 0.6985,
+   "in_fold": 87.88,
+   "cross_fitted": 87.73,
+   "rl": true,
+   "scenes": 743
+  },
+  "A6": {
+   "in_fold_minus_cross_fitted": 0.01,
+   "ci_drives": [
+    -0.79,
+    0.6
+   ],
+   "same_pick": 0.9327,
+   "in_fold": 87.71,
+   "cross_fitted": 87.7,
+   "rl": true,
+   "scenes": 743
+  },
+  "B4": {
+   "in_fold_minus_cross_fitted": 0.91,
+   "ci_drives": [
+    0.18,
+    1.29
+   ],
+   "same_pick": 0.8439,
+   "in_fold": 85.78,
+   "cross_fitted": 84.87,
+   "rl": true,
+   "scenes": 743
+  },
+  "B6": {
+   "in_fold_minus_cross_fitted": 0.79,
+   "ci_drives": [
+    -0.31,
+    1.35
+   ],
+   "same_pick": 0.6433,
+   "in_fold": 85.66,
+   "cross_fitted": 84.87,
+   "rl": true,
+   "scenes": 743
+  },
+  "C4": {
+   "in_fold_minus_cross_fitted": 0.39,
+   "ci_drives": [
+    -0.11,
+    1.14
+   ],
+   "same_pick": 0.751,
+   "in_fold": 87.27,
+   "cross_fitted": 86.89,
+   "rl": true,
+   "scenes": 743
+  },
+  "C6": {
+   "in_fold_minus_cross_fitted": 0.26,
+   "ci_drives": [
+    0.02,
+    0.44
+   ],
+   "same_pick": 0.9664,
+   "in_fold": 87.44,
+   "cross_fitted": 87.17,
+   "rl": true,
+   "scenes": 743
+  },
+  "D4": {
+   "in_fold_minus_cross_fitted": -0.61,
+   "ci_drives": [
+    -1.75,
+    1.8
+   ],
+   "same_pick": 0.4105,
+   "in_fold": 82.51,
+   "cross_fitted": 83.13,
+   "rl": false,
+   "scenes": 743
+  },
+  "D6": {
+   "in_fold_minus_cross_fitted": 3.5,
+   "ci_drives": [
+    2.56,
+    4.4
+   ],
+   "same_pick": 0.5074,
+   "in_fold": 83.99,
+   "cross_fitted": 80.48,
+   "rl": true,
+   "scenes": 743
+  }
+ },
+ "unit": "PDMS points; intervals resample drives (R3)",
+ "note": "exploratory and post hoc (the pattern was seen first); R14's adoption is unchanged",
+ "pooled_with_rl": {
+  "contenders": [
+   "A4",
+   "A6",
+   "B4",
+   "B6",
+   "C4",
+   "C6",
+   "D6"
+  ],
+  "in_fold_minus_cross_fitted": 0.86,
+  "ci_drives": [
+   0.47,
+   1.07
+  ],
+  "scenes": 743
+ },
+ "source": "pilot_sft/heads/infold_vs_xfit.py at 48451de on the 4090 desktop, 2026-11-28 00:19, navdev (743 scenes, 11 drives)",
+ "labels": "per contender: R14's registered measure 'in-fold against cross-fitted, on navdev' (docs/HEADS_PLAN.md R14, Measured), reported only; pooled_with_rl: post hoc, defined after the pattern was seen"
+}

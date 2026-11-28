@@ -1,4 +1,4 @@
-"""In-fold against cross-fitted selector, per contender, on navdev. Exploratory, post hoc and reporting only.
+"""In-fold against cross-fitted selector, per contender, on navdev: R14's registered measure, reported only.
 
     python pilot_sft/heads/infold_vs_xfit.py --heads <heads dir> --drives <cache root>/drives_navdev.json --out <json>
 
@@ -10,7 +10,9 @@ contender, by point estimate (STATUS, 2026-11-27 23:49), and this measures it:
 - per contender: in fold minus cross-fitted, the mean of the per-scene difference of the true PDMS of the two picks,
   with R3's drive interval (10,000 resamples, seed 0), and how often the two pick the same candidate;
 - pooled over the contenders with RL: the per-scene mean of their differences, with the same interval.
-The pattern was seen before this was written, so it is post hoc. It reads the selection files only and scores nothing.
+The per-contender comparison is one of R14's measures ("in-fold against cross-fitted, on navdev"). The pooling over the
+contenders with RL was defined after the pattern was seen, so it is post hoc. It reads the selection files only and
+scores nothing.
 """
 import argparse
 import json
@@ -56,7 +58,8 @@ def compare(heads: str, drives: Dict[str, str], contenders=CONTENDERS) -> dict:
                   "cross_fitted": round(100 * float(np.mean([b[t]["true"] for t in toks])), 2),
                   "rl": x not in WITHOUT_RL, "scenes": len(toks)}
     out = {"contenders": per, "unit": "PDMS points; intervals resample drives (R3)",
-           "note": "exploratory and post hoc (the pattern was seen first); R14's adoption is unchanged"}
+           "note": "per contender: R14's measure, reported only; pooled_with_rl: post hoc (defined after the pattern "
+                   "was seen); R14's adoption is unchanged"}
     rl = [x for x in diffs if x not in WITHOUT_RL]
     if rl:
         toks = sorted(set.intersection(*[set(diffs[x]) for x in rl]))
