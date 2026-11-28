@@ -1385,8 +1385,9 @@ def seed_replication(status: dict) -> None:
         x = f"{method}{recipe}"
         spec = read_json(os.path.join(C, f"selector_spec_{x}.json"))
         tuned = read_json(os.path.join(C, f"{method}_tuned.json"))
-        if adopted.get(x) or spec["configuration"] != tuned["run"]:
-            st[x] = "held: an adopted selector or R19's configuration needs its own seed rule"
+        if adopted.get(x) or spec["deployed_run"] != f"{tuned['run']}-rlfull{recipe}":
+            # specs written before Nov 24 have no "configuration" key; the deployed run names R19's and update 0's cases
+            st[x] = "held: an adopted selector, R19's configuration or update 0 needs its own seed rule"
             continue
         rl0 = f"{tuned['run']}-rlfull{recipe}"
         if not os.path.exists(os.path.join(H, rl0, "choices_navdev.json")):

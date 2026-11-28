@@ -613,7 +613,7 @@ def r20_world(tree, monkeypatch, adopted=None):  # noqa: F811
                                                                                      "scale": scale}}))
         (choices / f"{m}_tuned_rl_start.json").write_text(json.dumps({"run": run, "epoch": start}))
         (choices / f"selector_spec_{m}{recipe}.json").write_text(json.dumps(
-            {"configuration": run, "deployed_run": f"{run}-rlfull{recipe}", "deployed_weights": "rl_2500"}))
+            {"deployed_run": f"{run}-rlfull{recipe}", "deployed_weights": "rl_2500"}))  # as A4's spec of Nov 23
         rd = H / f"{run}-rlfull{recipe}"
         (rd / "navdev_rl_2500").mkdir(parents=True)
         (rd / "navdev_rl_2500" / "timing.json").write_text("{}")
