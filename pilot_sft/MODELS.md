@@ -117,6 +117,7 @@ Each training run's folder (`exp/heads/<run>/`) holds `epoch_1.pt` … `epoch_20
 | `a2-l12-18-24` | A2 (phase 2: A1 plus soft labels) | 12, 18, 24 | 0 | 20 | 41.9M | 1 h 50 min | 3.9 | `dfc01c8e9f19811d` | yes | yes |
 | `a3-l12-18-24` | A3 (phase 2: A2 plus the position-error loss and the averaged readout) | 12, 18, 24 | 0 | 20 | 41.9M | 2 h 16 min | 4.0 | `f5106da50c3d7c46` | yes | yes |
 | `a4-l12-18-24` | A4 (phase 2: A3 plus the continuous offset within the bin) | 12, 18, 24 | 0 | 20 | 41.9M | 2 h 5 min | 4.1 | `de6e237b596c9be5` | yes | yes |
+| `a3-no-metric-l12-18-24` | A3 without the metric embedding (phase 2: R17's leave-one-out from the series' best, A3) | 12, 18, 24 | 0 | 20 | 42.4M | 2 h 42 min | 4.1 | `63b660edd6f2ca8b` | yes | yes |
 | `d-r150-l12-18-24` | D, R15 tuning run 0 (phase 6): 10 anchors | 12, 18, 24 | 0 | 20 | 41.1M | 2 h 33 min | 3.8 | `ef3ae700c843d6fb` | yes | yes |
 | `d-r151-l12-18-24` | D, R15 tuning run 1 (phase 6): 40 anchors | 12, 18, 24 | 0 | 20 | 41.1M | 2 h 10 min | 3.8 | `513e96ecfc97fda2` | yes | yes |
 | `d-r152-l12-18-24` | D, R15 tuning run 2 (phase 6): anchor truncation 0.02 (`--anchor-trunc 0.02`) | 12, 18, 24 | 0 | 20 | 41.1M | 2 h 12 min | 3.8 | `d0e2f65e7a06d177` | yes | yes |
