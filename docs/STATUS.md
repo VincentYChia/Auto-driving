@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 27 20:54, version 56: R14's selector controls for every contender but D6. All seven of D4's selectors gain, none of 42 after RL does; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-28 00:20 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-28 00:21 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -517,6 +517,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
      - Page 3: Figure 3 against other top studies before and after RL (ours: the final system 84.6 to 88.8, and C6 at 89.5), Figure 6 with the path generator, RL and selector built, and Table 3 with steps 1-3 done.
      - Every sheet measures one Letter page. A backup of the 11-18 version is kept locally.
    - **Done 21:55 Nov 26: the plain version, in place, with its PDF** (`navsim_demo_renders/final_report_2026-11-19.html` and `.pdf`, two Letter pages). It follows your 2026-11-19 rules: no run names, two tiles (88.8 and 0.8B), findings as short text, and page 2 in your order. Rivals are "other top studies", stated at the same stage, now after practice. The system figure keeps 4 past poses and "masked diffusion first, then a DiT", now marked built and compared. The last next step is "Other improvements". It states that the final system was picked before testing and that a second path writer scored 0.7 higher on the test (the framing in Waiting on the researcher, which you can change). **Both final reports are ready for Monday.**
+   - **To add when D6's controls are complete (noted 00:21 Nov 28):** R14's in-fold against cross-fitted measure (after RL the in-fold selector beats the cross-fitted one, pooled +0.86). Technical version: one sentence in the selector paragraph, with the pooling marked post hoc. Plain version: a second lead under "How we plan to improve": train the judge on the path writer's own candidates.
    - **Then** `pilot_sft/README.md`'s navtest table and `docs/GAPS.md` under its rule. The selector-after-RL finding is navdev only, so it cannot be filled there.
 7. **A prediction for D4's selector, written 08:26 Nov 26 before it trains** (outcome 11:39: part 1 holds, +6.02; part 2 fails, the gain is smallest in the most-spread quartile; see Running now) (reporting only; R14's adoption rule decides, as for every contender). After RL every selector failed, and the explanation so far is that RL draws the candidates together (end points within about 0.7 m in three quarters of navdev scenes). D4 has no RL and the widest candidates, so that explanation predicts [D]:
    - D4's xfit-s0 gains more than the rehearsal's +1.35 on navdev;
