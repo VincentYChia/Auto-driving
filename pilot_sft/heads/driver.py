@@ -1004,25 +1004,30 @@ FULL_RL_ROUND = 5000  # R18: the full RL stage runs in rounds of 5,000 updates .
 FULL_RL_ROUNDS = 4  # ... and continues while a round's last save is R11's choice, up to 20,000 updates
 
 
-def full_rl_stage(method: str, recipe: int, run: str, tlc: dict, start: int, rl: str) -> Optional[dict]:
+def full_rl_stage(method: str, recipe: int, run: str, tlc: dict, start: int, rl: str, seed: int = 0,
+                  last: bool = False) -> Optional[dict]:
     """R15 with R18: the full RL stage of ``run`` in rounds of 5,000 updates, saved every 500, each round resuming
     the last (jobs ``47{m}{r}_`` then ``47{m}{r}r{k}_``). After each round R11's rule chooses among update 0 and every
     save so far; the stage continues only while that choice is the round's last save, up to 4 rounds. Returns the
-    final choice (also written as the run's choices_navdev.json), or None while a round runs or is scored."""
+    final choice (also written as the run's choices_navdev.json), or None while a round runs or is scored. R20's
+    seeds pass their RL ``seed`` (jobs ``47{m}{r}s{s}_``) and ``last``, which queues every round after all else."""
     if os.path.exists(os.path.join(P["heads"], rl, "choices_navdev.json")):
         return rl_choose(rl, tlc, run, start, (), navtest=False)  # chosen before: read back
+    tag = f"{method.lower()}{recipe}" + (f"s{seed}" if seed else "")
     for k in range(1, FULL_RL_ROUNDS + 1):
         cps = tuple(range(FULL_RL_EVERY, FULL_RL_ROUND * k + 1, FULL_RL_EVERY))
-        queue_job(f"47{method.lower()}{recipe}{'' if k == 1 else f'r{k}'}_rlfull{recipe}-{run}",
+        queue_job(f"47{tag}{'' if k == 1 else f'r{k}'}_rlfull{recipe}-{run}",
                   f"phase 6 (R16, R15, R18): full RL stage, RL{recipe}, of {run} from epoch {start}, round {k}: "
-                  f"to {cps[-1]:,} updates", rl_body(tlc, run, rl, start, 0, recipe, cps))
+                  f"to {cps[-1]:,} updates" + (f", RL seed {seed} (R20)" if seed else ""),
+                  rl_body(tlc, run, rl, start, seed, recipe, cps), last=last)
         sc = checkpoint_scores(rl, tlc, run, start, cps)
         if sc is None:
             return None
         if best_update(sc[0]) == cps[-1] and k < FULL_RL_ROUNDS:
             continue  # navdev still rising at the round's last save: the next round (logged once, when queued)
         return rl_choose(rl, tlc, run, start, cps, navtest=False,
-                         extra={"rounds": k, "rule": "docs/HEADS_PLAN.md R11, R15, R18 (update 0 allowed)"})
+                         extra={"rounds": k, "rule": "docs/HEADS_PLAN.md R11, R15, R18" + (", R20" if seed else "")
+                                + " (update 0 allowed)"})
     return None
 
 
@@ -1334,6 +1339,113 @@ def final_system(status: dict) -> None:
         status["final_system"]["navtest"] = read_json(fin)["headline_navtest_pdms"]
 
 
+# ---- R20: seeds 1 and 2 of the final system and of the navtest leader (reporting only) -------------------------
+R20_CONTENDERS = (("A", 4), ("C", 6))  # A4, the final system, and C6, 0.67 above it on navtest; one seed each so far
+R20_SEEDS = (1, 2)
+
+
+def training_job_exists(run: str) -> bool:
+    """A training job for ``run`` in any queue folder, under any job name (R17's seeds of A3 serve R20 too)."""
+    for root in (P["queue_root"], P["queue2_root"]):
+        for sub in ("pending", "running", "done", "parked", "dropped", "failed"):
+            d = os.path.join(root, sub)
+            if os.path.isdir(d) and any(f.endswith(f"_train-{run}.sh") for f in os.listdir(d)):
+                return True
+    return False
+
+
+def seed_contrast(per: Dict[str, List[pd.Series]], drives: Dict[str, str], a: str, b: str) -> dict:
+    """``b`` - ``a`` over all their seeds by R5's hierarchical bootstrap (drives and seeds redrawn)."""
+    r = decide({a: per[a], b: per[b]}, drives)
+    sign, other = (1, a) if r["leader"] == b else (-1, b)
+    d = r["leader_minus_other"][other]
+    lo, hi = sorted(round(sign * v, 4) for v in d["ci"])
+    return {"difference": round(sign * d["difference"], 4), "ci": [lo, hi], "mean_pdms": r["point_navdev_single_pdms"],
+            "between_seed_sd": r["between_seed_sd"], "seeds": r["seeds"], "scenes": r["scenes"], "drives": r["drives"]}
+
+
+def seed_replication(status: dict) -> None:
+    """R20 (reporting only; it changes no choice): seeds 1 and 2 of contenders A4 and C6, each through the whole
+    pipeline as phase 4 seeded its runs. The tuned configuration (R15) is trained with seed s (A3's seeds are R17's
+    runs); the full RL stage runs from seed 0's R11 starting epoch with RL seed s in R18's rounds; R11 chooses its
+    checkpoint on navdev; navtest is scored once. Every job queues last. With every seed scored, C6 - A4 over three
+    seeds each by R5's hierarchical bootstrap, on navtest and navdev: ``choices/r20_seed_replication.json``."""
+    H, C = P["heads"], os.path.join(P["heads"], "choices")
+    out = os.path.join(C, "r20_seed_replication.json")
+    if os.path.exists(out):
+        status["r20"] = {"written": out}
+        return
+    if not os.path.exists(os.path.join(C, "final_navtest.json")):
+        return  # R20 follows R16's navtest scores
+    adopted = read_json(os.path.join(C, "final_system.json"))["adopted"]
+    st = status.setdefault("r20", {})
+    per = {"navdev": {}, "navtest": {}}  # split -> contender -> per-scene single-path series, seed 0 first
+    seeds = {}
+    for method, recipe in R20_CONTENDERS:
+        x = f"{method}{recipe}"
+        spec = read_json(os.path.join(C, f"selector_spec_{x}.json"))
+        tuned = read_json(os.path.join(C, f"{method}_tuned.json"))
+        if adopted.get(x) or spec["configuration"] != tuned["run"]:
+            st[x] = "held: an adopted selector or R19's configuration needs its own seed rule"
+            continue
+        rl0 = f"{tuned['run']}-rlfull{recipe}"
+        if not os.path.exists(os.path.join(H, rl0, "choices_navdev.json")):
+            st[x] = "held: seed 0's full RL stage has no navdev choice"
+            continue
+        start = read_json(os.path.join(C, f"{method}_tuned_rl_start.json"))["epoch"]
+        tlc = {"kind": tuned["kind"], "choice": tuned["choice"], "run": tuned["run"]}
+        chs = [rl_choose(rl0, tlc, tuned["run"], start, (), navtest=False)]  # seed 0: R16's choice, read back
+        for s in R20_SEEDS:
+            sft = f"{tuned['run']}-s{s}"
+            if not os.path.exists(os.path.join(H, sft, "final.pt")):
+                if not training_job_exists(sft):
+                    queue_job(f"44{method.lower()}{s}_train-{sft}",
+                              f"R20: seed {s} of contender {x}'s tuned configuration {tuned['run']}",
+                              train_body(sft, tuned["kind"], tuned["layers"], s, tuned["flags"]), last=True)
+                st[f"{x} seed {s}"] = "training"
+                continue
+            ch = full_rl_stage(method, recipe, sft, tlc, start, f"{sft}-rlfull{recipe}", seed=s, last=True)
+            if not ch:
+                st[f"{x} seed {s}"] = "full RL stage"
+                continue
+            queue_rl_navtest(ch, tlc)
+            st[f"{x} seed {s}"] = ch["checkpoint"]
+            chs.append(ch)
+        if len(chs) < 1 + len(R20_SEEDS):
+            continue
+        rows = []
+        for sd, ch in zip((0,) + R20_SEEDS, chs):
+            row = {"seed": sd, "run": ch["run"], "checkpoint": ch["checkpoint"], "updates": ch["updates"],
+                   "rounds": ch.get("rounds", 1)}
+            for split in ("navdev", "navtest"):
+                base = chosen_paths(ch, split)
+                v = (score(os.path.join(base, "single"), split)
+                     if os.path.exists(os.path.join(os.path.dirname(base), "timing.json")) else None)
+                if v is not None:
+                    per[split].setdefault(x, []).append(v)
+                    row[f"{split}_single_pdms"] = round(float(v.mean()), 4)
+            rows.append(row)
+        seeds[x] = rows
+    names = [f"{m}{r}" for m, r in R20_CONTENDERS]
+    n = 1 + len(R20_SEEDS)
+    if not all(len(per[sp].get(x, [])) == n for sp in per for x in names):
+        return
+    a, b = names
+    res = {"contenders": {}, f"{b}_minus_{a}": {}, "rule": "docs/HEADS_PLAN.md R20 (reporting only, post hoc; R16's "
+           "final system and headline stand)", "decided": f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}"}
+    for x in names:
+        res["contenders"][x] = {"seeds": seeds[x]}
+        for split in per:
+            m = [float(v.mean()) for v in per[split][x]]
+            res["contenders"][x][f"{split}_mean"] = round(float(np.mean(m)), 4)
+            res["contenders"][x][f"{split}_between_seed_sd"] = round(float(np.std(m, ddof=1)), 4)
+    for split in per:
+        drives = read_json(os.path.join(os.path.dirname(P["cache"]), f"drives_{split}.json"))
+        res[f"{b}_minus_{a}"][split] = seed_contrast(per[split], drives, a, b)
+    write_json(out, res)
+    log(f"R20 (reporting only): {b} - {a} {json.dumps(res[f'{b}_minus_{a}'])}")
+    status["r20"] = {"written": out}
+
 def references() -> dict:
     """H1's text output and constant velocity on navdev, the references (phase 0)."""
     out = {}
@@ -1387,6 +1499,7 @@ def one_pass() -> dict:
         phase6(status)
         selectors(status)
         final_system(status)
+        seed_replication(status)
     write_json(os.path.join(P["heads"], "driver_status.json"), status)
     return status
 

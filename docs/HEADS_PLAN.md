@@ -359,6 +359,25 @@ R5 on navdev, then C1–C4 on navtest (R4). With a clear winner, phase 6; on a t
 - **Why.** R15 picks the tuned configuration by navdev single path before RL, but R16 judges the system after RL. Without R19, a configuration that RL cannot improve would stand in for its method because of a pre-RL difference. B's tuned configuration (noise target, linear schedule) won R15 by 0.37 points (81.77 against 81.40). Under RL4 its training reward fell from 0.843 (updates 1-100) to 0.502 (updates 1,001-1,073); best of 8 fell from 0.941 to 0.638 and NC from 0.981 to 0.717. B's phase-1 configuration, under the same recipe in phase 4, rose from 0.897 to 0.926. B's navdev scores, which decide, were not made when this was written.
 - **Cost** [D]: about 3.4 h of GPU per triggered stage at B's measured 2.4 s per update (one round; more under R18). The chain still runs once per contender.
 
+**R20. Seeds 1 and 2 of the final system and of the navtest leader** (committed 2026-11-27 23:01, before any of its runs; reporting only). It was proposed in `docs/STATUS.md` at 22:49 on Nov 27 and runs unless the researcher stops it. It is post hoc: C6's navtest lead prompted it, so it is not one of R4's confirmatory tests.
+- **Why.** R16 chose A4 on navdev (88.09 against C6's 87.43), and A4 is the headline: 88.83 on navtest. C6 scores 89.50 there, 0.67 higher (+0.08 to +1.25). Each is one seed of its pipeline, and that interval resamples drives only. In phase 4, A's three RL4 seeds spread over 1.78 points on navtest (87.27 to 89.05), and its three RL6 seeds over 0.68 (88.24 to 88.92).
+- **Runs.** For each of A4 and C6, seeds 1 and 2 of the whole pipeline, as phase 4 seeded its runs:
+  - the tuned configuration (R15) trained with seed s. A3's two seeds are R17's runs (`z_431`, `z_432`, with the same flags). C's `c-r152-l12-18-24` gets two new training runs (jobs `z_44c{s}_`);
+  - the full RL stage from seed 0's R11 starting epoch (A3: epoch 5; `c-r152`: epoch 10), with the contender's recipe and RL seed s. The RL seed sets the sampling noise; the scene order stays seed 0's. R18's rounds apply (jobs `z_47{m}{r}s{s}_`);
+  - R11's checkpoint rule on navdev single path, with update 0 allowed. R19 does not apply, because nothing is deployed;
+  - no selector. Neither contender adopted its selector (R14), so its system path is its own pick.
+- **Measures, reported only:**
+  - each seed's navdev and navtest single path at its chosen checkpoint. navtest is scored once per seed, after its navdev choice;
+  - C6 − A4 over three seeds each, on navtest and on navdev, by R5's hierarchical bootstrap (drives and seeds resampled, 10,000 draws, seed 0);
+  - each contender's between-seed SD after the full RL stage.
+- **What it changes.** No choice: the final system (A4, seed 0) and its headline stand. The report gives the three-seed means beside the headline. The method answer then reads:
+  - C6 leads A4 beyond seed noise if the navtest interval of C6 − A4 excludes 0;
+  - otherwise the two are within seed noise.
+- **Order and cost** [D]: its jobs queue after every other job.
+  - Two training runs of about 2 h 12 min each (`c-r152`'s time).
+  - Four RL stages of about 2 h 25 min each; the seed-0 stages took 2 h 22 min to 2 h 27 min.
+  - That is about 14 GPU hours, more if a stage needs R18's second round.
+
 **R14. The selector's design** (committed 2026-11-20 11:38, before any selector result and before its code runs on real data). Evidence: `docs/research/heads/notes/selector_design.md`, a review of about 25 published NAVSIM selectors.
 - **The score it predicts, checked on our files:** NAVSIM v1.1's PDMS is NC × DAC × (5·TTC + 5·EP + 2·C)/12.
   - On one of our navtest score files (12,146 scenes), this formula equals the official score exactly.

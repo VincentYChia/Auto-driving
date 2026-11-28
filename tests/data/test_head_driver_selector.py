@@ -588,3 +588,114 @@ def test_the_half_generators_are_scored_on_navdev_once_their_paths_exist(chain):
     (base / "timing.json").write_text("{}")
     st = driver.selector_chain("a", SPEC)
     assert set(st["halves_navdev_single"]) == {"half0"} and 0.7 < st["halves_navdev_single"]["half0"] < 0.9
+
+
+# ---- R20: seeds 1 and 2 of the final system (A4) and of the navtest leader (C6) ----------------------------------
+R20_WORLD = {"A": ("a3-l12-18-24", "masked", ["--soft-sigma", "1", "--l1-weight", "1"], 5, 4, 4, 1.5),
+             "C": ("c-r152-l12-18-24", "flow", ["--time-sampling", "beta"], 10, 6, 2, 2.0)}
+
+
+def r20_world(tree, monkeypatch, adopted=None):  # noqa: F811
+    """R16 done: A4 final, neither A4 nor C6 adopted its selector, both deployed an RL save of the tuned run."""
+    from test_head_driver import TOKENS
+    monkeypatch.setitem(driver.P, "cache", str(tree / "cache" / "h1"))
+    (tree / "cache").mkdir(parents=True, exist_ok=True)
+    for split in ("navdev", "navtest"):
+        (tree / "cache" / f"drives_{split}.json").write_text(json.dumps({t: f"drive{i % 4}" for i, t in enumerate(TOKENS)}))
+    H, choices = Path(driver.P["heads"]), Path(driver.P["heads"]) / "choices"
+    choices.mkdir(parents=True, exist_ok=True)
+    (choices / "final_navtest.json").write_text(json.dumps({"final": "A4"}))
+    (choices / "final_system.json").write_text(json.dumps(
+        {"final": "A4", "adopted": adopted or {"A4": False, "A6": True, "C6": False}}))
+    for m, (run, kind, fl, start, recipe, steps, scale) in R20_WORLD.items():
+        (choices / f"{m}_tuned.json").write_text(json.dumps({"method": m, "run": run, "kind": kind, "layers": "12,18,24",
+                                                             "flags": fl, "choice": {"epoch": 15, "steps": steps,
+                                                                                     "scale": scale}}))
+        (choices / f"{m}_tuned_rl_start.json").write_text(json.dumps({"run": run, "epoch": start}))
+        (choices / f"selector_spec_{m}{recipe}.json").write_text(json.dumps(
+            {"configuration": run, "deployed_run": f"{run}-rlfull{recipe}", "deployed_weights": "rl_2500"}))
+        rd = H / f"{run}-rlfull{recipe}"
+        (rd / "navdev_rl_2500").mkdir(parents=True)
+        (rd / "navdev_rl_2500" / "timing.json").write_text("{}")
+        (rd / "choices_navdev.json").write_text(json.dumps(
+            {"run": rd.name, "start": {"run": run, "weights": f"epoch_{start}"}, "checkpoint": "rl_2500", "updates": 2500,
+             "steps": steps, "scale": scale, "single_by_checkpoint": {"0": 0.8, "2500": 0.85},
+             "best_of_6_by_checkpoint": {"0": 0.9, "2500": 0.92}}))
+    for s in (1, 2):  # R17 queued A3's two seeds under its own job names, with the same flags
+        (Path(driver.P["queue"]) / f"z_43{s}_train-a3-l12-18-24-s{s}.sh").write_text("#!/bin/bash\n")
+    return H, choices
+
+
+def test_r20_runs_seeds_1_and_2_of_a4_and_c6_through_the_pipeline_and_reports_c6_minus_a4(tree, monkeypatch):  # noqa: F811
+    from test_head_driver import TOKENS
+    H, choices = r20_world(tree, monkeypatch)
+    q = Path(driver.P["queue"])
+    status = {}
+    driver.seed_replication(status)  # pass 1: only C's seeds need training; A's are R17's runs
+    assert sorted(j for j in os.listdir(q) if "train" in j) == [
+        "z_431_train-a3-l12-18-24-s1.sh", "z_432_train-a3-l12-18-24-s2.sh",
+        "z_44c1_train-c-r152-l12-18-24-s1.sh", "z_44c2_train-c-r152-l12-18-24-s2.sh"]
+    j = (q / "z_44c2_train-c-r152-l12-18-24-s2.sh").read_text()
+    assert "--kind flow --layers 12,18,24" in j and "--seed 2 --time-sampling beta" in j and "R20" in j
+    assert not [f for f in os.listdir(q) if "rlfull" in f] and status["r20"]["C6 seed 1"] == "training"
+
+    for m, (run, kind, _, start, _, _, _) in R20_WORLD.items():  # the four seed runs finish training
+        for s in (1, 2):
+            make_run(f"{run}-s{s}", kind, epochs=[start])
+    driver.seed_replication(status)  # pass 2: each seed's full RL stage, from seed 0's starting epoch, queued last
+    rl = sorted(f for f in os.listdir(q) if "rlfull" in f)
+    assert rl == ["z_47a4s1_rlfull4-a3-l12-18-24-s1.sh", "z_47a4s2_rlfull4-a3-l12-18-24-s2.sh",
+                  "z_47c6s1_rlfull6-c-r152-l12-18-24-s1.sh", "z_47c6s2_rlfull6-c-r152-l12-18-24-s2.sh"]
+    a = (q / rl[0]).read_text()
+    assert "--run $H/a3-l12-18-24-s1 --weights epoch_5" in a and "--seed 1 --updates 5000" in a
+    assert "--adv dr --bc-balance 0 " in a and "OUT=$H/a3-l12-18-24-s1-rlfull4" in a and "RL seed 1 (R20)" in a
+    c = (q / rl[3]).read_text()
+    assert "--weights epoch_10" in c and "--seed 2 --updates 5000" in c and "--adv dr --bc-balance 1 " in c
+    assert not (q / "47a4_rlfull4-a3-l12-18-24.sh").exists()  # seed 0's stage is R16's, read back, never re-queued
+
+    monkeypatch.setattr(driver, "SCORER", peak_at(2500))
+    for m, (run, kind, _, start, recipe, steps, scale) in R20_WORLD.items():
+        for s in (1, 2):
+            rl_outputs(H / f"{run}-s{s}-rlfull{recipe}", steps, scale, range(500, 5001, 500))
+    driver.seed_replication(status)  # pass 3: R11 chooses each seed's checkpoint on navdev; navtest queued once
+    ch = json.loads((H / "c-r152-l12-18-24-s1-rlfull6" / "choices_navdev.json").read_text())
+    assert (ch["checkpoint"], ch["rounds"]) == ("rl_2500", 1) and "R20" in ch["rule"]
+    nt = (q / "350_navtest-a3-l12-18-24-s2-rlfull4.sh").read_text()
+    assert "--weights rl_2500 --split navtest" in nt and "--k 6 --scales 1.5" in nt
+    assert not (choices / "r20_seed_replication.json").exists()  # no navtest score yet
+
+    for m, (run, _, _, _, recipe, _, _) in R20_WORLD.items():
+        for rd in (f"{run}-rlfull{recipe}", f"{run}-s1-rlfull{recipe}", f"{run}-s2-rlfull{recipe}"):
+            (H / rd / "navtest_rl_2500").mkdir(parents=True, exist_ok=True)
+            (H / rd / "navtest_rl_2500" / "timing.json").write_text("{}")
+
+    def value(folder, split):  # C6 is 0.015 above A4 on navtest and 0.01 below it on navdev; seeds differ a little
+        sd = 2 if "-s2-" in folder else (1 if "-s1-" in folder else 0)
+        base = {("a3", "navtest"): 0.88, ("c-", "navtest"): 0.895, ("a3", "navdev"): 0.88, ("c-", "navdev"): 0.87}
+        b = next(v for (k, sp), v in base.items() if sp == split and os.path.basename(os.path.dirname(
+            os.path.dirname(os.path.dirname(folder)))).startswith(k))
+        return pd.Series([b + 0.002 * sd + 0.001 * (1 if i % 2 else -1) for i in range(len(TOKENS))], index=TOKENS)
+
+    monkeypatch.setattr(driver, "score", value)
+    driver.seed_replication(status)  # pass 4: every seed scored, the contrast written
+    r = json.loads((choices / "r20_seed_replication.json").read_text())
+    assert [row["seed"] for row in r["contenders"]["A4"]["seeds"]] == [0, 1, 2]
+    assert [row["checkpoint"] for row in r["contenders"]["C6"]["seeds"]] == ["rl_2500"] * 3
+    assert r["contenders"]["A4"]["navtest_mean"] == 0.882 and r["contenders"]["C6"]["navtest_mean"] == 0.897
+    assert r["contenders"]["C6"]["navtest_between_seed_sd"] == 0.002
+    nt, nd = r["C6_minus_A4"]["navtest"], r["C6_minus_A4"]["navdev"]
+    assert nt["difference"] == 0.015 and 0 < nt["ci"][0] <= 0.015 <= nt["ci"][1] and nt["seeds"] == {"A4": 3, "C6": 3}
+    assert nd["difference"] == -0.01 and nd["ci"][0] <= -0.01 <= nd["ci"][1] < 0  # the sign follows C6 - A4
+    assert "R20" in r["rule"] and status["r20"]["written"].endswith("r20_seed_replication.json")
+
+
+def test_r20_waits_for_r16s_navtest_and_holds_a_contender_with_an_adopted_selector(tree, monkeypatch):  # noqa: F811
+    H, choices = r20_world(tree, monkeypatch, adopted={"A4": False, "C6": True})
+    (choices / "final_navtest.json").unlink()
+    driver.seed_replication({})  # before R16's navtest scores: nothing at all
+    assert sorted(os.listdir(driver.P["queue"])) == ["z_431_train-a3-l12-18-24-s1.sh", "z_432_train-a3-l12-18-24-s2.sh"]
+    (choices / "final_navtest.json").write_text(json.dumps({"final": "A4"}))
+    status = {}
+    driver.seed_replication(status)
+    assert status["r20"]["C6"].startswith("held") and not [f for f in os.listdir(driver.P["queue"]) if "c-r152" in f]
+    assert status["r20"]["A4 seed 1"] == "training"  # A4's seeds proceed (R17's training jobs, nothing re-queued)
