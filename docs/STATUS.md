@@ -4,18 +4,18 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 27 07:55, version 55: R14's selector controls for A4, A6, B4 and B6, none helps after RL and B6's hurt; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-27 19:50 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-27 20:18 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 27 19:50). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 27 20:18). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 19:50 Nov 27):
-  - **Running: R14's controls for D4** (the imitation selector on the GPU since 19:14 Nov 27; then boundary). **D4's variants so far (navdev, reported only):** seed 1 +5.90 (+3.51 to +6.89), pdms +5.28 (+2.85 to +6.41), listwise +4.77 (+2.03 to +6.14), in fold +5.41 (+3.50 to +6.92, switching in 64.5% of scenes); seed 0 was +6.02. Every D4 selector gains, each interval wholly above 0. The in-fold control gains as much as the cross-fitted selectors, so training on out-of-fold candidates is not what makes D4's selector work. Seed 1, pdms, listwise and in fold are kept twice with MODELS rows.
+- **4090 desktop, GPU queue** (one job at a time; read 20:18 Nov 27):
+  - **Running: R14's controls for D4** (the boundary selector on the GPU since 19:53 Nov 27, the last of D4's). **D4's variants so far (navdev, reported only):** imitation **+6.62 (+3.66 to +8.30)**, the largest so far, switching in 77.4% of scenes; seed 1 +5.90 (+3.51 to +6.89), in fold +5.41 (+3.50 to +6.92), pdms +5.28 (+2.85 to +6.41), listwise +4.77 (+2.03 to +6.14); seed 0 was +6.02. Every D4 selector gains, each interval wholly above 0. Seed 1, pdms, listwise and in fold are kept twice with MODELS rows; imitation goes with the next batch.
   - **Done 16:57 Nov 27: D4's seed-1 selector holds the gain. On navdev +5.90 (+3.51 to +6.89)**, switching in 73.8% of scenes, against seed 0's +6.02 (+2.70 to +7.78). For D4, the contender without RL, the selector's gain does not depend on its seed. Every other contender's selectors, with RL, gain nothing. It goes to Anvil with the next batch.
   - **Done 16:10 Nov 27: C6's controls are complete (navdev, reported only). None of C6's seven selectors helps.** Seed 0 -0.26 (-0.44 to -0.01), seed 1 -0.18 (-0.49 to 0.00), pdms 0.00, listwise 0.00, in fold +0.01 (0.00 to +0.01), imitation 0.00 (never switching), boundary -0.79 (-1.17 to +0.03). Most barely leave C6's own pick. All seven are kept twice with MODELS rows. Queued on the GPU, 16 jobs:
     - C6's four remaining variants;
