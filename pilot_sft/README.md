@@ -201,14 +201,19 @@ Small path generators (about 41M parameters) read H1's frozen hidden states (lay
 - **H1's text output, the reference: 85.6 points (0.856 above).** After RL6, A averages 88.63 (88.92, 88.73, 88.24) and C 88.50 (one seed): about 3 points above H1. A and C cannot be told apart (A - C +0.13, -0.76 to +0.98); B is below both.
 - **R4's confirmatory tests** (named before any phase-4 run, Holm at family-wise 0.05, RL4): A - D after RL +5.79 (+4.22 to +7.46); A after RL - H1's text output +2.28 (+1.00 to +3.62); A after - before RL +3.19 (+1.69 to +4.88), all p < 0.0001; A before RL - R +0.05 (-0.53 to +0.63), p 0.87, not rejected. `../docs/navsim_eval/results/heads_confirmatory_2026-11-22.json`.
 - **RL6 keeps the candidates where RL4 loses them:** RL6 - RL4 on best-of-6, A +1.82 (+1.15 to +2.57), C +0.70, D +1.15, each interval above 0. D after RL6 has the best best-of-6 (93.65) and the weakest own pick: phase 6 adds a learned selector to every contender before the final system is chosen on navdev (R16).
-- **Phase 6 so far, on navdev (2026-11-26, V).** navdev is where choices are made. Each contender's navtest score comes once, after R16 chooses the final system.
+- **Phase 6 on navdev (2026-11-26; R14's controls 2026-11-28, V).** navdev is where choices are made. Each contender's navtest score comes once, after R16 chooses the final system.
   - **The full RL stage** runs in rounds of 5,000 updates (R18). RL6 stays stable for every method. RL4 swings late: it collapsed B's tuned configuration and both of D's. D's phase-1 configuration fell from 77.10 at the start to 20.83 at 5,000 updates. R19 then deploys the phase-1 configuration's RL stage (B4: update 1,000) or its start (D4: epoch 5 without RL).
   - **Chosen path generators** (navdev single path, R11): A4 88.09, A6 87.57, C6 87.43, C4 87.28, B6 86.74, B4 85.30, D6 82.65, D4 77.10.
-  - **The selector stops helping after RL.** Without RL (the rehearsal on A1), the cross-fitted selector gained +1.35 (+0.48 to +3.65) over the own pick. After RL the gains were:
+  - **The selector stops helping after RL.** Without RL (the rehearsal on A1), the cross-fitted selector gained +1.35 (+0.48 to +3.65) over the own pick. After RL the deciding selectors (cross-fitted, seed 0) gained:
     - A6 +0.13 (-0.01 to +0.48): adopted by R14's point-estimate rule, with no gain claimed;
     - C6 -0.26, A4 -0.36, C4 -0.40 and B4 -0.43;
-    - B6 -1.87 (-2.40 to -0.73).
-  - **Why the selector stops helping:** RL draws the candidates together: their end points lie within about 0.7 m of each other in three quarters of navdev scenes. The selectors also over-predict no-collision: 0.993-0.997 predicted against 0.974-0.979 true. D4's and D6's selectors are still to come.
+    - B6 -1.87 (-2.40 to -0.73) and D6 -2.16 (-3.95 to -1.32).
+    D4, the one contender without RL (R19), gains +6.02 (+2.70 to +7.78), and its selector is adopted.
+  - **Why the selector stops helping:** RL draws the candidates together: their end points lie within about 0.7 m of each other in three quarters of navdev scenes. The selectors also over-predict no-collision: 0.993-0.997 predicted against 0.974-0.979 true. Spread alone is not the cause: D6's candidates stay as spread as D4's, and its selector still loses.
+  - **R14's controls (navdev, reported only):** seed 1, the in-fold control and four ablations per contender, seven selectors each.
+    - All seven of D4's gain, each interval above 0 (+4.75 to +6.62).
+    - Of the 49 after RL, none has an interval wholly above 0, and 15 lie wholly below 0. The largest gain is D6's in-fold control, +1.34 (-0.25 to +2.26).
+    - After RL the in-fold control beats the cross-fitted selector (R14's measure, scene by scene on the same candidates). Pooled over the seven contenders with RL: +0.86 (+0.47 to +1.07; the pooling was defined after the pattern was seen). D6 +3.50 (+2.56 to +4.40); D4, without RL, -0.61 (-1.75 to +1.80). `../docs/navsim_eval/results/heads_infold_vs_xfit_2026-11-28.json`.
 - **Phase 6 on navtest: the final system (R16, 2026-11-26, V).** Each contender's system path (the selected path where its selector is adopted, otherwise its own pick) was scored once, after the final system was chosen on navdev. Intervals are paired and resample drives.
 
 | Contender | System path | navdev | navtest | Minus H1's text output | Final system minus it |
