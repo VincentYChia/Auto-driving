@@ -126,7 +126,7 @@ def page_data(agg: dict, ms: Optional[dict] = None, conf: Optional[dict] = None)
                 vals[f"{sp}_{k}"] = [None if v is None else round(100 * v, 2) for v in [first] + rest]
         seeds.append({"method": m, "run": lc["run"], "values": vals})
     return {"refs": refs, "runs": runs, "layer": layer, "pairs": pairs, "rl": rl, "seeds": seeds, "methods": agg.get("methods", {}),
-            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "recipeChange": recipe_change_rows(ms), "confirm": confirm_rows(conf), "selectors": selector_rows(agg), "oofPairs": oof_pair_rows(agg), "final": final_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
+            "seedPairs": seed_pairs(ms), "series": series_rows(agg), "phase4": phase4_rows(ms), "recipeChange": recipe_change_rows(ms), "confirm": confirm_rows(conf), "selectors": selector_rows(agg), "oofPairs": oof_pair_rows(agg), "final": final_rows(agg), "r20": r20_rows(agg), "seriesBest": {sp: r["series_best_vs_a1"] for sp, r in
                                                                                     (ms or {}).items() if r.get("series_best_vs_a1")},
             "generated": agg.get("generated"), "names": METHOD_NAMES}
 
@@ -203,6 +203,31 @@ def final_rows(agg: dict) -> Optional[dict]:
     return {"final": fs["final"], "decided": fs.get("decided"), "rows": rows, "pairs": pairs,
             "headline": None if hp is None else round(100 * hp, 2)}
 
+
+R20_FILE = "r20_seed_replication"  # the driver's choices/r20_seed_replication.json, in the aggregate's ``methods``
+
+
+def r20_rows(agg: dict) -> Optional[dict]:
+    """R20 (reporting only): seeds 1 and 2 of A4 and C6, in points. Each seed's navdev and navtest single path at its
+    navdev checkpoint, each contender's mean and between-seed SD, and the contrast over every seed with R5's
+    interval (drives and seeds redrawn). None until the driver writes the file."""
+    r = (agg.get("methods") or {}).get(R20_FILE)
+    if not isinstance(r, dict) or not r.get("contenders"):
+        return None
+    pt = lambda v: None if v is None else round(100 * v, 2)  # noqa: E731
+    rows = []
+    for x, c in r["contenders"].items():
+        rows.append({"x": x, "method": x[0],
+                     "seeds": [{"seed": d["seed"], "run": d["run"], "checkpoint": d["checkpoint"],
+                                "rounds": d.get("rounds", 1), "navdev": pt(d.get("navdev_single_pdms")),
+                                "navtest": pt(d.get("navtest_single_pdms"))} for d in c["seeds"]],
+                     **{f"{sp}{k}": pt(c.get(f"{sp}_{key}")) for sp in ("navdev", "navtest")
+                        for k, key in (("Mean", "mean"), ("Sd", "between_seed_sd"))}})
+    name = next((k for k in r if "_minus_" in k), None)
+    contrast = {sp: {"x": pt(d["difference"]), "lo": pt(d["ci"][0]), "hi": pt(d["ci"][1]), "drives": d.get("drives"),
+                     "scenes": d.get("scenes")} for sp, d in (r.get(name) or {}).items()} if name else {}
+    return {"rows": rows, "name": name.replace("_minus_", " − ") if name else None, "contrast": contrast,
+            "decided": r.get("decided")}
 
 def oof_pair_rows(agg: dict) -> list:
     """Every pair of chains on the same out-of-fold training scenes (collect_results' ``selector_oof_pairs``): A minus B
@@ -698,6 +723,29 @@ function drawFinal() {
       tip: `<b>${esc(r.pair.replace('-', ' − '))}</b>, navtest ${what}: ${dvs(r)}`}]})), {zero: true, signed: true, aria: `Paired differences on navtest, ${what}`});
   });
 }
+function drawR20() {
+  const box = document.getElementById('r20'); if (!box) return; box.innerHTML = '';
+  const R = D.r20, h = document.createElement('h3');
+  h.textContent = 'R20: seeds 1 and 2 of A4 and C6 (reporting only; it changes no choice)'; box.appendChild(h);
+  if (!R) { const p = document.createElement('p'); p.className = 'small';
+    p.textContent = 'Each seed trains the tuned configuration and runs the full RL stage with its own seed, chosen on navdev and scored once on navtest. The result appears here once every seed is scored.';
+    box.appendChild(p); return; }
+  const f2 = v => v == null ? '–' : v.toFixed(2), s2 = v => v == null ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
+  const d2 = o => o ? `${s2(o.x)} (${s2(o.lo)} to ${s2(o.hi)})` : '–';
+  const body = [];
+  R.rows.forEach(r => {
+    r.seeds.forEach(q => body.push([`${esc(r.x)}, seed ${q.seed}<br><span class="small">${esc(q.run)} · ${esc(q.checkpoint)}` +
+      `${q.rounds > 1 ? ` · ${q.rounds} rounds` : ''}</span>`, f2(q.navdev), f2(q.navtest)]));
+    body.push([`<b>${esc(r.x)}, mean of ${r.seeds.length} seeds</b>`, `<b>${f2(r.navdevMean)}</b> <span class="small">SD ${f2(r.navdevSd)}</span>`,
+      `<b>${f2(r.navtestMean)}</b> <span class="small">SD ${f2(r.navtestSd)}</span>`]);
+  });
+  const tb = document.createElement('div'); box.appendChild(tb);
+  table(tb, ['Contender, seed and its path generator', 'navdev single path', 'navtest single path'], body);
+  const c = R.contrast || {}, p = document.createElement('p');
+  p.innerHTML = `<b>${esc(R.name || '')} over every seed</b>, with an interval that redraws drives and seeds (R5): navtest ${d2(c.navtest)}; ` +
+    `navdev ${d2(c.navdev)}. The final system and its headline stay as R16 chose them.`;
+  box.appendChild(p);
+}
 function drawConfirm() {
   const box = document.getElementById('r4'); if (!box) return; box.innerHTML = '';
   const c = D.confirm;
@@ -711,7 +759,7 @@ function drawConfirm() {
   table(tb, ['Test', 'What (navtest single path, ' + esc(c.recipe || '') + ')', 'Difference (points)', 'p', 'Holm-adjusted p', `Rejected at ${c.alpha ?? 0.05}?`],
     c.rows.map(r => [esc(r.key), esc(r.what), dvs(r), pv(r.p), pv(r.p_holm), r.rejected ? '<b>yes</b>' : 'no']));
 }
-function drawAll() { drawPhase1(); drawRL(); drawSel(); drawFinal(); drawConfirm(); }
+function drawAll() { drawPhase1(); drawRL(); drawSel(); drawFinal(); drawR20(); drawConfirm(); }
 notes(); tiles(); drawAll();
 let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
 """
@@ -801,6 +849,7 @@ BODY = """
   each contender's system path is scored once on navtest, and the final system's score is the headline. Whiskers are 95% intervals
   that resample drives. The method and recipe pairs are exploratory (R4): intervals reported, nothing tested.</p>
   <div id="final"></div>
+  <div id="r20"></div>
 </section>
 <section><h2>What this means</h2><ul class="points" id="n-meaning"></ul></section>
 <section><h2>Problems and fixes</h2><ul class="points" id="n-problems"></ul></section>

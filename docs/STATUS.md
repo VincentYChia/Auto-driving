@@ -4,7 +4,7 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 27 20:54, version 56: R14's selector controls for every contender but D6. All seven of D4's selectors gain, none of 42 after RL does; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-27 23:17 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-27 23:20 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -518,7 +518,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
    - *Spread:* RL drew those chains' candidates together, so there was little to choose. Then D6's selector gains on navdev (point estimate above 0).
    - *RL itself:* after RL, selectors over-predict no-collision. Then D6's selector fails like the others, and its no-collision estimate is over-predicted (above the true rate by more than D4's 0.013).
    Both can hold at once; D6's no-collision calibration and gain are reported side by side.
-9. **R20 (registered 23:01 Nov 27, reporting only): seeds 1 and 2 of A4 and C6** (`docs/HEADS_PLAN.md` R20). The driver queues C's two training runs now and each RL stage once its training seed exists, all after every other job. Then it writes `choices/r20_seed_replication.json` with C6 - A4 over three seeds each, on navtest and navdev. Code and 2 tests: `seed_replication` in `driver.py` (159 heads tests pass). Each finished run gets its MODELS row and Anvil copy.
+9. **R20 (registered 23:01 Nov 27, reporting only): seeds 1 and 2 of A4 and C6** (`docs/HEADS_PLAN.md` R20). The driver queues C's two training runs now and each RL stage once its training seed exists, all after every other job. Then it writes `choices/r20_seed_replication.json` with C6 - A4 over three seeds each, on navtest and navdev. Code and 2 tests: `seed_replication` in `driver.py` (159 heads tests pass). The report shows the result under the final system (`report_html.py`, `r20_rows` and `drawR20`, 1 test; added 23:20 Nov 27). Each finished run gets its MODELS row and Anvil copy.
 
 ### Done so far (details, oldest first)
 1. ~~Code: temperature 0 means the deterministic best guess for every method; the generate argument is a per-method sampling scale for the R7 grids.~~ **Done** (bb05104).

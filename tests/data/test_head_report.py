@@ -211,3 +211,27 @@ def test_the_final_system_rows_in_contender_order_with_navtest_and_pairs():
     assert F["pairs"]["system"] == [{"pair": "A6-A4", "x": 0.63, "lo": 0.1, "hi": 1.2}]
     assert report_html.page_data({})["final"] is None  # before R16's choice the section says what comes
     assert 'id="final"' in report_html.build(agg, {"title": "t"})
+
+
+def test_r20_rows_give_each_seed_the_means_and_the_contrast_in_points():
+    seeds = lambda run, nd, nt: [{"seed": s, "run": f"{run}{'' if s == 0 else f'-s{s}'}-rlfull", "checkpoint": "rl_2500",  # noqa: E731
+                                  "updates": 2500, "rounds": 1 + (s == 2), "navdev_single_pdms": nd + 0.001 * s,
+                                  "navtest_single_pdms": nt + 0.002 * s} for s in (0, 1, 2)]
+    agg = {"methods": {"r20_seed_replication": {
+        "contenders": {"A4": {"seeds": seeds("a3", 0.8809, 0.8883), "navdev_mean": 0.8819, "navdev_between_seed_sd": 0.001,
+                              "navtest_mean": 0.8903, "navtest_between_seed_sd": 0.002},
+                       "C6": {"seeds": seeds("c", 0.8743, 0.895), "navdev_mean": 0.8753, "navdev_between_seed_sd": 0.001,
+                              "navtest_mean": 0.897, "navtest_between_seed_sd": 0.002}},
+        "C6_minus_A4": {"navtest": {"difference": 0.0067, "ci": [0.0008, 0.0125], "drives": 44, "scenes": 12146},
+                        "navdev": {"difference": -0.0066, "ci": [-0.02, 0.006], "drives": 11, "scenes": 743}},
+        "decided": "2026-11-29 06:00:00"}}}
+    R = report_html.page_data(agg)["r20"]
+    assert [r["x"] for r in R["rows"]] == ["A4", "C6"] and R["name"] == "C6 − A4"
+    a4 = R["rows"][0]
+    assert [q["navtest"] for q in a4["seeds"]] == [88.83, 89.03, 89.23] and a4["seeds"][2]["rounds"] == 2
+    assert (a4["navtestMean"], a4["navtestSd"], a4["navdevMean"]) == (89.03, 0.2, 88.19)
+    assert R["contrast"]["navtest"] == {"x": 0.67, "lo": 0.08, "hi": 1.25, "drives": 44, "scenes": 12146}
+    assert R["contrast"]["navdev"]["x"] == -0.66
+    assert report_html.page_data({})["r20"] is None  # before the driver writes it the block says what comes
+    page = report_html.build(agg, {"title": "t"})
+    assert 'id="r20"' in page and "drawR20" in page
