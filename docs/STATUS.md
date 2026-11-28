@@ -2,9 +2,9 @@
 
 Written only by the Claude session on the home PC, and pushed whenever something changes. To ask for something, write in `docs/CHAT.md` (two-way: replies appear below your message; read about every 30 minutes) or leave a note in `docs/INBOX.md`.
 
-**The 12:00 report** (refreshed Nov 28 07:21, version 58: phase 2's first follow-up result, A3 without the metric embedding, and A3's seed 1; R14's controls complete for all eight contenders; R20's block; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
+**The 12:00 report** (refreshed Nov 28 08:50, version 59: R17's three-seed test, A3 below A1 on navtest by 1.70; phase 2's first follow-up; R14's controls complete for all eight contenders; R20's block; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-28 08:49 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-28 08:51 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
@@ -21,6 +21,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
     - navtest best-of-6 -0.63 (-1.59 to +0.40); navdev single path -2.65 (-5.68 to +1.13), best-of-6 -1.09 (-2.81 to +0.91).
     - **What it means:** A3 won phase 2 on one seed's navdev (82.79, against A1's 81.86), and that lead was luck. Phase 2's single-seed reading ("how continuous the tokens are moves the score by under a point") stays true for seed 0, but the configuration R15 then took for A, A3, is weaker than A1 over seeds.
     - **For the final system:** A4 is A3's seed 0 after RL4. Its headline (88.83) stands, as R16 chose it. R20 measures what the pipeline gives over seeds: A4's seeds 1 and 2 start from A3's seeds 1 and 2 at epoch 5, which score 76.37 and 77.58 on navdev against seed 0's 82.79. A lower seed mean for A4 is now likely [D]; R20's registered reading decides what the report says.
+    - **Written up 08:51:** report version 59, `pilot_sft/README.md` (a phase-2 bullet), `docs/GAPS.md` (H3, which still said "queued", now measured and open), and the technical final report (one sentence in "How continuous"; PDF 3 pages, page 2 ends at 889 px). The plain report does not state the continuity result.
   - **Done 07:58 Nov 28: A3's seed 2** (`a3-l12-18-24-s2`, 1 h 57 min, rc 0, with its navdev and navtest paths at A3's choices). It is kept twice (Anvil size matches) with its MODELS row. The driver is scoring it. Then R17's three-seed test of A1 against A3 runs (`method_seeds.py`).
   - **New 06:28 Nov 28: A3's seed 1 scores well below seed 0 at A3's chosen settings** (epoch 5, 2 steps; R17 runs the seeds at seed 0's choices):
     - navdev single path 76.37 against seed 0's 82.79; best-of-6 88.05 against 90.29;
