@@ -4,17 +4,17 @@ Written only by the Claude session on the home PC, and pushed whenever something
 
 **The 12:00 report** (refreshed Nov 28 01:25, version 57: R14's controls complete for all eight contenders. All seven of D4's selectors gain; of the 49 after RL none has an interval above 0, and after RL the in-fold control beats the cross-fitted selector; R20's block; the final system A4 88.83 on navtest, C6 89.50): https://claude.ai/artifact/N8XRgjfSNwkzoyxfwVfxSQ, a private page that only you can open. It holds charts only, no camera images. Its numbers are in `docs/navsim_eval/results/heads_aggregate_2026-11-20.json`.
 
-**Updated:** 2026-11-28 02:20 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
+**Updated:** 2026-11-28 02:47 EST (times are taken from the clock; earlier labels ran 7-31 min ahead, see below)
 
 Terms (path generator, configuration, training run, layer test, continuity series, single-path PDMS, best-of-6, RL stage, selector, decision rule) are defined in `pilot_sft/EXPERIMENTS.md`, "Definitions".
 
 **Goal to Mon 2026-11-30:** a controlled answer to which generation method the path generator should use (A, B, C or D) and how continuous its output should be. All on H1's same frozen features, the same training data and the same network body, measured by single-path PDMS and best-of-6 on the full navtest, before and after a matched RL stage. Then the best single-path PDMS from the chosen path generator after the full RL stage, with the selector, against H1's 85.6 today. Day-by-day plan: `pilot_sft/EXPERIMENTS.md`, "Compute plan to Monday 2026-11-30". Access from a new device: `docs/ACCESS.md`.
 
 ## Inbox
-- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 28 02:20). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
+- Read up to: no notes yet in `docs/INBOX.md` or `docs/CHAT.md` (last read Nov 28 02:47). `docs/CHAT.md` was added 13:28 at your request; a check every 30 minutes reads both and also updates this page when the desktop logs a new result.
 
 ## Running now
-- **4090 desktop, GPU queue** (one job at a time; read 02:20 Nov 28):
+- **4090 desktop, GPU queue** (one job at a time; read 02:47 Nov 28):
   - **Running: phase 2's first follow-up run** (A3 without the metric embedding, on the GPU since 01:03 Nov 28, about 03:50 [D]). Then A3's seeds 1 and 2 (R17, also R20's A seeds), R20's two C training runs, and R20's four RL stages as their training runs end.
   - **Reordered 02:20 Nov 28 (our own queue, scheduling only):** R20 now runs ahead of phase 2's three remaining follow-up runs: A3 without soft labels, and the 0.05 m and 0.25 m bins. They wait in the desktop's `~/queue/parked` under their own names, so the driver does not queue them twice. A one-shot watcher (`unpark_after_r20.sh`) moves them back the moment nothing else waits, so the GPU does not idle.
     - Why: R20 bears on Monday's method answer (C6 against A4), and those three runs feed no choice. R20's result moves from about Sun 06:00 to about Sun 00:00 [D]; the three runs land about Sun 08:00 instead of Sat 15:00 [D]. Both are before Monday. R20's text in `docs/HEADS_PLAN.md` carries the dated amendment.
@@ -199,7 +199,7 @@ Terms (path generator, configuration, training run, layer test, continuity serie
   - So the final system is about Fri Nov 27 17:00 if every stage stops after one round. R18 adds about 9.3 h for each extra round a contender takes (its full stage and both halves). Then each contender's navtest score.
   - After it: the in-fold controls, seed-1 selectors and ablations (about 36 h), then phase 2's follow-up runs (about 16 h). Phase 6 is not shortened (HEADS_PLAN, "Schedule risks"); quality over schedule.
 - **Desktop CPU, the driver** (`pilot_sft/heads/driver.py`): restarted on 6c341e1 (navtest for every configuration) at 15:41; its first pass was OK, with no failed passes. Both queue runners are up.
-- **Anvil** (Nov 28 00:49): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 903 pending and 53 running jobs (16 nodes mixed); ai 482 and 38. Our wait statistics are unchanged (no job since): gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,056,020.5, GPU 1,370.7, AI 2,764.0. The navtrain cache job is COMPLETED and the navdev one CANCELLED, as before. The Anvil autopilot (`~/xv/overnight.sh`, login07) ended by its time limit on Nov 23 08:39 and stays off. No desktop connections are open: 0 from Anvil to the desktop's address, 0 control sockets, 0 local ssh.
+- **Anvil** (Nov 28 02:47): nothing of ours running or queued; the GPU work stays on the desktop. The gpu partition holds 890 pending and 52 running jobs (16 nodes mixed); ai 476 and 40. Our wait statistics are unchanged (no job since): gpu 36 started, median wait 42.5 h (12.3-133.4 h), 1,816.7 h waiting for 56.0 h running; ai 5 started, median 30.6 h; shared 45 started, median 0.3 h. SU left: CPU 1,056,016.7, GPU 1,370.7, AI 2,764.0. The navtrain cache job is COMPLETED and the navdev one CANCELLED, as before. The Anvil autopilot (`~/xv/overnight.sh`, login07) ended by its time limit on Nov 23 08:39 and stays off. No desktop connections are open: 0 from Anvil to the desktop's address, 0 control sockets, 0 local ssh.
   - **Correction:** the Anvil copy calls counted connections by the desktop's host name. `ss` prints numeric addresses, so that count could never be above 0, and its zeros were not real checks. From this heartbeat the count uses the address, as the connection rule always meant; it reads 0.
 
 ## Latest results
